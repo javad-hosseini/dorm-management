@@ -49,6 +49,12 @@ class Transaction(models.Model):
         blank=True,
         help_text="Bank reference or receipt number (optional)"
     )
+
+    is_approved = models.BooleanField(
+        default=False,
+        help_text="Whether the payment has been approved by supervisor (required for CASH and CARD)"
+    )
+
     created_by = models.ForeignKey(
         'accounts.Supervisor',  # درستش اینه
         on_delete=models.PROTECT,
@@ -68,3 +74,8 @@ class Transaction(models.Model):
     def amount_in_tomans(self):
         """Convert Rials to Tomans for display"""
         return self.amount / 10
+
+    @property
+    def needs_approval(self):
+        """Check if this transaction needs supervisor approval"""
+        return self.payment_method in ['CASH', 'CARD']

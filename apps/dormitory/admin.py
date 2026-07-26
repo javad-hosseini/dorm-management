@@ -1,11 +1,51 @@
-# admin.py - Admin configuration for better management
-from django.contrib import admin
 from django import forms
 from django.apps import apps
+from django.contrib import admin
+from django.contrib.admin import SimpleListFilter
+from django.db.models import Count, Q
+from django.urls import reverse
+from django.utils.html import format_html
+from django.db import models
 
 from .models import Dormitory, Room, Resident, Transaction
 
 
+class VacancyFilter(SimpleListFilter):
+    """Custom filter for room vacancy status"""
+    title = 'Vacancy Status'
+    parameter_name = 'vacancy'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('has_space', '✅ Has Empty Beds'),
+            ('full', '❌ Full'),
+            ('empty', '🏠 Completely Empty'),
+        )
+
+    def queryset(self, request, queryset):
+        # Annotate with current occupant count
+        queryset = queryset.annotate(
+            occupant_count=Count('residents', filter=Q(residents__exit_date__isnull=True))
+        )
+
+        if self.value() == 'has_space':
+            # Rooms with at least one empty bed
+            return queryset.filter(occupant_count__lt=models.F('capacity'))
+
+        if self.value() == 'full':
+            # Rooms at full capacity
+            return queryset.filter(occupant_count__gte=models.F('capacity'))
+
+        if self.value() == 'empty':
+            # Completely empty rooms
+            return queryset.filter(occupant_count=0)
+
+        return queryset
+
+
+# ============================================
+# DORMITORY ADMIN
+# ============================================
 @admin.register(Dormitory)
 class DormitoryAdmin(admin.ModelAdmin):
     list_display = ['name', 'total_rooms', 'occupied_rooms', 'empty_rooms', 'total_active_residents']
@@ -13,26 +53,94 @@ class DormitoryAdmin(admin.ModelAdmin):
     list_filter = ['created_at']
 
 
+# ============================================
+# ROOM ADMIN
+# ============================================
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
-    list_display = ['__str__', 'dormitory', 'room_number', 'capacity', 'current_occupants', 'available_capacity',
-                    'monthly_rent']
-    list_filter = ['dormitory', 'capacity']
+    list_display = [
+        '__str__', 'dormitory', 'room_number', 'capacity',
+        'current_occupants', 'available_capacity', 'vacancy_status', 'monthly_rent'
+    ]
+    list_filter = ['dormitory', 'capacity', VacancyFilter]
     search_fields = ['room_number', 'dormitory__name']
-    empty_value_display = 'Not Available'
+    list_select_related = ['dormitory']
+    actions = ['mark_as_full', 'mark_as_available']
+
+    def vacancy_status(self, obj):
+        """Show colored vacancy status"""
+        available = obj.available_capacity
+        if available > 0:
+            return format_html(
+                '<span style="color: green; font-weight: bold;">{} empty bed{}</span>',
+                available,
+                's' if available > 1 else ''
+            )
+        return format_html('<span style="color: red; font-weight: bold;">Full</span>')
+
+    vacancy_status.short_description = "Vacancy"
+
+    def get_queryset(self, request):
+        """Optimize with resident count annotation"""
+        return super().get_queryset(request).annotate(
+            _occupant_count=Count('residents', filter=Q(residents__exit_date__isnull=True))
+        )
 
 
+# ============================================
+# TRANSACTION INLINE (نشون دادن پرداختی‌ها داخل جزئیات ساکن)
+# ============================================
+class TransactionInline(admin.TabularInline):
+    model = Transaction
+    extra = 0
+    fields = ['amount_display', 'transaction_type', 'payment_method', 'payment_date', 'reference_number',
+              'view_receipt']
+    readonly_fields = ['amount_display', 'view_receipt']
+    can_delete = False
+    show_change_link = True
+    ordering = ['-payment_date']
+
+    def amount_display(self, obj):
+        """Show amount in Tomans"""
+        amount = obj.amount / 10
+        return format_html('<b>{}</b> Tomans', f'{amount:,.1f}')
+
+    amount_display.short_description = "Amount"
+
+    def view_receipt(self, obj):
+        """Link to view receipt details"""
+        if obj.pk:
+            url = reverse('admin:dormitory_transaction_change', args=[obj.pk])
+            return format_html('<a href="{}" target="_blank">📄 View Receipt</a>', url)
+        return "-"
+
+    view_receipt.short_description = "Receipt"
+
+    def has_add_permission(self, request, obj):
+        return False  # از طریق Transaction admin اضافه کن
+
+
+# ============================================
+# RESIDENT ADMIN
+# ============================================
 @admin.register(Resident)
 class ResidentAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'national_code', 'phone_number', 'dormitory', 'room', 'status', 'monthly_payment_day',
-                    'entry_date']
-    list_filter = ['status', 'dormitory', 'entry_date', 'monthly_payment_day']
-    search_fields = ['first_name', 'last_name', 'national_code', 'phone_number']
-    readonly_fields = ['created_at']
+    list_display = [
+        'full_name', 'national_code', 'occupation_badge', 'dormitory_link',
+        'room_number_display', 'status_badge', 'monthly_payment_day',
+        'entry_date', 'payment_summary', 'view_transactions_link'
+    ]
+    list_filter = [
+        'status', 'occupation', 'dormitory', 'entry_date', 'monthly_payment_day'
+    ]
+    search_fields = ['first_name', 'last_name', 'national_code', 'phone_number', 'room__room_number']
+    readonly_fields = ['created_at', 'payment_history_display']
+    list_select_related = ['dormitory', 'room']
+    inlines = [TransactionInline]
 
     fieldsets = (
         ('Personal Information', {
-            'fields': ('first_name', 'last_name', 'national_code', 'phone_number', 'parent_phone_number')
+            'fields': ('first_name', 'last_name', 'national_code', 'occupation', 'phone_number', 'parent_phone_number')
         }),
         ('Room Assignment', {
             'fields': ('dormitory', 'room', 'monthly_payment_day')
@@ -43,9 +151,105 @@ class ResidentAdmin(admin.ModelAdmin):
         ('Administrative', {
             'fields': ('registered_by', 'id_card_image')
         }),
+        ('Payment History', {
+            'fields': ('payment_history_display',),
+            'classes': ('wide',)
+        }),
     )
 
+    # ---- Custom display methods ----
+    def occupation_badge(self, obj):
+        """Colored occupation badge"""
+        colors = {'STUDENT': '#3498db', 'EMPLOYED': '#2ecc71', 'OTHER': '#95a5a6'}
+        color = colors.get(obj.occupation, '#95a5a6')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">{}</span>',
+            color, obj.get_occupation_display()
+        )
 
+    occupation_badge.short_description = "Occupation"
+
+    def status_badge(self, obj):
+        """Colored status badge"""
+        colors = {'ACTIVE': '#27ae60', 'INACTIVE': '#f39c12', 'LEFT': '#e74c3c'}
+        color = colors.get(obj.status, '#95a5a6')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">{}</span>',
+            color, obj.get_status_display()
+        )
+
+    status_badge.short_description = "Status"
+
+    def dormitory_link(self, obj):
+        """Clickable dormitory link"""
+        url = reverse('admin:dormitory_dormitory_change', args=[obj.dormitory_id])
+        return format_html('<a href="{}">{}</a>', url, obj.dormitory.name)
+
+    dormitory_link.short_description = "Dormitory"
+    dormitory_link.admin_order_field = 'dormitory__name'
+
+    def room_number_display(self, obj):
+        """Show room number with link"""
+        if obj.room:
+            url = reverse('admin:dormitory_room_change', args=[obj.room_id])
+            return format_html('<a href="{}">{}</a>', url, obj.room.room_number)
+        return "-"
+
+    room_number_display.short_description = "Room"
+    room_number_display.admin_order_field = 'room__room_number'
+
+    def payment_summary(self, obj):
+        """Show last payment info"""
+        last = obj.transactions.order_by('-payment_date').first()
+        if last:
+            return format_html(
+                'Last: {} Tomans<br><small>{}</small>',
+                f"{last.amount / 10:,.0f}",
+                last.payment_date.strftime('%Y/%m/%d')
+            )
+        return format_html('<span style="color: red;">No payments</span>')
+
+    payment_summary.short_description = "Last Payment"
+
+    def view_transactions_link(self, obj):
+        """Link to filtered transactions list"""
+        url = reverse('admin:dormitory_transaction_changelist') + f'?resident__id__exact={obj.id}'
+        return format_html('<a href="{}">💰 View All Transactions</a>', url)
+
+    view_transactions_link.short_description = "Transactions"
+
+    def payment_history_display(self, obj):
+        """Show payment history in detail view"""
+        transactions = obj.transactions.all().order_by('-payment_date')[:10]
+        if not transactions:
+            return "No transactions recorded."
+
+        rows = []
+        for t in transactions:
+            url = reverse('admin:dormitory_transaction_change', args=[t.id])
+            rows.append(
+                f'<tr>'
+                f'<td><a href="{url}" target="_blank">{t.payment_date.strftime("%Y/%m/%d")}</a></td>'
+                f'<td>{t.get_transaction_type_display()}</td>'
+                f'<td>{t.amount / 10:,.0f} Tomans</td>'
+                f'<td>{t.get_payment_method_display()}</td>'
+                f'</tr>'
+            )
+
+        return format_html(
+            '<table style="width:100%; border-collapse: collapse;">'
+            '<thead><tr style="background:#f5f5f5;">'
+            '<th>Date</th><th>Type</th><th>Amount</th><th>Method</th>'
+            '</tr></thead><tbody>{}</tbody></table>',
+            format_html(''.join(rows))
+        )
+
+    payment_history_display.short_description = "Recent Payments"
+
+
+# ============================================
+# TRANSACTION FORM & ADMIN
+# ============================================
 class TransactionForm(forms.ModelForm):
     amount_tomans = forms.DecimalField(
         max_digits=12,
@@ -60,29 +264,54 @@ class TransactionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        # فقط اگه created_by توی form باشه، queryset رو تنظیم کن
         if 'created_by' in self.fields:
             Supervisor = apps.get_model('accounts', 'Supervisor')
             self.fields['created_by'].queryset = Supervisor.objects.all()
+            self.fields['created_by'].required = True
 
         if self.instance and self.instance.pk:
             self.fields['amount_tomans'].initial = self.instance.amount / 10
+
+        if 'is_approved' in self.fields:
+            self.fields['is_approved'].help_text = "Check to approve. Required for CASH and CARD payments."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        payment_method = cleaned_data.get('payment_method')
+
+        # BANK_TRANSFER and ONLINE_GATEWAY are auto-approved
+        if payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
+            cleaned_data['is_approved'] = True
+
+        return cleaned_data
 
     def save(self, commit=True):
         self.instance.amount = int(self.cleaned_data['amount_tomans'] * 10)
         return super().save(commit)
 
+
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
     form = TransactionForm
-    list_display = ['resident', 'amount_in_tomans_display', 'transaction_type', 'payment_method', 'payment_date',
-                    'dormitory', 'created_by']
-    list_filter = ['transaction_type', 'payment_method', 'dormitory', 'payment_date', 'created_by']
-    search_fields = ['resident__first_name', 'resident__last_name', 'reference_number']
+    list_display = [
+        'receipt_number', 'resident_link', 'amount_display', 'transaction_type_badge',
+        'payment_method', 'approval_status', 'payment_date', 'dormitory', 'created_by'
+    ]
+    list_filter = [
+        'transaction_type', 'payment_method', 'is_approved', 'dormitory',
+        'payment_date', 'created_by'
+    ]
+
+    class Media:
+        css = {
+            'all': ('admin/css/custom_admin.css',)  # یا از inline CSS استفاده کنید
+        }
+
+    search_fields = ['resident__first_name', 'resident__last_name', 'reference_number', 'id']
     date_hierarchy = 'payment_date'
-    readonly_fields = ['created_at']  # created_by رو از اینجا بردار
+    readonly_fields = ['created_at', 'receipt_display']
     list_select_related = ['resident', 'dormitory', 'created_by']
+    actions = ['approve_transactions', 'unapprove_transactions']
 
     fieldsets = (
         ('Transaction Information', {
@@ -91,23 +320,164 @@ class TransactionAdmin(admin.ModelAdmin):
         ('Payment Details', {
             'fields': ('payment_date', 'reference_number', 'description')
         }),
+        ('Approval', {
+            'fields': ('is_approved',),
+            'description': 'Only CASH and CARD payments need to be approved'
+        }),
         ('Audit', {
             'fields': ('created_by', 'created_at'),
         }),
+        ('Receipt Preview', {
+            'fields': ('receipt_display',),
+            'classes': ('wide', 'collapse')
+        }),
     )
 
-    def amount_in_tomans_display(self, obj):
-        """Display amount in Tomans in list view"""
-        return f"{obj.amount / 10:,.1f} Tomans"
+    def receipt_display(self, obj):
+        if not obj.pk:
+            return "Receipt will be shown after saving."
 
-    amount_in_tomans_display.short_description = "Amount"
-    amount_in_tomans_display.admin_order_field = 'amount'
+        # Approval status
+        if obj.payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
+            approval_text = '🔵 Automatic'
+            approval_color = '#3498db'
+        elif obj.is_approved:
+            approval_text = '✅ Approved'
+            approval_color = '#27ae60'
+        else:
+            approval_text = '⏳ Pending Approval'
+            approval_color = '#e74c3c'
+
+        return format_html(
+            '''
+            <div style="border: 2px solid #ddd; padding: 20px; max-width: 400px; font-family: monospace; 
+                        background: #fafafa; border-radius: 5px;">
+                <h3 style="text-align: center; margin-bottom: 15px;">🧾 PAYMENT RECEIPT</h3>
+                <hr>
+                <p><b>Receipt No:</b> RCP-{id:06d}</p>
+                <p><b>Date:</b> {date}</p>
+                <p><b>Resident:</b> {resident}</p>
+                <p><b>Dormitory:</b> {dormitory}</p>
+                <p><b>Room:</b> {room}</p>
+                <p><b>Type:</b> {type}</p>
+                <p><b>Method:</b> {method}</p>
+                <p style="font-size: 18px; font-weight: bold;">Amount: {amount:,.1f} Tomans</p>
+                <p><b>Status:</b> <span style="color: {approval_color};">{approval_text}</span></p>
+                <p><b>Ref:</b> {ref}</p>
+                <p><b>Description:</b> {desc}</p>
+                <hr>
+                <p style="text-align: center; font-size: 11px; color: #888;">
+                    Registered by: {created_by} | {created_at}
+                </p>
+            </div>
+            ''',
+            id=obj.id,
+            date=obj.payment_date.strftime('%Y/%m/%d - %H:%M'),
+            resident=obj.resident.full_name,
+            dormitory=obj.dormitory.name,
+            room=obj.resident.room.room_number if obj.resident.room else 'N/A',
+            type=obj.get_transaction_type_display(),
+            method=obj.get_payment_method_display(),
+            amount=obj.amount / 10,
+            approval_text=approval_text,
+            approval_color=approval_color,
+            ref=obj.reference_number or '-',
+            desc=obj.description or '-',
+            created_by=obj.created_by.full_name if obj.created_by else '-',
+            created_at=obj.created_at.strftime('%Y/%m/%d - %H:%M')
+        )
+
+    receipt_display.short_description = "Receipt"
+
+    def receipt_number(self, obj):
+        """Show transaction ID as receipt number"""
+        return f"RCP-{obj.id:06d}"
+
+    receipt_number.short_description = "Receipt #"
+    receipt_number.admin_order_field = 'id'
+
+    def resident_link(self, obj):
+        """Clickable resident link"""
+        url = reverse('admin:dormitory_resident_change', args=[obj.resident_id])
+        return format_html('<a href="{}">{}</a>', url, obj.resident.full_name)
+
+    resident_link.short_description = "Resident"
+    resident_link.admin_order_field = 'resident__last_name'
+
+    def amount_display(self, obj):
+        """Show amount in Tomans"""
+        amount = obj.amount / 10
+        return format_html('<b>{}</b> Tomans', f'{amount:,.1f}')
+
+    amount_display.short_description = "Amount"
+    amount_display.admin_order_field = 'amount'
+
+    def transaction_type_badge(self, obj):
+        """Colored transaction type - always in one line"""
+        colors = {'RENT': '#3498db', 'DEPOSIT': '#e67e22', 'OTHER': '#7f8c8d'}
+        color = colors.get(obj.transaction_type, '#7f8c8d')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">{}</span>',
+            color, obj.get_transaction_type_display()
+        )
+
+    transaction_type_badge.short_description = "Type"
+
+    transaction_type_badge.short_description = "Type"
+
+    # ---- Custom display methods ----
+    def approval_status(self, obj):
+        """Show approval status with colored badge - always in one line"""
+        # فقط برای نقدی و کارت
+        if obj.payment_method in ['CASH', 'CARD']:
+            if obj.is_approved:
+                return format_html(
+                    '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">✅ Approved</span>'
+                )
+            else:
+                return format_html(
+                    '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">⏳ Pending</span>'
+                )
+        # انتقال بانکی و درگاه آنلاین خودکار تأیید شدن
+        return format_html(
+            '<span style="background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">🔵 Auto</span>'
+        )
+
+    approval_status.short_description = "Approval"
+
+    approval_status.short_description = "Approval"
+
+    # ---- Actions ----
+    @admin.action(description="✅ Approve selected transactions")
+    def approve_transactions(self, request, queryset):
+        # فقط نقدی و کارت که تأیید نشدن رو تأیید کن
+        updated = queryset.filter(
+            payment_method__in=['CASH', 'CARD'],
+            is_approved=False
+        ).update(is_approved=True)
+        self.message_user(request, f"{updated} transaction(s) approved.")
+
+    @admin.action(description="❌ Unapprove selected transactions")
+    def unapprove_transactions(self, request, queryset):
+        updated = queryset.filter(
+            payment_method__in=['CASH', 'CARD'],
+            is_approved=True
+        ).update(is_approved=False)
+        self.message_user(request, f"{updated} transaction(s) unapproved.")
 
     def save_model(self, request, obj, form, change):
-        # اگه created_by خالی بود، کاربر فعلی رو بذار
-        if not obj.created_by_id:
+        # انتقال بانکی و آنلاین خودکار تأیید میشن
+        if obj.payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
+            obj.is_approved = True
+        elif obj.payment_method in ['CASH', 'CARD'] and not change:
+            obj.is_approved = False  # نقدی و کارت اول تأیید نشده هستن
+
+        if not change and not obj.created_by_id:
             Supervisor = apps.get_model('accounts', 'Supervisor')
-            obj.created_by = Supervisor.objects.get(id=request.user.id)
+            try:
+                obj.created_by = Supervisor.objects.get(id=request.user.id)
+            except Supervisor.DoesNotExist:
+                pass
         super().save_model(request, obj, form, change)
 
     def get_form(self, request, obj=None, **kwargs):

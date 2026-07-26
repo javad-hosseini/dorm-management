@@ -1,0 +1,17 @@
+/* Force Type and Approval columns to stay in one line */
+.column-transaction_type_badge,
+.column-approval_status {
+    white-space: nowrap !important;
+    min-width: 120px;
+}
+
+/* Prevent text wrapping in all table cells */
+#result_list td,
+#result_list th {
+    white-space: nowrap;
+}
+
+/* Make table scrollable on small screens */
+#changelist-form .results {
+    overflow-x: auto;
+}

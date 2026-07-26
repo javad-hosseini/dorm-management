@@ -76,6 +76,17 @@ class Resident(models.Model):
         default=Status.ACTIVE,
     )
 
+    occupation = models.CharField(
+        max_length=20,
+        choices=[
+            ('STUDENT', 'Student'),
+            ('EMPLOYED', 'Employed'),
+            ('OTHER', 'Other'),
+        ],
+        default='STUDENT',
+        help_text="Resident occupation type",
+    )
+
     # Registration
     registered_by = models.ForeignKey(
         'accounts.Supervisor',
@@ -135,3 +146,6 @@ class Resident(models.Model):
             payment_date__year=today.year,
             payment_date__month=today.month,
         ).exists()
+
+
+
