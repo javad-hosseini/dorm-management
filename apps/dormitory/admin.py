@@ -2,12 +2,12 @@ from django import forms
 from django.apps import apps
 from django.contrib import admin
 from django.contrib.admin import SimpleListFilter
+from django.db import models
 from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils.html import format_html
-from django.db import models
 
-from .models import Dormitory, Room, Resident, Transaction
+from .models import Dormitory, Room, Resident, Transaction, resident
 
 
 class VacancyFilter(SimpleListFilter):
@@ -56,16 +56,73 @@ class DormitoryAdmin(admin.ModelAdmin):
 # ============================================
 # ROOM ADMIN
 # ============================================
+class RoomForm(forms.ModelForm):
+    """Custom form to convert Tomans to Rials"""
+    monthly_rent_tomans = forms.DecimalField(
+        max_digits=12,
+        decimal_places=1,
+        label="Monthly Rent (Million Tomans)",
+        help_text="Enter rent in Million Tomans (e.g., 4 for 4,000,000 Tomans, 2.5 for 2,500,000 Tomans)"
+    )
+
+    class Meta:
+        model = Room
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # تبدیل ریال به میلیون تومان
+            self.fields['monthly_rent_tomans'].initial = self.instance.monthly_rent / 10000000
+
+    def save(self, commit=True):
+        # تبدیل میلیون تومان به ریال
+        self.instance.monthly_rent = int(self.cleaned_data['monthly_rent_tomans'] * 10000000)
+        return super().save(commit)
+
+    def lookups(self, request, model_admin):
+        return [
+            ('has_space', 'Has empty beds'),
+            ('full', 'Full'),
+            ('empty', 'Completely empty'),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'has_space':
+            return queryset.annotate(
+                occ=Count('residents', filter=Q(residents__exit_date__isnull=True))
+            ).filter(capacity__gt=models.F('occ'))
+        if self.value() == 'full':
+            return queryset.annotate(
+                occ=Count('residents', filter=Q(residents__exit_date__isnull=True))
+            ).filter(capacity__lte=models.F('occ'))
+        if self.value() == 'empty':
+            return queryset.annotate(
+                occ=Count('residents', filter=Q(residents__exit_date__isnull=True))
+            ).filter(occ=0)
+        return queryset
+
+
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
+    form = RoomForm
     list_display = [
         '__str__', 'dormitory', 'room_number', 'capacity',
-        'current_occupants', 'available_capacity', 'vacancy_status', 'monthly_rent'
+        'current_occupants', 'available_capacity', 'vacancy_status', 'monthly_rent_display'
     ]
     list_filter = ['dormitory', 'capacity', VacancyFilter]
     search_fields = ['room_number', 'dormitory__name']
     list_select_related = ['dormitory']
     actions = ['mark_as_full', 'mark_as_available']
+
+    def monthly_rent_display(self, obj):
+        """Show rent in Million Tomans"""
+        return f"{obj.monthly_rent / 10000000:,.1f} Million Tomans"
+
+    monthly_rent_display.short_description = "Monthly Rent"
+
+    monthly_rent_display.short_description = "Monthly Rent"
+    monthly_rent_display.admin_order_field = 'monthly_rent'
 
     def vacancy_status(self, obj):
         """Show colored vacancy status"""
@@ -85,6 +142,21 @@ class RoomAdmin(admin.ModelAdmin):
         return super().get_queryset(request).annotate(
             _occupant_count=Count('residents', filter=Q(residents__exit_date__isnull=True))
         )
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Hide the actual monthly_rent field
+        if 'monthly_rent' in form.base_fields:
+            form.base_fields['monthly_rent'].widget = forms.HiddenInput()
+        return form
+
+    @admin.action(description="Mark as full")
+    def mark_as_full(self, request, queryset):
+        pass
+
+    @admin.action(description="Mark as available")
+    def mark_as_available(self, request, queryset):
+        pass
 
 
 # ============================================
@@ -128,10 +200,32 @@ class ResidentAdmin(admin.ModelAdmin):
     list_display = [
         'full_name', 'national_code', 'occupation_badge', 'dormitory_link',
         'room_number_display', 'status_badge', 'monthly_payment_day',
-        'entry_date', 'payment_summary', 'view_transactions_link'
+        'entry_date', 'payment_summary', 'view_transactions_link',
+        'settled_until', 'debt_status',
+
     ]
+
+    fieldsets = (
+        ('Personal Information', {
+            'fields': ('first_name', 'last_name', 'national_code', 'occupation', 'phone_number', 'parent_phone_number')
+        }),
+        ('Room Assignment', {
+            'fields': ('dormitory', 'room', 'monthly_payment_day')
+        }),
+        ('Status & Dates', {
+            'fields': ('entry_date', 'exit_date', 'settled_until', 'status')
+        }),
+        ('Administrative', {
+            'fields': ('registered_by', 'id_card_image')
+        }),
+        ('Payment History', {
+            'fields': ('payment_history_display',),
+            'classes': ('wide',)
+        }),
+    )
     list_filter = [
-        'status', 'occupation', 'dormitory', 'entry_date', 'monthly_payment_day'
+        'status', 'occupation', 'dormitory', 'entry_date', 'monthly_payment_day', 'settled_until'
+
     ]
     search_fields = ['first_name', 'last_name', 'national_code', 'phone_number', 'room__room_number']
     readonly_fields = ['created_at', 'payment_history_display']
@@ -146,7 +240,7 @@ class ResidentAdmin(admin.ModelAdmin):
             'fields': ('dormitory', 'room', 'monthly_payment_day')
         }),
         ('Status & Dates', {
-            'fields': ('entry_date', 'exit_date', 'status')
+            'fields': ('entry_date', 'exit_date', 'settled_until', 'status')
         }),
         ('Administrative', {
             'fields': ('registered_by', 'id_card_image')
@@ -156,6 +250,18 @@ class ResidentAdmin(admin.ModelAdmin):
             'classes': ('wide',)
         }),
     )
+
+    def debt_status(self, obj):
+        """Show debt status with color"""
+        if obj.is_in_debt:
+            return format_html(
+                '<span style="color: red; font-weight: bold;">⚠️ In Debt</span>'
+            )
+        return format_html(
+            '<span style="color: green;">✅ Settled</span>'
+        )
+
+    debt_status.short_description = "Debt Status"
 
     # ---- Custom display methods ----
     def occupation_badge(self, obj):
@@ -264,6 +370,8 @@ class TransactionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if 'applicable_rent' in self.fields:
+            self.fields['applicable_rent'].widget = forms.HiddenInput()
         if 'created_by' in self.fields:
             Supervisor = apps.get_model('accounts', 'Supervisor')
             self.fields['created_by'].queryset = Supervisor.objects.all()
@@ -278,10 +386,16 @@ class TransactionForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         payment_method = cleaned_data.get('payment_method')
+        transaction_type = cleaned_data.get('transaction_type')  # این خط رو اضافه کن
+        resident = cleaned_data.get('resident')
 
         # BANK_TRANSFER and ONLINE_GATEWAY are auto-approved
         if payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
             cleaned_data['is_approved'] = True
+
+        # اگه اجاره هست، قیمت اتاق رو کپی کن
+        if transaction_type == 'RENT' and resident and resident.room:
+            cleaned_data['applicable_rent'] = resident.room.monthly_rent
 
         return cleaned_data
 
@@ -294,9 +408,11 @@ class TransactionForm(forms.ModelForm):
 class TransactionAdmin(admin.ModelAdmin):
     form = TransactionForm
     list_display = [
-        'receipt_number', 'resident_link', 'amount_display', 'transaction_type_badge',
-        'payment_method', 'approval_status', 'payment_date', 'dormitory', 'created_by'
+        'receipt_number', 'resident_link', 'amount_display', 'applicable_rent_display',
+        'transaction_type_badge', 'payment_method', 'approval_status',
+        'payment_date', 'dormitory', 'created_by'
     ]
+
     list_filter = [
         'transaction_type', 'payment_method', 'is_approved', 'dormitory',
         'payment_date', 'created_by'
@@ -361,6 +477,7 @@ class TransactionAdmin(admin.ModelAdmin):
                 <p><b>Room:</b> {room}</p>
                 <p><b>Type:</b> {type}</p>
                 <p><b>Method:</b> {method}</p>
+                {rate_line}
                 <p style="font-size: 18px; font-weight: bold;">Amount: {amount:,.1f} Tomans</p>
                 <p><b>Status:</b> <span style="color: {approval_color};">{approval_text}</span></p>
                 <p><b>Ref:</b> {ref}</p>
@@ -378,6 +495,10 @@ class TransactionAdmin(admin.ModelAdmin):
             room=obj.resident.room.room_number if obj.resident.room else 'N/A',
             type=obj.get_transaction_type_display(),
             method=obj.get_payment_method_display(),
+            rate_line=format_html(
+                '<p><b>Room Rate:</b> {} Tomans</p>',
+                f"{obj.applicable_rent / 10:,.1f}"
+            ) if obj.applicable_rent else '',
             amount=obj.amount / 10,
             approval_text=approval_text,
             approval_color=approval_color,
@@ -395,6 +516,15 @@ class TransactionAdmin(admin.ModelAdmin):
 
     receipt_number.short_description = "Receipt #"
     receipt_number.admin_order_field = 'id'
+
+    def applicable_rent_display(self, obj):
+        """Show applicable rent in Tomans"""
+        if obj.applicable_rent:
+            return f"{obj.applicable_rent / 10:,.1f} Tomans"
+        return "-"
+
+    applicable_rent_display.short_description = "Room Rate"
+    applicable_rent_display.admin_order_field = 'applicable_rent'
 
     def resident_link(self, obj):
         """Clickable resident link"""

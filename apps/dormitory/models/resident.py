@@ -24,12 +24,12 @@ class Resident(models.Model):
     )
 
     phone_number = models.CharField(
-        max_length=15,
+        max_length=11,
         unique=True,
     )
 
     parent_phone_number = models.CharField(
-        max_length=15,
+        max_length=11,
         blank=True,
         null=True,
     )
@@ -74,6 +74,12 @@ class Resident(models.Model):
         max_length=10,
         choices=Status.choices,
         default=Status.ACTIVE,
+    )
+
+    settled_until = jmodels.jDateField(
+        null=True,
+        blank=True,
+        help_text="Date until which the resident has fully paid"
     )
 
     occupation = models.CharField(
@@ -129,6 +135,14 @@ class Resident(models.Model):
                 and self.exit_date is None
         )
 
+    @property
+    def is_in_debt(self):
+        """Check if resident has unpaid rent"""
+        if not self.settled_until:
+            return True  # هیچوقت تسویه نکرده
+        today = date.today()
+        return self.settled_until < today
+
     def get_recent_transactions(self, days: int = 30):
         """Return transactions from the last N days"""
         since_date = date.today() - timedelta(days=days)
@@ -146,6 +160,3 @@ class Resident(models.Model):
             payment_date__year=today.year,
             payment_date__month=today.month,
         ).exists()
-
-
-

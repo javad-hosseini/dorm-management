@@ -5,7 +5,7 @@ from django.db import models
 class Room(models.Model):
     """Represents a room within a dormitory"""
     dormitory = models.ForeignKey(
-        'dormitory.Dormitory',  # String reference - no import needed
+        'dormitory.Dormitory',
         on_delete=models.CASCADE,
         related_name='rooms'
     )
@@ -14,9 +14,10 @@ class Room(models.Model):
         validators=[MinValueValidator(1)],
         help_text="Maximum number of residents allowed"
     )
-    monthly_rent = models.PositiveIntegerField(
+    # ذخیره به ریال - کاربر به تومان وارد می‌کنه
+    monthly_rent = models.PositiveBigIntegerField(
         default=0,
-        help_text="Monthly rent amount in local currency"
+        help_text="Monthly rent in Rials (automatically converted from Tomans)"
     )
 
     class Meta:
@@ -29,9 +30,14 @@ class Room(models.Model):
         return f"{self.dormitory.name} - Room {self.room_number}"
 
     @property
+    def monthly_rent_tomans(self):
+        """Show rent in Tomans"""
+        return self.monthly_rent / 10
+
+    @property
     def current_occupants(self) -> int:
         """Returns count of current active residents"""
-        return self.residents.filter(  # type: ignore[attr-defined]
+        return self.residents.filter(
             exit_date__isnull=True
         ).count()
 
@@ -52,6 +58,10 @@ class Room(models.Model):
 
     def get_current_residents(self):
         """Get list of current active residents"""
-        return self.residents.filter(  # type: ignore[attr-defined]
+        return self.residents.filter(
             exit_date__isnull=True
         )
+
+    def get_current_rate(self):
+        """Get the current monthly rent in Rials"""
+        return self.monthly_rent

@@ -7,8 +7,7 @@ class Transaction(models.Model):
 
     class TransactionType(models.TextChoices):
         RENT = 'RENT', 'Monthly Rent'
-        DEPOSIT = 'DEPOSIT', 'Security Deposit'
-        OTHER = 'OTHER', 'Other Payment'
+        DEPOSIT = 'DEPOSIT', 'Deposit'
 
     class PaymentMethod(models.TextChoices):
         CASH = 'CASH', 'Cash'
@@ -48,6 +47,12 @@ class Transaction(models.Model):
         max_length=255,
         blank=True,
         help_text="Bank reference or receipt number (optional)"
+    )
+
+    applicable_rent = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        help_text="Room rent at the time of this transaction (in Rials). Only for RENT type."
     )
 
     is_approved = models.BooleanField(
