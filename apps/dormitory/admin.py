@@ -7,7 +7,7 @@ from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import Dormitory, Room, Resident, Transaction, resident
+from .models import Dormitory, Room, Resident, Transaction
 
 
 class VacancyFilter(SimpleListFilter):
@@ -60,7 +60,7 @@ class RoomForm(forms.ModelForm):
     """Custom form to convert Tomans to Rials"""
     monthly_rent_tomans = forms.DecimalField(
         max_digits=12,
-        decimal_places=1,
+        decimal_places=3,
         label="Monthly Rent (Million Tomans)",
         help_text="Enter rent in Million Tomans (e.g., 4 for 4,000,000 Tomans, 2.5 for 2,500,000 Tomans)"
     )
@@ -359,7 +359,7 @@ class ResidentAdmin(admin.ModelAdmin):
 class TransactionForm(forms.ModelForm):
     amount_tomans = forms.DecimalField(
         max_digits=12,
-        decimal_places=1,
+        decimal_places=3,
         label="Amount (Tomans)",
         help_text="Enter amount in Tomans (e.g., 2.5 for 2,500,000 Tomans)"
     )
@@ -378,10 +378,11 @@ class TransactionForm(forms.ModelForm):
             self.fields['created_by'].required = True
 
         if self.instance and self.instance.pk:
-            self.fields['amount_tomans'].initial = self.instance.amount / 10
+            # تبدیل ریال به میلیون تومان
+            self.fields['amount_tomans'].initial = self.instance.amount / 10000000
 
         if 'is_approved' in self.fields:
-            self.fields['is_approved'].help_text = "Check to approve. Required for CASH and CARD payments."
+            self.fields['is_approved'].help_text = "Check to approve. Required for CASH and CARD tranfers."
 
     def clean(self):
         cleaned_data = super().clean()
@@ -400,7 +401,8 @@ class TransactionForm(forms.ModelForm):
         return cleaned_data
 
     def save(self, commit=True):
-        self.instance.amount = int(self.cleaned_data['amount_tomans'] * 10)
+        # تبدیل میلیون تومان به ریال
+        self.instance.amount = int(self.cleaned_data['amount_tomans'] * 10000000)
         return super().save(commit)
 
 
@@ -418,11 +420,6 @@ class TransactionAdmin(admin.ModelAdmin):
         'payment_date', 'created_by'
     ]
 
-    class Media:
-        css = {
-            'all': ('admin/css/custom_admin.css',)  # یا از inline CSS استفاده کنید
-        }
-
     search_fields = ['resident__first_name', 'resident__last_name', 'reference_number', 'id']
     date_hierarchy = 'payment_date'
     readonly_fields = ['created_at', 'receipt_display']
@@ -438,7 +435,7 @@ class TransactionAdmin(admin.ModelAdmin):
         }),
         ('Approval', {
             'fields': ('is_approved',),
-            'description': 'Only CASH and CARD payments need to be approved'
+            'description': 'CASH and BANK_TRANSFER payments need approval'
         }),
         ('Audit', {
             'fields': ('created_by', 'created_at'),
@@ -453,8 +450,7 @@ class TransactionAdmin(admin.ModelAdmin):
         if not obj.pk:
             return "Receipt will be shown after saving."
 
-        # Approval status
-        if obj.payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
+        if obj.payment_method in ['CARD', 'ONLINE_GATEWAY']:
             approval_text = '🔵 Automatic'
             approval_color = '#3498db'
         elif obj.is_approved:
@@ -478,7 +474,7 @@ class TransactionAdmin(admin.ModelAdmin):
                 <p><b>Type:</b> {type}</p>
                 <p><b>Method:</b> {method}</p>
                 {rate_line}
-                <p style="font-size: 18px; font-weight: bold;">Amount: {amount:,.1f} Tomans</p>
+                <p style="font-size: 18px; font-weight: bold;">Amount: {amount:,.3f}M Tomans</p>
                 <p><b>Status:</b> <span style="color: {approval_color};">{approval_text}</span></p>
                 <p><b>Ref:</b> {ref}</p>
                 <p><b>Description:</b> {desc}</p>
@@ -496,10 +492,10 @@ class TransactionAdmin(admin.ModelAdmin):
             type=obj.get_transaction_type_display(),
             method=obj.get_payment_method_display(),
             rate_line=format_html(
-                '<p><b>Room Rate:</b> {} Tomans</p>',
-                f"{obj.applicable_rent / 10:,.1f}"
+                '<p><b>Room Rate:</b> {}M Tomans</p>',
+                f"{obj.applicable_rent / 10000000:,.3f}"
             ) if obj.applicable_rent else '',
-            amount=obj.amount / 10,
+            amount=obj.amount / 10000000,
             approval_text=approval_text,
             approval_color=approval_color,
             ref=obj.reference_number or '-',
@@ -511,23 +507,20 @@ class TransactionAdmin(admin.ModelAdmin):
     receipt_display.short_description = "Receipt"
 
     def receipt_number(self, obj):
-        """Show transaction ID as receipt number"""
         return f"RCP-{obj.id:06d}"
 
     receipt_number.short_description = "Receipt #"
     receipt_number.admin_order_field = 'id'
 
     def applicable_rent_display(self, obj):
-        """Show applicable rent in Tomans"""
         if obj.applicable_rent:
-            return f"{obj.applicable_rent / 10:,.1f} Tomans"
+            return f"{obj.applicable_rent / 10000000:,.3f}M Tomans"
         return "-"
 
     applicable_rent_display.short_description = "Room Rate"
     applicable_rent_display.admin_order_field = 'applicable_rent'
 
     def resident_link(self, obj):
-        """Clickable resident link"""
         url = reverse('admin:dormitory_resident_change', args=[obj.resident_id])
         return format_html('<a href="{}">{}</a>', url, obj.resident.full_name)
 
@@ -535,15 +528,13 @@ class TransactionAdmin(admin.ModelAdmin):
     resident_link.admin_order_field = 'resident__last_name'
 
     def amount_display(self, obj):
-        """Show amount in Tomans"""
-        amount = obj.amount / 10
-        return format_html('<b>{}</b> Tomans', f'{amount:,.1f}')
+        amount = obj.amount / 10000000
+        return format_html('<b>{}</b>M Tomans', f'{amount:,.3f}')
 
     amount_display.short_description = "Amount"
     amount_display.admin_order_field = 'amount'
 
     def transaction_type_badge(self, obj):
-        """Colored transaction type - always in one line"""
         colors = {'RENT': '#3498db', 'DEPOSIT': '#e67e22', 'OTHER': '#7f8c8d'}
         color = colors.get(obj.transaction_type, '#7f8c8d')
         return format_html(
@@ -553,13 +544,9 @@ class TransactionAdmin(admin.ModelAdmin):
 
     transaction_type_badge.short_description = "Type"
 
-    transaction_type_badge.short_description = "Type"
-
-    # ---- Custom display methods ----
     def approval_status(self, obj):
-        """Show approval status with colored badge - always in one line"""
-        # فقط برای نقدی و کارت
-        if obj.payment_method in ['CASH', 'CARD']:
+        # CASH و BANK_TRANSFER نیاز به تأیید دارن
+        if obj.payment_method in ['CASH', 'BANK_TRANSFER']:
             if obj.is_approved:
                 return format_html(
                     '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">✅ Approved</span>'
@@ -568,39 +555,38 @@ class TransactionAdmin(admin.ModelAdmin):
                 return format_html(
                     '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">⏳ Pending</span>'
                 )
-        # انتقال بانکی و درگاه آنلاین خودکار تأیید شدن
+        # CARD و ONLINE_GATEWAY خودکار تأیید میشن
         return format_html(
             '<span style="background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">🔵 Auto</span>'
         )
 
     approval_status.short_description = "Approval"
 
-    approval_status.short_description = "Approval"
-
-    # ---- Actions ----
     @admin.action(description="✅ Approve selected transactions")
     def approve_transactions(self, request, queryset):
-        # فقط نقدی و کارت که تأیید نشدن رو تأیید کن
+        # فقط CASH و BANK_TRANSFER که تأیید نشدن
         updated = queryset.filter(
-            payment_method__in=['CASH', 'CARD'],
+            payment_method__in=['CASH', 'BANK_TRANSFER'],
             is_approved=False
         ).update(is_approved=True)
         self.message_user(request, f"{updated} transaction(s) approved.")
 
     @admin.action(description="❌ Unapprove selected transactions")
     def unapprove_transactions(self, request, queryset):
+        # فقط CASH و BANK_TRANSFER که تأیید شدن
         updated = queryset.filter(
-            payment_method__in=['CASH', 'CARD'],
+            payment_method__in=['CASH', 'BANK_TRANSFER'],
             is_approved=True
         ).update(is_approved=False)
         self.message_user(request, f"{updated} transaction(s) unapproved.")
 
     def save_model(self, request, obj, form, change):
-        # انتقال بانکی و آنلاین خودکار تأیید میشن
-        if obj.payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
+        # CARD و ONLINE_GATEWAY خودکار تأیید میشن
+        if obj.payment_method in ['CARD', 'ONLINE_GATEWAY']:
             obj.is_approved = True
-        elif obj.payment_method in ['CASH', 'CARD'] and not change:
-            obj.is_approved = False  # نقدی و کارت اول تأیید نشده هستن
+        # CASH و BANK_TRANSFER اول تأیید نشده هستن
+        elif obj.payment_method in ['CASH', 'BANK_TRANSFER'] and not change:
+            obj.is_approved = False
 
         if not change and not obj.created_by_id:
             Supervisor = apps.get_model('accounts', 'Supervisor')
