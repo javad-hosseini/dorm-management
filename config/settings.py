@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'apps.dormitory.apps.DormitoryConfig',
     'apps.accounts.apps.AccountsConfig',
     'django_jalali',
+    'apps.archive.apps.ArchiveConfig',
 
 ]
 

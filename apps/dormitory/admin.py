@@ -6,7 +6,7 @@ from django.db import models
 from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils.html import format_html
-
+from apps.archive.models import ArchivedResident, ArchivedTransaction
 from .models import Dormitory, Room, Resident, Transaction
 
 
@@ -204,6 +204,7 @@ class ResidentAdmin(admin.ModelAdmin):
         'settled_until', 'debt_status',
 
     ]
+    actions = ['archive_left_residents']
 
     fieldsets = (
         ('Personal Information', {
@@ -351,6 +352,64 @@ class ResidentAdmin(admin.ModelAdmin):
         )
 
     payment_history_display.short_description = "Recent Payments"
+
+    @admin.action(description="📦 Archive selected LEFT residents and their transactions")
+    def archive_left_residents(self, request, queryset):
+        # فقط کسایی که LEFT هستن
+        left_residents = queryset.filter(status='LEFT')
+
+        if not left_residents.exists():
+            self.message_user(request, "❌ No LEFT residents selected.", level='error')
+            return
+
+        archived_count = 0
+        transactions_count = 0
+
+        for resident in left_residents:
+            # آرشیو تراکنش‌ها
+            for transaction in resident.transactions.all():
+                ArchivedTransaction.objects.create(
+                    resident_name=resident.full_name,
+                    amount=transaction.amount,
+                    transaction_type=transaction.transaction_type,
+                    payment_method=transaction.payment_method,
+                    description=transaction.description,
+                    payment_date=transaction.payment_date,
+                    reference_number=transaction.reference_number,
+                    applicable_rent=transaction.applicable_rent,
+                    is_approved=transaction.is_approved,
+                    dormitory_name=transaction.dormitory.name,
+                    original_id=transaction.id,
+                    original_resident_id=resident.id,
+                )
+                transactions_count += 1
+
+            # آرشیو ساکن
+            ArchivedResident.objects.create(
+                first_name=resident.first_name,
+                last_name=resident.last_name,
+                national_code=resident.national_code,
+                phone_number=resident.phone_number,
+                parent_phone_number=resident.parent_phone_number,
+                occupation=resident.occupation,
+                entry_date=resident.entry_date,
+                exit_date=resident.exit_date,
+                monthly_payment_day=resident.monthly_payment_day,
+                status=resident.status,
+                original_id=resident.id,
+                dormitory_name=resident.dormitory.name,
+                room_number=resident.room.room_number if resident.room else None,
+            )
+
+            # حذف تراکنش‌ها و ساکن اصلی
+            resident.transactions.all().delete()
+            resident.delete()
+            archived_count += 1
+
+        self.message_user(
+            request,
+            f"✅ {archived_count} residents and {transactions_count} transactions archived and removed."
+        )
 
 
 # ============================================
