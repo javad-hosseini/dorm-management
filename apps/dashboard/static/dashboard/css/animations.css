@@ -1,0 +1,30 @@
+/* ===================================================================
+   ANIMATIONS — all keyframes + stagger utility classes live here
+=================================================================== */
+
+@keyframes float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-6px); } }
+.float{ animation:float 5s ease-in-out infinite; }
+
+@keyframes fadeInUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
+@keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
+@keyframes popIn{ from{ opacity:0; transform:scale(.85); } to{ opacity:1; transform:none; } }
+
+.animate-fadeInUp{ animation:fadeInUp var(--dur-med) var(--ease-out) both; }
+.animate-fadeIn{ animation:fadeIn var(--dur-med) var(--ease-out) both; }
+.animate-popIn{ animation:popIn var(--dur-med) var(--ease-spring) both; }
+
+/* Stagger helper — pair with inline style="--i:N" set by JS, or use nth-child */
+.stagger > *{ animation:fadeInUp var(--dur-med) var(--ease-out) both; }
+.stagger > *:nth-child(1){ animation-delay:.02s; }
+.stagger > *:nth-child(2){ animation-delay:.05s; }
+.stagger > *:nth-child(3){ animation-delay:.08s; }
+.stagger > *:nth-child(4){ animation-delay:.11s; }
+.stagger > *:nth-child(5){ animation-delay:.14s; }
+.stagger > *:nth-child(6){ animation-delay:.17s; }
+.stagger > *:nth-child(n+7){ animation-delay:.2s; }
+
+@keyframes pulseGlow{ 0%,100%{ box-shadow:0 0 0 0 var(--brand-glow); } 50%{ box-shadow:0 0 0 8px transparent; } }
+.pulse-glow{ animation:pulseGlow 2.4s ease-in-out infinite; }
+
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.spin{ animation:spin 1s linear infinite; }

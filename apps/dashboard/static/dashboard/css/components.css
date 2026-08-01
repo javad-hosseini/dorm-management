@@ -1,0 +1,192 @@
+/* ===================================================================
+   COMPONENTS
+=================================================================== */
+
+/* --- Glass surfaces --- */
+.glass{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  position:relative;
+}
+.glass-strong{
+  background:var(--glass-bg-strong);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border-strong);
+  box-shadow:var(--glass-shadow);
+}
+/* subtle top-edge light reflection, the "liquid glass" highlight */
+.glass::before{
+  content:"";
+  position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+  border-radius:inherit; pointer-events:none;
+}
+
+.text-muted{ color:var(--text-2); }
+.text-faint{ color:var(--text-3); }
+
+/* --- Buttons --- */
+.btn{
+  position:relative; overflow:hidden; isolation:isolate;
+  display:inline-flex; align-items:center; gap:.5rem;
+  cursor:pointer; user-select:none;
+  transition:transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-med) var(--ease-out);
+}
+.btn:active{ transform:translateY(1px) scale(.98); }
+.btn-primary{
+  background:linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  color:#fff; border:1px solid rgba(255,255,255,.25);
+  box-shadow:0 10px 30px var(--brand-glow), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 16px 40px var(--brand-glow); }
+.btn-ghost{
+  background:var(--glass-bg); color:var(--text-1); border:1px solid var(--glass-border);
+}
+.btn-ghost:hover{ background:var(--glass-bg-strong); color:var(--text-0); }
+
+/* ripple */
+.btn .ripple{
+  position:absolute; border-radius:50%; transform:scale(0);
+  background:rgba(255,255,255,.5); pointer-events:none;
+  animation: rippleAnim .6s var(--ease-out);
+}
+@keyframes rippleAnim{ to{ transform:scale(3.2); opacity:0; } }
+
+.icon-btn{
+  width:2.5rem; height:2.5rem; border-radius:999px; display:flex; align-items:center; justify-content:center;
+  background:var(--glass-bg); border:1px solid var(--glass-border); color:var(--text-1);
+  transition:transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.icon-btn:hover{ transform:translateY(-2px) rotate(-4deg); background:var(--glass-bg-strong); color:var(--text-0); }
+
+/* --- Inputs (floating label style) --- */
+.field{ position:relative; }
+.field input, .field select{
+  width:100%; background:var(--glass-bg); border:1px solid var(--glass-border);
+  color:var(--text-0); border-radius:1rem; padding:.85rem 1rem;
+  font-size:.85rem; transition:border-color var(--dur-fast), box-shadow var(--dur-fast), background var(--dur-fast);
+}
+.field input::placeholder{ color:var(--text-2); }
+.field input:focus, .field select:focus{
+  border-color:var(--brand-500); box-shadow:0 0 0 4px var(--brand-glow); background:var(--glass-bg-strong);
+  outline:none;
+}
+.field label{
+  display:block; font-size:.68rem; color:var(--text-2); margin-bottom:.35rem; font-weight:600;
+}
+
+/* --- Tabs --- */
+.tab-btn{
+  position:relative; font-weight:700; font-size:.85rem; padding:.75rem 1.5rem; border-radius:1.1rem;
+  color:var(--text-2); cursor:pointer; transition:color var(--dur-fast);
+  z-index:1;
+}
+.tab-btn.active{ color:#fff; }
+.tab-indicator{
+  position:absolute; top:.35rem; bottom:.35rem; border-radius:1.1rem;
+  background:linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  box-shadow:0 8px 24px var(--brand-glow);
+  transition:transform var(--dur-med) var(--ease-spring), width var(--dur-med) var(--ease-spring);
+  z-index:0;
+}
+
+/* --- Section transitions (tab switching) --- */
+.tab-section{ animation: sectionIn var(--dur-med) var(--ease-out); }
+@keyframes sectionIn{ from{ opacity:0; transform:translateY(10px) scale(.99); } to{ opacity:1; transform:none; } }
+
+/* --- KPI cards --- */
+.kpi-card{
+  border-radius:var(--radius-md); padding:1.1rem 1.3rem; position:relative; overflow:hidden;
+  transition:transform var(--dur-med) var(--ease-spring), box-shadow var(--dur-med);
+  cursor:default;
+}
+.kpi-card:hover{ transform:translateY(-4px); box-shadow:0 24px 50px rgba(0,0,0,.35); }
+.kpi-card .kpi-glow{
+  position:absolute; inset:-40% -40% auto auto; width:60%; height:60%; border-radius:50%;
+  filter:blur(40px); opacity:.35; pointer-events:none;
+}
+.kpi-trend{ display:inline-flex; align-items:center; gap:.25rem; font-size:.68rem; font-weight:700; border-radius:999px; padding:.15rem .55rem; }
+.kpi-trend.up{ color:var(--success-500); background:color-mix(in srgb, var(--success-500) 15%, transparent); }
+.kpi-trend.down{ color:var(--danger-500); background:color-mix(in srgb, var(--danger-500) 15%, transparent); }
+
+/* --- Cards: students / rooms --- */
+.entity-card{
+  border-radius:var(--radius-md); cursor:pointer;
+  transition:transform var(--dur-med) var(--ease-spring), box-shadow var(--dur-med), border-color var(--dur-fast);
+  animation: cardIn var(--dur-med) var(--ease-out) both;
+}
+.entity-card:hover{ transform:translateY(-5px) scale(1.012); box-shadow:0 26px 55px rgba(0,0,0,.4); border-color:var(--glass-border-strong); }
+@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.97); } to{ opacity:1; transform:none; } }
+
+.status-pill{ font-size:.65rem; padding:.3rem .7rem; border-radius:999px; font-weight:700; transition:transform var(--dur-fast); }
+.entity-card:hover .status-pill{ transform:scale(1.05); }
+
+/* --- Room occupancy ring --- */
+.ring-wrap{ position:relative; width:56px; height:56px; }
+.ring-wrap svg{ transform:rotate(-90deg); }
+.ring-bg{ stroke:var(--divider); fill:none; }
+.ring-fill{ fill:none; stroke-linecap:round; transition:stroke-dashoffset 1s var(--ease-out); }
+.ring-label{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:.65rem; font-weight:800; }
+
+/* --- Modal --- */
+.modal-backdrop{
+  position:fixed; inset:0; z-index:60; background:rgba(3,6,14,.55); backdrop-filter:blur(10px);
+  opacity:0; transition:opacity var(--dur-med) var(--ease-smooth);
+}
+.modal-backdrop.show{ opacity:1; }
+.modal-panel{
+  transform:scale(.92) translateY(24px); opacity:0;
+  transition:transform var(--dur-med) var(--ease-spring), opacity var(--dur-med) var(--ease-out);
+}
+.modal-backdrop.show .modal-panel{ transform:none; opacity:1; }
+
+/* --- Toasts --- */
+#toast-root{ position:fixed; top:1.25rem; left:50%; transform:translateX(-50%); z-index:80; display:flex; flex-direction:column; gap:.6rem; width:min(92vw,380px); }
+.toast{
+  border-radius:1.1rem; padding:.85rem 1.1rem; display:flex; align-items:center; gap:.65rem; font-size:.8rem; font-weight:600;
+  animation: toastIn .45s var(--ease-spring);
+}
+.toast.leaving{ animation: toastOut .3s var(--ease-out) forwards; }
+@keyframes toastIn{ from{ opacity:0; transform:translateY(-14px) scale(.95); } to{ opacity:1; transform:none; } }
+@keyframes toastOut{ to{ opacity:0; transform:translateY(-10px) scale(.95); } }
+.toast-success{ border:1px solid color-mix(in srgb, var(--success-500) 45%, transparent); }
+.toast-warning{ border:1px solid color-mix(in srgb, var(--warning-500) 45%, transparent); }
+.toast-danger{ border:1px solid color-mix(in srgb, var(--danger-500) 45%, transparent); }
+.toast-info{ border:1px solid color-mix(in srgb, var(--brand-500) 45%, transparent); }
+
+/* --- Skeleton loading --- */
+.skeleton{ position:relative; overflow:hidden; background:var(--glass-bg); border-radius:var(--radius-md); }
+.skeleton::after{
+  content:""; position:absolute; inset:0; transform:translateX(-100%);
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer{ to{ transform:translateX(100%); } }
+
+/* --- Empty state --- */
+.empty-state{ text-align:center; padding:3rem 1rem; color:var(--text-2); }
+
+/* --- Theme toggle --- */
+.theme-toggle{ display:flex; gap:.25rem; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:999px; padding:.25rem; }
+.theme-toggle button{ width:2.1rem; height:2.1rem; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:.9rem; color:var(--text-2); transition:all var(--dur-fast); }
+.theme-toggle button.active{ background:linear-gradient(135deg,var(--brand-500),var(--brand-700)); color:#fff; box-shadow:0 6px 16px var(--brand-glow); }
+
+/* --- Sparkline canvas sizing --- */
+.sparkline{ width:70px; height:28px; }
+
+/* --- Back to top --- */
+.fab{
+  position:fixed; bottom:1.5rem; left:1.5rem; z-index:40; width:3rem; height:3rem; border-radius:999px;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 14px 34px var(--brand-glow);
+  background:linear-gradient(135deg,var(--brand-500),var(--brand-700)); color:#fff; font-size:1.1rem;
+  opacity:0; pointer-events:none; transform:translateY(12px) scale(.9);
+  transition:all var(--dur-med) var(--ease-spring);
+}
+.fab.show{ opacity:1; pointer-events:auto; transform:none; }
+
+/* --- Scroll progress --- */
+#scroll-progress{ position:fixed; top:0; left:0; height:3px; background:linear-gradient(90deg,var(--brand-500),var(--info-500)); z-index:90; width:0%; transition:width 80ms linear; }

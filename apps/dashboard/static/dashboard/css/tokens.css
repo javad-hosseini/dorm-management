@@ -1,0 +1,95 @@
+/* ===================================================================
+   DESIGN TOKENS
+   Dark "control-room glass" theme by default, with a light variant.
+   Every color/shadow/blur value used across the app lives here so the
+   rest of the CSS never hardcodes a hex.
+=================================================================== */
+
+:root{
+  /* --- Brand ramp --- */
+  --brand-500:#4A90E2;
+  --brand-600:#3B7DD8;
+  --brand-700:#2F63B8;
+  --brand-glow:rgba(74,144,226,.55);
+
+  /* --- Status ramp --- */
+  --success-500:#22c55e;
+  --success-glow:rgba(34,197,94,.45);
+  --warning-500:#f59e0b;
+  --warning-glow:rgba(245,158,11,.45);
+  --danger-500:#f43f5e;
+  --danger-glow:rgba(244,63,94,.45);
+  --info-500:#8b5cf6;
+
+  /* --- Surface / background (dark, default) --- */
+  --bg-0:#070b14;
+  --bg-1:#0c1424;
+  --bg-2:#101a2e;
+  --aurora-a:#2b3f8c;
+  --aurora-b:#4A90E2;
+  --aurora-c:#7c3aed;
+  --aurora-d:#0ea5b7;
+
+  --glass-bg:rgba(18,26,46,.55);
+  --glass-bg-strong:rgba(18,26,46,.78);
+  --glass-border:rgba(255,255,255,.08);
+  --glass-border-strong:rgba(255,255,255,.16);
+  --glass-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+  --glass-blur:20px;
+
+  --text-0:#f4f7ff;
+  --text-1:#c7d1e8;
+  --text-2:#8592b0;
+  --text-3:#5c6786;
+
+  --divider:rgba(255,255,255,.08);
+  --ring:rgba(74,144,226,.5);
+
+  --radius-sm:.9rem;
+  --radius-md:1.4rem;
+  --radius-lg:1.9rem;
+  --radius-xl:2.4rem;
+
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+  --ease-smooth:cubic-bezier(.22,1,.36,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+
+  --dur-fast:150ms;
+  --dur-med:320ms;
+  --dur-slow:600ms;
+
+  color-scheme: dark;
+}
+
+/* --- Light theme override --- */
+:root[data-theme="light"]{
+  --bg-0:#eef3fb;
+  --bg-1:#e4edfa;
+  --bg-2:#dbe7f7;
+  --aurora-a:#bcd6ff;
+  --aurora-b:#8fc7ff;
+  --aurora-c:#c9b8ff;
+  --aurora-d:#a8e6df;
+
+  --glass-bg:rgba(255,255,255,.5);
+  --glass-bg-strong:rgba(255,255,255,.72);
+  --glass-border:rgba(255,255,255,.65);
+  --glass-border-strong:rgba(255,255,255,.85);
+  --glass-shadow:0 20px 50px rgba(74,144,226,.16), inset 0 1px 0 rgba(255,255,255,.7);
+
+  --text-0:#101728;
+  --text-1:#33405e;
+  --text-2:#647192;
+  --text-3:#8b96b3;
+
+  --divider:rgba(15,23,42,.08);
+  color-scheme: light;
+}
+
+/* --- Theme transition: everything fades smoothly when the user swaps theme --- */
+body, .glass, .glass-strong, .surface{
+  transition: background-color var(--dur-slow) var(--ease-smooth),
+              border-color var(--dur-slow) var(--ease-smooth),
+              color var(--dur-slow) var(--ease-smooth),
+              box-shadow var(--dur-slow) var(--ease-smooth);
+}
