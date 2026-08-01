@@ -47,24 +47,12 @@ const App = (() => {
     });
   }
 
-  function bindScrollChrome(){
-    const bar = document.getElementById('scroll-progress');
-    const fab = document.getElementById('fab-top');
-    window.addEventListener('scroll', () => {
-      const h = document.documentElement;
-      const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight || 1)) * 100;
-      bar.style.width = pct + '%';
-      fab.classList.toggle('show', h.scrollTop > 400);
-    }, { passive:true });
-    fab.addEventListener('click', () => window.scrollTo({ top:0, behavior:'smooth' }));
-  }
-
   function boot(){
     Theme.init();
     Particles.init();
     Modal.bindGlobalHandlers();
     bindRipples();
-    bindScrollChrome();
+    ScrollChrome.bind();
     initTabIndicator();
 
     Students.render();

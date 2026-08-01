@@ -77,11 +77,32 @@ const Charts = (() => {
     });
   }
 
+  let simpleBarCharts = {};
+  /** Generic single-series bar chart, reused by the student portal's payment-history card. */
+  function renderSimpleBar(canvasId, labels, values, color='#4A90E2'){
+    const { grid, text } = themeColors();
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (simpleBarCharts[canvasId]) simpleBarCharts[canvasId].destroy();
+    simpleBarCharts[canvasId] = new Chart(ctx, {
+      type:'bar',
+      data:{ labels, datasets:[{ label:'', data: values, backgroundColor: color+'99', borderColor: color, borderWidth:1, borderRadius:8, hoverBackgroundColor: color }] },
+      options:{
+        responsive:true, animation:{ duration:800, easing:'easeOutQuart' },
+        plugins:{ legend:{display:false} },
+        scales:{
+          y:{ grid:{color:grid}, ticks:{ color:text, callback:v=>(v/1000000)+'M' } },
+          x:{ grid:{display:false}, ticks:{ color:text } }
+        }
+      }
+    });
+  }
+
   function refreshThemeColors(){
     // Re-render charts currently on screen so grid/tick colors match the new theme
     if (monthlyChart) monthlyChart.update();
     if (methodChart) methodChart.update();
+    Object.values(simpleBarCharts).forEach(c => c.update());
   }
 
-  return { drawSparkline, renderMonthly, renderMethods, refreshThemeColors };
+  return { drawSparkline, renderMonthly, renderMethods, renderSimpleBar, refreshThemeColors };
 })();

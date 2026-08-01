@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پرتال دانشجو - خوابگاه</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+
+<!-- Same design-system stylesheets as the Admin Dashboard, in the same order -->
+<link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard/css/animations.css' %}">
+<!-- Student-only additions: sidebar, mobile drawer, profile/payment layouts -->
+<link rel="stylesheet" href="{% static 'dashboard/css/student.css' %}">
+</head>
+<body class="p-3 md:p-4">
+
+<div id="aurora"></div>
+<div id="particles"></div>
+<div id="scroll-progress"></div>
+<div id="toast-root"></div>
+
+<!-- MOBILE TOPBAR -->
+<div class="mobile-topbar app-shell items-center justify-between glass rounded-[1.6rem] p-3 mb-3">
+  <div class="flex items-center gap-2">
+    <div class="avatar-sm text-sm">ج</div>
+    <div><p class="font-bold text-sm">جواد حسینی</p><p class="text-[10px] text-muted">اتاق 302</p></div>
+  </div>
+  <button id="hamburger-btn" class="hamburger-btn" aria-label="منو"><span></span></button>
+</div>
+
+<!-- MOBILE DRAWER -->
+<div id="drawer-backdrop" class="drawer-backdrop">
+  <nav id="drawer-panel" class="drawer-panel glass-strong">
+    <div class="text-center pb-2">
+      <div class="avatar-lg">ج</div>
+      <h3 class="font-bold mt-3">جواد حسینی</h3>
+      <p class="text-[11px] text-muted">کد ملی: 0012345678</p>
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <button data-menu onclick="switchMenu('dashboard')" class="side-link"><i data-lucide="layout-dashboard"></i> داشبورد</button>
+      <button data-menu onclick="switchMenu('profile')" class="side-link"><i data-lucide="user"></i> پروفایل من</button>
+      <button data-menu onclick="switchMenu('room')" class="side-link"><i data-lucide="bed-double"></i> اطلاعات اتاق</button>
+      <button data-menu onclick="switchMenu('finance')" class="side-link"><i data-lucide="wallet"></i> مالی و پرداخت‌ها</button>
+      <button data-menu onclick="switchMenu('pay')" class="side-link highlight"><i data-lucide="credit-card"></i> پرداخت اجاره</button>
+      <button data-menu onclick="switchMenu('contract')" class="side-link"><i data-lucide="file-text"></i> قرارداد</button>
+      <button data-menu onclick="switchMenu('maintenance')" class="side-link"><i data-lucide="wrench"></i> درخواست تعمیرات</button>
+      <div class="h-px bg-white/10 my-1"></div>
+      <button class="side-link danger"><i data-lucide="log-out"></i> خروج</button>
+    </div>
+  </nav>
+</div>
+
+<div class="app-shell max-w-shell flex flex-col lg:flex-row gap-4">
+
+  <!-- DESKTOP SIDEBAR -->
+  <div class="desktop-sidebar lg:w-[300px] flex flex-col gap-4">
+    <div class="glass rounded-[1.8rem] p-5 text-center animate-fadeInUp">
+      <div class="avatar-lg" id="student-avatar">ج</div>
+      <h3 class="font-bold mt-3 text-[16px]" id="student-name">جواد حسینی</h3>
+      <p class="text-[11px] text-muted" id="student-code">کد ملی: 0012345678</p>
+      <p class="text-[11px] text-muted">اتاق 302 - خوابگاه پسرانه 1</p>
+      <div class="mt-3 flex gap-2 justify-center">
+        <span class="text-[10px] bg-emerald-500 text-white px-3 py-1 rounded-full">فعال</span>
+        <span class="text-[10px] glass px-3 py-1 rounded-full" id="debt-badge">تسویه</span>
+      </div>
+      <div class="theme-toggle mt-4 mx-auto w-fit" role="group" aria-label="حالت نمایش">
+        <button data-mode="light" title="روشن">☀️</button>
+        <button data-mode="dark" title="تیره">🌙</button>
+        <button data-mode="auto" title="خودکار">🖥️</button>
+      </div>
+    </div>
+
+    <div class="glass rounded-[1.8rem] p-3 flex flex-col gap-1.5 animate-fadeInUp" style="animation-delay:.05s">
+      <button onclick="switchMenu('dashboard')" id="m-dashboard" class="side-link active"><i data-lucide="layout-dashboard"></i> داشبورد</button>
+      <button onclick="switchMenu('profile')" id="m-profile" class="side-link"><i data-lucide="user"></i> پروفایل من</button>
+      <button onclick="switchMenu('room')" id="m-room" class="side-link"><i data-lucide="bed-double"></i> اطلاعات اتاق</button>
+      <button onclick="switchMenu('finance')" id="m-finance" class="side-link"><i data-lucide="wallet"></i> مالی و پرداخت‌ها</button>
+      <button onclick="switchMenu('pay')" id="m-pay" class="side-link highlight"><i data-lucide="credit-card"></i> پرداخت اجاره</button>
+      <button onclick="switchMenu('contract')" id="m-contract" class="side-link"><i data-lucide="file-text"></i> قرارداد</button>
+      <button onclick="switchMenu('maintenance')" id="m-maintenance" class="side-link"><i data-lucide="wrench"></i> درخواست تعمیرات</button>
+      <div class="h-px bg-white/10 my-1"></div>
+      <button class="side-link danger"><i data-lucide="log-out"></i> خروج</button>
+    </div>
+
+    <div class="glass rounded-[1.8rem] p-4 animate-fadeInUp" style="animation-delay:.1s">
+      <p class="text-[11px] font-bold">وضعیت مالی سریع</p>
+      <div class="mt-3 space-y-2">
+        <div class="quick-row glass"><span class="text-muted">تسویه تا</span><b id="quick-settled">1403/08/15</b></div>
+        <div class="quick-row glass"><span class="text-muted">این ماه</span><b id="quick-paid" class="text-emerald-500">پرداخت شده</b></div>
+        <div class="quick-row glass"><span class="text-muted">اجاره</span><b id="quick-rent">3,500,000 تومان</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="flex-1 flex flex-col gap-4">
+
+    <!-- DASHBOARD -->
+    <div id="sec-dashboard" class="space-y-4 tab-section">
+      <div class="glass rounded-[1.8rem] p-6">
+        <h2 class="text-xl font-bold flex items-center gap-2">سلام، <span id="dash-name">جواد</span> عزیز <i data-lucide="sparkles" class="w-5 h-5 text-blue-400"></i></h2>
+        <p class="text-[13px] text-muted mt-1">اینجا خلاصه وضعیت اسکان شما در خوابگاه است</p>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5 stagger">
+          <div class="stat-tile glass border border-blue-500/25">
+            <div class="stat-icon" style="background:color-mix(in srgb, var(--brand-500) 20%, transparent); color:var(--brand-500)"><i data-lucide="bed-double"></i></div>
+            <p class="text-[11px] text-muted">اتاق من</p><p class="font-bold text-lg">302</p><p class="text-[10px] text-muted">خوابگاه پسرانه 1 - ظرفیت 4</p>
+          </div>
+          <div class="stat-tile glass border border-emerald-500/25">
+            <div class="stat-icon" style="background:color-mix(in srgb, var(--success-500) 20%, transparent); color:var(--success-500)"><i data-lucide="badge-check"></i></div>
+            <p class="text-[11px] text-muted">وضعیت پرداخت</p><p class="font-bold text-lg text-emerald-500">تسویه</p><p class="text-[10px] text-muted">تا 1403/08/15</p>
+          </div>
+          <div class="stat-tile glass border border-amber-500/25">
+            <div class="stat-icon" style="background:color-mix(in srgb, var(--warning-500) 20%, transparent); color:var(--warning-500)"><i data-lucide="wrench"></i></div>
+            <p class="text-[11px] text-muted">درخواست‌ها</p><p class="font-bold text-lg">1 باز</p><p class="text-[10px] text-muted">تعمیر کولر</p>
+          </div>
+          <div class="stat-tile glass border border-violet-500/25">
+            <div class="stat-icon" style="background:color-mix(in srgb, var(--info-500) 20%, transparent); color:var(--info-500)"><i data-lucide="file-text"></i></div>
+            <p class="text-[11px] text-muted">قرارداد</p><p class="font-bold text-lg">فعال</p><p class="text-[10px] text-muted">تا 1404/06/01</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 glass rounded-[1.8rem] p-6">
+          <h4 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> تاریخچه پرداخت 6 ماه اخیر</h4>
+          <canvas id="payHistoryChart" height="200"></canvas>
+        </div>
+        <div class="glass rounded-[1.8rem] p-5">
+          <h4 class="font-bold text-sm mb-3">هم‌اتاقی‌های فعلی</h4>
+          <div id="dash-roommates" class="space-y-2"></div>
+          <button onclick="switchMenu('room')" class="btn btn-primary w-full mt-4 py-2.5 rounded-xl text-[12px]">مشاهده اتاق ←</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="sec-profile" class="hidden glass rounded-[1.8rem] p-6 md:p-8 tab-section">
+      <h3 class="font-bold text-lg mb-6 flex items-center gap-2"><i data-lucide="user"></i> پروفایل من - اطلاعات شخصی</h3>
+      <div class="grid md:grid-cols-2 gap-4 text-sm stagger">
+        <div class="info-tile glass"><p class="text-[11px] text-muted">نام و نام خانوادگی</p><p class="font-bold mt-1">جواد حسینی</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">کد ملی</p><p class="font-bold mt-1">0012345678</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">شماره موبایل</p><p class="font-bold mt-1">09121234567</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">شماره والدین</p><p class="font-bold mt-1">09129876543</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">شغل</p><p class="font-bold mt-1">دانشجو</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">تاریخ ورود</p><p class="font-bold mt-1">1403/06/01</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">روز پرداخت ماهانه</p><p class="font-bold mt-1">5 ام هر ماه</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">وضعیت</p><p class="font-bold mt-1 text-emerald-500">فعال</p></div>
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button class="btn btn-ghost px-6 py-2.5 rounded-xl text-sm">تغییر رمز عبور</button>
+      </div>
+    </div>
+
+    <!-- ROOM INFO -->
+    <div id="sec-room" class="hidden space-y-4 tab-section">
+      <div class="glass rounded-[1.8rem] p-6">
+        <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="bed-double"></i> اطلاعات اتاق من</h3>
+        <div class="grid md:grid-cols-4 gap-3 mt-5 stagger">
+          <div class="info-tile glass text-center"><p class="text-[11px] text-muted">خوابگاه</p><p class="font-bold">پسرانه 1</p></div>
+          <div class="info-tile glass text-center"><p class="text-[11px] text-muted">شماره اتاق</p><p class="font-bold text-xl">302</p></div>
+          <div class="info-tile glass text-center"><p class="text-[11px] text-muted">ظرفیت</p><p class="font-bold text-xl">4 نفر</p></div>
+          <div class="info-tile glass text-center"><p class="text-[11px] text-muted">اجاره ماهانه</p><p class="font-bold text-sm">3,500,000 تومان</p></div>
+        </div>
+      </div>
+      <div class="glass rounded-[1.8rem] p-6">
+        <h4 class="font-bold mb-1">هم‌اتاقی‌ها (3 نفر)</h4>
+        <p class="text-[11px] text-muted mb-4">برای مشاهده‌ی شماره تماس و تاریخ ورود کلیک کنید</p>
+        <div class="grid md:grid-cols-3 gap-4 stagger" id="roommates-grid"></div>
+      </div>
+    </div>
+
+    <!-- FINANCE (approval UI fully removed — students don't need it) -->
+    <div id="sec-finance" class="hidden glass rounded-[1.8rem] p-6 tab-section">
+      <h3 class="font-bold text-lg mb-5 flex items-center gap-2"><i data-lucide="wallet"></i> مالی و پرداخت‌ها</h3>
+      <div class="grid md:grid-cols-2 gap-3 mb-6 stagger">
+        <div class="info-tile glass border border-emerald-500/25"><p class="text-[11px] text-muted">جمع کل پرداختی</p><p class="font-bold text-lg" id="f-total">0</p></div>
+        <div class="info-tile glass border border-blue-500/25"><p class="text-[11px] text-muted">تعداد تراکنش اجاره</p><p class="font-bold text-lg" id="f-rent-count">0</p></div>
+      </div>
+      <div id="finance-list" class="space-y-3 max-h-[500px] overflow-auto scroll-thin pr-1"></div>
+    </div>
+
+    <!-- PAY -->
+    <div id="sec-pay" class="hidden space-y-4 tab-section">
+      <div class="glass rounded-[1.8rem] p-8 text-center border-2 border-emerald-500/30">
+        <div class="w-16 h-16 rounded-2xl bg-emerald-500 text-white mx-auto flex items-center justify-center"><i data-lucide="banknote" class="w-7 h-7"></i></div>
+        <h3 class="font-bold text-xl mt-4">پرداخت اجاره ماه جاری</h3>
+        <p class="text-[13px] text-muted mt-2">مبلغ: 3,500,000 تومان</p>
+        <div class="glass rounded-2xl p-4 max-w-md mx-auto mt-6 text-right text-[12px] space-y-2">
+          <div class="flex justify-between"><span class="text-muted">اتاق:</span><b>302 - ظرفیت 4</b></div>
+          <div class="flex justify-between"><span class="text-muted">ماه:</span><b>آبان 1403</b></div>
+          <div class="flex justify-between"><span class="text-muted">تسویه قبلی تا:</span><b>1403/07/15</b></div>
+          <div class="flex justify-between"><span class="text-muted">جریمه دیرکرد:</span><b class="text-rose-500">0</b></div>
+        </div>
+        <button onclick="openPayModal()" class="btn btn-primary px-10 py-4 rounded-2xl font-bold text-[15px] mt-6 w-full max-w-md">پرداخت آنلاین</button>
+
+        <div class="grid md:grid-cols-3 gap-3 mt-8 text-right stagger">
+          <div class="pay-method-card glass">
+            <i data-lucide="landmark" class="text-blue-400"></i>
+            <p class="font-bold text-sm mt-2">کارت به کارت</p>
+            <p class="text-[11px] text-muted mt-2">شماره کارت به‌نام خوابگاه، سپس رسید را آپلود کنید</p>
+            <button class="btn btn-ghost mt-3 w-full py-2 rounded-xl text-[11px]">ثبت کارت به کارت</button>
+          </div>
+          <div class="pay-method-card glass">
+            <i data-lucide="credit-card" class="text-amber-500"></i>
+            <p class="font-bold text-sm mt-2">کارتخوان حضوری</p>
+            <p class="text-[11px] text-muted mt-2">مراجعه به دفتر و پرداخت با کارتخوان</p>
+          </div>
+          <div class="pay-method-card glass">
+            <i data-lucide="wallet" class="text-emerald-500"></i>
+            <p class="font-bold text-sm mt-2">نقدی</p>
+            <p class="text-[11px] text-muted mt-2">پرداخت نقدی در دفتر خوابگاه</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTRACT -->
+    <div id="sec-contract" class="hidden glass rounded-[1.8rem] p-6 tab-section">
+      <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="file-text"></i> قرارداد اسکان</h3>
+      <div class="grid md:grid-cols-2 gap-6 mt-6">
+        <div class="space-y-3 text-[13px] stagger">
+          <div class="info-tile glass flex justify-between"><span class="text-muted">شماره قرارداد</span><b>#RES302</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">تاریخ شروع</span><b>1403/06/01</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">تاریخ پایان</span><b>1404/06/01</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">ودیعه</span><b>60,000,000 تومان</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">خوابگاه</span><b>پسرانه 1 - اتاق 302</b></div>
+        </div>
+        <div class="glass rounded-[1.5rem] p-6 flex flex-col items-center justify-center border-2 border-dashed" style="border-color:var(--glass-border-strong)">
+          <div class="w-20 h-20 rounded-2xl flex items-center justify-center" style="background:color-mix(in srgb, var(--danger-500) 15%, transparent)"><i data-lucide="file-text" class="w-9 h-9 text-rose-500"></i></div>
+          <p class="font-bold mt-4">قرارداد PDF</p>
+          <p class="text-[11px] text-muted mt-1">قابل دانلود و امضای دیجیتال</p>
+          <button class="btn btn-primary px-6 py-2.5 rounded-xl text-sm mt-4">مشاهده / دانلود</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAINTENANCE -->
+    <div id="sec-maintenance" class="hidden glass rounded-[1.8rem] p-6 tab-section">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="wrench"></i> درخواست‌های تعمیرات من</h3>
+        <button onclick="openNewRequest()" class="btn btn-primary px-5 py-2.5 rounded-xl text-sm">+ درخواست جدید</button>
+      </div>
+      <div class="mt-6 space-y-3 stagger" id="maintenance-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL (shared markup/animation with the Admin Dashboard) -->
+<div id="modal" class="modal-backdrop hidden fixed inset-0">
+  <div class="absolute inset-0" onclick="closeModal()"></div>
+  <div class="relative z-10 min-h-screen flex items-center justify-center p-4">
+    <div id="modal-panel" class="modal-panel glass-strong rounded-[2rem] w-full max-w-md p-7">
+      <div class="flex justify-between mb-5">
+        <h3 id="modal-title" class="font-bold"></h3>
+        <button onclick="closeModal()" class="icon-btn">✕</button>
+      </div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+</div>
+
+<button id="fab-top" class="fab" aria-label="بازگشت به بالا">⬆</button>
+
+<!-- Shared modules from the Admin Dashboard, reused as-is -->
+<script src="{% static 'dashboard/js/utils.js' %}"></script>
+<script src="{% static 'dashboard/js/theme.js' %}"></script>
+<script src="{% static 'dashboard/js/toast.js' %}"></script>
+<script src="{% static 'dashboard/js/particles.js' %}"></script>
+<script src="{% static 'dashboard/js/charts.js' %}"></script>
+<script src="{% static 'dashboard/js/modal.js' %}"></script>
+<script src="{% static 'dashboard/js/scroll-chrome.js' %}"></script>
+<!-- New, student-only modules -->
+<script src="{% static 'dashboard/js/mobile-nav.js' %}"></script>
+<script src="{% static 'dashboard/js/student-data.js' %}"></script>
+<script src="{% static 'dashboard/js/student.js' %}"></script>
+</body>
+</html>
