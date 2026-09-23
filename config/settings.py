@@ -141,7 +141,7 @@ LANGUAGES = [
     ("fa", _("Persian")),
 ]
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'fa'
 
 TIME_ZONE = 'Asia/Tehran'
 

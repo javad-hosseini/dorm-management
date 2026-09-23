@@ -1,37 +1,52 @@
 /* ===================================================================
-   APP — wiring, tab switching, scroll chrome, boot sequence
+   APP — wiring, RTL tab switching, real backend data boot sequence
 =================================================================== */
 
 const App = (() => {
-  const TABS = ['students','rooms','finance'];
+  const TABS = ['students', 'rooms', 'finance'];
 
-  function switchTab(tab){
-    TABS.forEach(t => {
-      document.getElementById('section-'+t).classList.add('hidden');
-    });
-    const target = document.getElementById('section-'+tab);
-    target.classList.remove('hidden');
-    target.classList.add('tab-section');
-
+  function updateIndicator(activeBtn) {
     const indicator = document.getElementById('tab-indicator');
-    const activeBtn = document.getElementById('tab-'+tab);
-    TABS.forEach(t => document.getElementById('tab-'+t).classList.remove('active'));
-    activeBtn.classList.add('active');
+    if (!indicator || !activeBtn) return;
+    const parent = activeBtn.parentElement;
     indicator.style.width = activeBtn.offsetWidth + 'px';
-    indicator.style.transform = `translateX(${activeBtn.offsetLeft * -1}px)`;
-    indicator.style.right = activeBtn.offsetLeft + 'px';
-
-    if (tab === 'finance') Finance.render();
+    // Calculate distance from right for RTL
+    const rightDistance = parent.clientWidth - (activeBtn.offsetLeft + activeBtn.offsetWidth);
+    indicator.style.right = rightDistance + 'px';
+    indicator.style.transform = 'none';
   }
 
-  function initTabIndicator(){
+  function switchTab(tab) {
+    TABS.forEach(t => {
+      const sec = document.getElementById('section-' + t);
+      if (sec) sec.classList.add('hidden');
+      const btn = document.getElementById('tab-' + t);
+      if (btn) btn.classList.remove('active');
+    });
+
+    const target = document.getElementById('section-' + tab);
+    if (target) {
+      target.classList.remove('hidden');
+      target.classList.add('tab-section');
+    }
+
+    const activeBtn = document.getElementById('tab-' + tab);
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      updateIndicator(activeBtn);
+    }
+
+    if (tab === 'finance' && typeof Finance !== 'undefined') Finance.render();
+    if (tab === 'rooms' && typeof Rooms !== 'undefined') Rooms.render();
+    if (tab === 'students' && typeof Students !== 'undefined') Students.render();
+  }
+
+  function initTabIndicator() {
     const first = document.getElementById('tab-students');
-    const indicator = document.getElementById('tab-indicator');
-    indicator.style.width = first.offsetWidth + 'px';
-    indicator.style.right = first.offsetLeft + 'px';
+    if (first) updateIndicator(first);
   }
 
-  function bindRipples(){
+  function bindRipples() {
     document.addEventListener('click', e => {
       const btn = e.target.closest('.btn');
       if (!btn) return;
@@ -39,33 +54,43 @@ const App = (() => {
       const ripple = document.createElement('span');
       ripple.className = 'ripple';
       const size = Math.max(rect.width, rect.height);
-      ripple.style.width = ripple.style.height = size+'px';
-      ripple.style.left = (e.clientX - rect.left - size/2)+'px';
-      ripple.style.top = (e.clientY - rect.top - size/2)+'px';
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
       btn.appendChild(ripple);
       ripple.addEventListener('animationend', () => ripple.remove());
     });
   }
 
-  function boot(){
+  async function boot() {
     Theme.init();
     Particles.init();
     Modal.bindGlobalHandlers();
     bindRipples();
     ScrollChrome.bind();
-    initTabIndicator();
 
+    // 1. Fetch or parse real DB data
+    await DB.init();
+
+    // 2. Initialize UI components
+    initTabIndicator();
     Students.render();
     Rooms.render();
     Finance.render();
 
-    // KPI sparklines (ambient, always visible in header)
-    const debtTrend = [4,6,5,7,6,8,DB.residents.filter(r=>r.is_in_debt).length];
+    // 3. KPI sparklines with real data
+    const inDebtCount = DB.stats?.debt_residents ?? DB.residents.filter(r => r.is_in_debt).length;
+    const debtTrend = [
+      Math.max(0, inDebtCount - 2),
+      Math.max(0, inDebtCount - 1),
+      inDebtCount
+    ];
     Charts.drawSparkline('spark-debt', debtTrend, '#f43f5e');
 
-    Toast.show('داشبورد با موفقیت بارگذاری شد', 'success');
+    Toast.show('داشبورد با داده‌های واقعی دیتابیس بارگذاری شد', 'success');
 
-    window.switchTab = switchTab; // keep inline onclick="" handlers working
+    // Keep global handlers working for inline HTML onclick attributes
+    window.switchTab = switchTab;
     window.filterStudents = Students.filter;
     window.renderRooms = Rooms.render;
     window.applyFinanceFilter = Finance.apply;

@@ -1,39 +1,80 @@
 /* ===================================================================
-   STUDENT DATA LAYER
-   Mock data shaped like the real models. Swap function bodies for
-   `fetch('/api/students/me/...')` calls once the backend is wired —
-   student.js only depends on these shapes.
+   STUDENT DATA LAYER — Connected directly to Django Backend
 =================================================================== */
 
 const StudentDB = (() => {
-  const me = {
-    id: 3, first_name: "جواد", last_name: "حسینی", full_name: "جواد حسینی",
-    national_code: "0012345678", phone_number: "09121234567", parent_phone_number: "09129876543",
-    occupation: "STUDENT", entry_date: "1403/06/01", monthly_payment_day: 5,
-    status: "ACTIVE", is_in_debt: false, settled_until: "1403/08/15",
-    room: { room_number: 302, dormitory: "خوابگاه پسرانه 1", capacity: 4, current_occupants: 3, monthly_rent: 35000000 },
-    contract: { number: "RES302", start: "1403/06/01", end: "1404/06/01", deposit_toman: "60,000,000 تومان" }
+  let me = {
+    id: 0,
+    full_name: "دانشجو",
+    first_name: "دانشجو",
+    last_name: "",
+    national_code: "-",
+    phone_number: "-",
+    parent_phone_number: "-",
+    occupation: "STUDENT",
+    entry_date: "-",
+    monthly_payment_day: 1,
+    status: "ACTIVE",
+    is_in_debt: false,
+    settled_until: "-",
+    room: { room_number: "-", dormitory: "-", capacity: 0, current_occupants: 0, monthly_rent: 0 },
+    contract: { number: "-", start: "-", end: "-", deposit_toman: "-" }
   };
 
-  const roommates = [
-    { id:1, first_name:"علی", last_name:"رضایی", full_name:"علی رضایی", phone:"09121230001", entry:"1403/05/10", national:"0011111111" },
-    { id:2, first_name:"محمد", last_name:"احمدی", full_name:"محمد احمدی", phone:"09121230002", entry:"1403/06/01", national:"0022222222" },
-    { id:3, first_name:"جواد", last_name:"حسینی", full_name:"جواد حسینی (شما)", phone:"09121234567", entry:"1403/06/01", national:"0012345678", me:true },
-  ];
+  let roommates = [];
+  let transactions = [];
+  let maintenance = [];
+  let monthlyHistory = { labels: [], values: [] };
+  let isLoaded = false;
 
-  const transactions = [
-    { type:"RENT", amount:35000000, toman:"3,500,000 تومان", method:"ONLINE_GATEWAY", date:"1403/07/05", ref:"IR123456789", desc:"پرداخت آنلاین مهر" },
-    { type:"RENT", amount:35000000, toman:"3,500,000 تومان", method:"BANK_TRANSFER", date:"1403/06/05", ref:"603799123456", desc:"کارت به کارت" },
-    { type:"DEPOSIT", amount:600000000, toman:"60,000,000 تومان", method:"CARD", date:"1403/06/01", ref:"", desc:"ودیعه اولیه" },
-    { type:"RENT", amount:35000000, toman:"3,500,000 تومان", method:"CASH", date:"1403/08/05", ref:"", desc:"پرداخت نقدی" },
-  ];
+  function parseData(payload) {
+    if (!payload) return;
+    if (payload.me) me = payload.me;
+    roommates = payload.roommates || [];
+    transactions = payload.transactions || [];
+    maintenance = payload.maintenance || [];
+    monthlyHistory = payload.monthlyHistory || { labels: [], values: [] };
+    isLoaded = true;
 
-  const maintenance = [
-    { id:1, title:"خرابی کولر گازی", date:"1403/07/20", room:302, status:"در حال بررسی" },
-    { id:2, title:"تعویض لامپ", date:"1403/06/15", room:302, status:"انجام شد" },
-  ];
+    StudentDB.me = me;
+    StudentDB.roommates = roommates;
+    StudentDB.transactions = transactions;
+    StudentDB.maintenance = maintenance;
+    StudentDB.monthlyHistory = monthlyHistory;
+  }
 
-  const monthlyHistory = { labels:['تیر','مرداد','شهریور','مهر','آبان','آذر'], values:[3500000,3500000,60000000,3500000,3500000,0] };
+  async function init() {
+    const scriptTag = document.getElementById('student-server-data');
+    if (scriptTag && scriptTag.textContent.trim()) {
+      try {
+        const payload = JSON.parse(scriptTag.textContent);
+        parseData(payload);
+        return;
+      } catch (err) {
+        console.warn('Could not parse #student-server-data:', err);
+      }
+    }
 
-  return { me, roommates, transactions, maintenance, monthlyHistory };
+    try {
+      const res = await fetch('/dashboard/api/student-data/', {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        const payload = await res.json();
+        parseData(payload);
+      }
+    } catch (err) {
+      console.error('Error fetching student data:', err);
+    }
+  }
+
+  return {
+    init,
+    get isLoaded() { return isLoaded; },
+    me,
+    roommates,
+    transactions,
+    maintenance,
+    monthlyHistory
+  };
 })();

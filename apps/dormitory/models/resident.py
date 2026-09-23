@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import timedelta
+import jdatetime
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -136,24 +137,24 @@ class Resident(models.Model):
         )
 
     @property
-    def is_in_debt(self):
-        """Check if resident has unpaid rent"""
+    def is_in_debt(self) -> bool:
+        """Check if resident has unpaid rent (Jalali comparison)"""
         if not self.settled_until:
             return True  # هیچوقت تسویه نکرده
-        today = date.today()
+        today = jdatetime.date.today()
         return self.settled_until < today
 
     def get_recent_transactions(self, days: int = 30):
         """Return transactions from the last N days"""
-        since_date = date.today() - timedelta(days=days)
+        since_date = jdatetime.datetime.now() - timedelta(days=days)
 
         return self.transactions.filter(  # type: ignore[attr-defined]
             payment_date__gte=since_date
         ).order_by("-payment_date")
 
     def has_paid_this_month(self) -> bool:
-        """Check whether resident has paid this month's rent"""
-        today = date.today()
+        """Check whether resident has paid this month's rent (Jalali month)"""
+        today = jdatetime.date.today()
 
         return self.transactions.filter(  # type: ignore[attr-defined]
             transaction_type="RENT",

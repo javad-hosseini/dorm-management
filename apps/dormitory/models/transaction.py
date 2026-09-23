@@ -78,9 +78,14 @@ class Transaction(models.Model):
     @property
     def amount_in_tomans(self):
         """Convert Rials to Tomans for display"""
-        return self.amount / 10
+        return self.amount // 10
+
+    @property
+    def amount_in_million_tomans(self):
+        """Convert Rials to Million Tomans for display"""
+        return self.amount / 10_000_000
 
     @property
     def needs_approval(self):
-        """Check if this transaction needs supervisor approval"""
-        return self.payment_method in ['CASH', 'CARD']
+        """Check if this transaction needs supervisor approval (Cash and Bank Transfer only)"""
+        return self.payment_method in ['CASH', 'BANK_TRANSFER']

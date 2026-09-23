@@ -1,5 +1,8 @@
 # queries.py - Useful queries for reports
-from apps.dormitory.models import Transaction
+from datetime import timedelta
+import jdatetime
+from django.db.models import Sum, Count, Q
+from apps.dormitory.models import Transaction, Resident, Room
 
 
 class ReportQueries:
@@ -43,7 +46,7 @@ class ReportQueries:
     @staticmethod
     def get_residents_not_paid_recently(days=30):
         """Residents who haven't paid in the last N days"""
-        recent_date = date.today() - timedelta(days=days)
+        recent_date = jdatetime.datetime.now() - timedelta(days=days)
         paid_residents = Transaction.objects.filter(
             payment_date__gte=recent_date,
             transaction_type='RENT'

@@ -85,8 +85,6 @@
         <div class="field">
           <select id="filter-dorm" onchange="filterStudents()">
             <option value="">همه خوابگاه‌ها</option>
-            <option value="خوابگاه پسرانه 1">خوابگاه پسرانه 1</option>
-            <option value="خوابگاه پسرانه 2">خوابگاه پسرانه 2</option>
           </select>
         </div>
         <div class="field">
@@ -122,8 +120,6 @@
         <div class="field">
           <select id="filter-room-dorm" onchange="renderRooms()">
             <option value="">همه خوابگاه‌ها</option>
-            <option value="خوابگاه پسرانه 1">خوابگاه 1</option>
-            <option value="خوابگاه پسرانه 2">خوابگاه 2</option>
           </select>
         </div>
         <div class="field">
@@ -204,6 +200,9 @@
 
 <!-- Back to top -->
 <button id="fab-top" class="fab" aria-label="بازگشت به بالا">⬆</button>
+
+<!-- Server bootstrap data -->
+<script id="server-data" type="application/json">{{ dashboard_json|safe }}</script>
 
 <!-- Modular scripts, load order matters: data/utils first, app.js boots last -->
 <script src="{% static 'dashboard/js/data.js' %}"></script>

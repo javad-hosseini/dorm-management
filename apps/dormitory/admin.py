@@ -61,8 +61,8 @@ class RoomForm(forms.ModelForm):
     monthly_rent_tomans = forms.DecimalField(
         max_digits=12,
         decimal_places=3,
-        label="Monthly Rent (Million Tomans)",
-        help_text="Enter rent in Million Tomans (e.g., 4 for 4,000,000 Tomans, 2.5 for 2,500,000 Tomans)"
+        label="اجاره ماهانه (میلیون تومان)",
+        help_text="مبلغ را به میلیون تومان وارد کنید (مثال: 4 برای 4 میلیون تومان، 2.5 برای 2.5 میلیون تومان)"
     )
 
     class Meta:
@@ -80,28 +80,6 @@ class RoomForm(forms.ModelForm):
         self.instance.monthly_rent = int(self.cleaned_data['monthly_rent_tomans'] * 10000000)
         return super().save(commit)
 
-    def lookups(self, request, model_admin):
-        return [
-            ('has_space', 'Has empty beds'),
-            ('full', 'Full'),
-            ('empty', 'Completely empty'),
-        ]
-
-    def queryset(self, request, queryset):
-        if self.value() == 'has_space':
-            return queryset.annotate(
-                occ=Count('residents', filter=Q(residents__exit_date__isnull=True))
-            ).filter(capacity__gt=models.F('occ'))
-        if self.value() == 'full':
-            return queryset.annotate(
-                occ=Count('residents', filter=Q(residents__exit_date__isnull=True))
-            ).filter(capacity__lte=models.F('occ'))
-        if self.value() == 'empty':
-            return queryset.annotate(
-                occ=Count('residents', filter=Q(residents__exit_date__isnull=True))
-            ).filter(occ=0)
-        return queryset
-
 
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
@@ -113,15 +91,14 @@ class RoomAdmin(admin.ModelAdmin):
     list_filter = ['dormitory', 'capacity', VacancyFilter]
     search_fields = ['room_number', 'dormitory__name']
     list_select_related = ['dormitory']
-    actions = ['mark_as_full', 'mark_as_available']
 
     def monthly_rent_display(self, obj):
-        """Show rent in Million Tomans"""
-        return f"{obj.monthly_rent / 10000000:,.1f} Million Tomans"
+        """Show rent in Million Tomans and formatted Tomans"""
+        amount_m = obj.monthly_rent / 10000000
+        amount_t = obj.monthly_rent // 10
+        return format_html('<b>{:,.1f}</b> م.تومان <small style="color:#666;">({:,.0f} تومان)</small>', amount_m, amount_t)
 
-    monthly_rent_display.short_description = "Monthly Rent"
-
-    monthly_rent_display.short_description = "Monthly Rent"
+    monthly_rent_display.short_description = "اجاره ماهانه"
     monthly_rent_display.admin_order_field = 'monthly_rent'
 
     def vacancy_status(self, obj):
@@ -129,13 +106,12 @@ class RoomAdmin(admin.ModelAdmin):
         available = obj.available_capacity
         if available > 0:
             return format_html(
-                '<span style="color: green; font-weight: bold;">{} empty bed{}</span>',
-                available,
-                's' if available > 1 else ''
+                '<span style="color: green; font-weight: bold;">{} تخت خالی</span>',
+                available
             )
-        return format_html('<span style="color: red; font-weight: bold;">Full</span>')
+        return format_html('<span style="color: red; font-weight: bold;">تکمیل (پر)</span>')
 
-    vacancy_status.short_description = "Vacancy"
+    vacancy_status.short_description = "وضعیت ظرفیت"
 
     def get_queryset(self, request):
         """Optimize with resident count annotation"""
@@ -149,14 +125,6 @@ class RoomAdmin(admin.ModelAdmin):
         if 'monthly_rent' in form.base_fields:
             form.base_fields['monthly_rent'].widget = forms.HiddenInput()
         return form
-
-    @admin.action(description="Mark as full")
-    def mark_as_full(self, request, queryset):
-        pass
-
-    @admin.action(description="Mark as available")
-    def mark_as_available(self, request, queryset):
-        pass
 
 
 # ============================================
@@ -233,24 +201,29 @@ class ResidentAdmin(admin.ModelAdmin):
     list_select_related = ['dormitory', 'room']
     inlines = [TransactionInline]
 
-    fieldsets = (
-        ('Personal Information', {
-            'fields': ('first_name', 'last_name', 'national_code', 'occupation', 'phone_number', 'parent_phone_number')
-        }),
-        ('Room Assignment', {
-            'fields': ('dormitory', 'room', 'monthly_payment_day')
-        }),
-        ('Status & Dates', {
-            'fields': ('entry_date', 'exit_date', 'settled_until', 'status')
-        }),
-        ('Administrative', {
-            'fields': ('registered_by', 'id_card_image')
-        }),
-        ('Payment History', {
-            'fields': ('payment_history_display',),
-            'classes': ('wide',)
-        }),
-    )
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.registered_by_id:
+            Supervisor = apps.get_model('accounts', 'Supervisor')
+            supervisor = (
+                Supervisor.objects.filter(id=request.user.id).first()
+                or Supervisor.objects.filter(national_code=getattr(request.user, 'username', '')).first()
+                or Supervisor.objects.first()
+            )
+            if supervisor:
+                obj.registered_by = supervisor
+        super().save_model(request, obj, form, change)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "registered_by":
+            Supervisor = apps.get_model('accounts', 'Supervisor')
+            supervisor = (
+                Supervisor.objects.filter(id=request.user.id).first()
+                or Supervisor.objects.filter(national_code=getattr(request.user, 'username', '')).first()
+                or Supervisor.objects.first()
+            )
+            if supervisor:
+                kwargs["initial"] = supervisor.id
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def debt_status(self, obj):
         """Show debt status with color"""
@@ -419,8 +392,8 @@ class TransactionForm(forms.ModelForm):
     amount_tomans = forms.DecimalField(
         max_digits=12,
         decimal_places=3,
-        label="Amount (Tomans)",
-        help_text="Enter amount in Tomans (e.g., 2.5 for 2,500,000 Tomans)"
+        label="مبلغ پرداختی (میلیون تومان)",
+        help_text="مبلغ را به میلیون تومان وارد کنید (مثال: 2.5 برای ۲,۵۰۰,۰۰۰ تومان)"
     )
 
     class Meta:
@@ -434,23 +407,23 @@ class TransactionForm(forms.ModelForm):
         if 'created_by' in self.fields:
             Supervisor = apps.get_model('accounts', 'Supervisor')
             self.fields['created_by'].queryset = Supervisor.objects.all()
-            self.fields['created_by'].required = True
+            self.fields['created_by'].required = False
 
         if self.instance and self.instance.pk:
             # تبدیل ریال به میلیون تومان
             self.fields['amount_tomans'].initial = self.instance.amount / 10000000
 
         if 'is_approved' in self.fields:
-            self.fields['is_approved'].help_text = "Check to approve. Required for CASH and CARD tranfers."
+            self.fields['is_approved'].help_text = "برای پرداخت‌های نقدی و کارت‌به‌کارت نیاز به تایید است (کارت‌خوان و درگاه خودکار تایید می‌شوند)."
 
     def clean(self):
         cleaned_data = super().clean()
         payment_method = cleaned_data.get('payment_method')
-        transaction_type = cleaned_data.get('transaction_type')  # این خط رو اضافه کن
+        transaction_type = cleaned_data.get('transaction_type')
         resident = cleaned_data.get('resident')
 
-        # BANK_TRANSFER and ONLINE_GATEWAY are auto-approved
-        if payment_method in ['BANK_TRANSFER', 'ONLINE_GATEWAY']:
+        # CARD (دستگاه کارتخوان) و ONLINE_GATEWAY خودکار تایید میشن
+        if payment_method in ['CARD', 'ONLINE_GATEWAY']:
             cleaned_data['is_approved'] = True
 
         # اگه اجاره هست، قیمت اتاق رو کپی کن
@@ -587,10 +560,11 @@ class TransactionAdmin(admin.ModelAdmin):
     resident_link.admin_order_field = 'resident__last_name'
 
     def amount_display(self, obj):
-        amount = obj.amount / 10000000
-        return format_html('<b>{}</b>M Tomans', f'{amount:,.3f}')
+        amount_m = obj.amount / 10000000
+        amount_t = obj.amount // 10
+        return format_html('<b>{:,.3f}</b> م.تومان<br><small style="color:#666;">({:,.0f} تومان)</small>', amount_m, amount_t)
 
-    amount_display.short_description = "Amount"
+    amount_display.short_description = "مبلغ"
     amount_display.admin_order_field = 'amount'
 
     def transaction_type_badge(self, obj):
@@ -643,17 +617,33 @@ class TransactionAdmin(admin.ModelAdmin):
         # CARD و ONLINE_GATEWAY خودکار تأیید میشن
         if obj.payment_method in ['CARD', 'ONLINE_GATEWAY']:
             obj.is_approved = True
-        # CASH و BANK_TRANSFER اول تأیید نشده هستن
+        # CASH و BANK_TRANSFER در صورت عدم تیک صریح، در ثبت اولیه تایید نشده باقی می‌مانند
         elif obj.payment_method in ['CASH', 'BANK_TRANSFER'] and not change:
-            obj.is_approved = False
+            if not form.cleaned_data.get('is_approved'):
+                obj.is_approved = False
 
-        if not change and not obj.created_by_id:
+        if not obj.created_by_id:
             Supervisor = apps.get_model('accounts', 'Supervisor')
-            try:
-                obj.created_by = Supervisor.objects.get(id=request.user.id)
-            except Supervisor.DoesNotExist:
-                pass
+            supervisor = (
+                Supervisor.objects.filter(id=request.user.id).first()
+                or Supervisor.objects.filter(national_code=getattr(request.user, 'username', '')).first()
+                or Supervisor.objects.first()
+            )
+            if supervisor:
+                obj.created_by = supervisor
         super().save_model(request, obj, form, change)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "created_by":
+            Supervisor = apps.get_model('accounts', 'Supervisor')
+            supervisor = (
+                Supervisor.objects.filter(id=request.user.id).first()
+                or Supervisor.objects.filter(national_code=getattr(request.user, 'username', '')).first()
+                or Supervisor.objects.first()
+            )
+            if supervisor:
+                kwargs["initial"] = supervisor.id
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)

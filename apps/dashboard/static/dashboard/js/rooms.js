@@ -1,11 +1,12 @@
 /* ===================================================================
-   ROOMS TAB — occupancy ring visualization
+   ROOMS TAB — occupancy ring visualization & room management
 =================================================================== */
 
 const Rooms = (() => {
-  function ringSvg(percent, colorVar){
-    const r = 24, c = 2*Math.PI*r;
-    const offset = c - (percent/100)*c;
+  function ringSvg(percent, colorVar) {
+    const r = 24, c = 2 * Math.PI * r;
+    const clampedPercent = Math.min(100, Math.max(0, percent));
+    const offset = c - (clampedPercent / 100) * c;
     return `
       <div class="ring-wrap">
         <svg width="56" height="56" viewBox="0 0 56 56">
@@ -13,60 +14,93 @@ const Rooms = (() => {
           <circle class="ring-fill" cx="28" cy="28" r="${r}" stroke-width="5"
             stroke="${colorVar}" stroke-dasharray="${c}" stroke-dashoffset="${offset}"></circle>
         </svg>
-        <span class="ring-label">${percent}%</span>
+        <span class="ring-label">${clampedPercent}%</span>
       </div>`;
   }
 
-  function render(){
-    const dorm = document.getElementById('filter-room-dorm').value;
-    const stat = document.getElementById('filter-room-status').value;
+  function populateRoomDormFilter() {
+    const select = document.getElementById('filter-room-dorm');
+    if (!select || !DB.dorms) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">همه خوابگاه‌ها</option>' +
+      DB.dorms.map(d => `<option value="${d}">${d}</option>`).join('');
+    if (currentVal) select.value = currentVal;
+  }
+
+  function render() {
+    populateRoomDormFilter();
+    const dormEl = document.getElementById('filter-room-dorm');
+    const statEl = document.getElementById('filter-room-status');
     const container = document.getElementById('rooms-grid');
+    if (!container) return;
 
-    let list = DB.rooms.map(room => {
-      const occupants = DB.residents.filter(r => r.room.id === room.id);
-      room.current_occupants = occupants.length;
-      const is_empty = occupants.length === 0;
-      const is_full = occupants.length >= room.capacity;
+    const dorm = dormEl ? dormEl.value : '';
+    const stat = statEl ? statEl.value : '';
+
+    let list = (DB.rooms || []).map(room => {
+      const occupants = (DB.residents || []).filter(r =>
+        r.room && r.room.id === room.id && r.status === 'ACTIVE'
+      );
+      const current_occupants = occupants.length;
+      const is_empty = current_occupants === 0;
+      const is_full = current_occupants >= room.capacity;
       const is_half = !is_empty && !is_full;
-      return { ...room, occupants, is_empty, is_full, is_half };
+      return { ...room, occupants, current_occupants, is_empty, is_full, is_half };
     });
+
     if (dorm) list = list.filter(r => r.dormitory === dorm);
-    if (stat==="empty") list = list.filter(r => r.is_empty);
-    if (stat==="full") list = list.filter(r => r.is_full);
-    if (stat==="half") list = list.filter(r => r.is_half);
+    if (stat === "empty") list = list.filter(r => r.is_empty);
+    if (stat === "full") list = list.filter(r => r.is_full);
+    if (stat === "half") list = list.filter(r => r.is_half);
 
-    container.innerHTML = list.map((r,i) => {
-      const sizeClass = r.capacity>=6 ? "min-h-[190px]" : r.capacity>=4 ? "min-h-[160px]" : "min-h-[130px]";
-      const bg = r.is_empty ? "room-empty" : r.is_full ? "room-full" : "room-half";
-      const percent = Math.round((r.current_occupants/r.capacity)*100);
-      const ringColor = r.is_empty ? 'var(--text-3)' : r.is_full ? 'var(--brand-500)' : 'var(--warning-500)';
-      return `
-      <div onclick="Modal.openRoom(${r.id})" style="grid-row: span ${r.capacity>=6?2:1}; animation-delay:${Math.min(i,10)*25}ms"
-           class="entity-card glass ${bg} ${sizeClass} p-4 flex flex-col justify-between">
-        <div class="flex justify-between items-start">
-          <div>
-            <div class="flex items-center gap-2">
-              <p class="font-extrabold text-[16px]">اتاق ${r.room_number}</p>
-              <span class="text-[10px] px-2 py-1 rounded-full glass">${r.dormitory.split(' ').pop()}</span>
+    if (!list || list.length === 0) {
+      container.innerHTML = `<div class="empty-state col-span-full">🛏 اتاقی با این فیلتر یافت نشد</div>`;
+    } else {
+      container.innerHTML = list.map((r, i) => {
+        const sizeClass = r.capacity >= 6 ? "min-h-[190px]" : r.capacity >= 4 ? "min-h-[160px]" : "min-h-[130px]";
+        const bg = r.is_empty ? "room-empty" : r.is_full ? "room-full" : "room-half";
+        const percent = r.capacity > 0 ? Math.round((r.current_occupants / r.capacity) * 100) : 0;
+        const ringColor = r.is_empty ? 'var(--text-3)' : r.is_full ? 'var(--brand-500)' : 'var(--warning-500)';
+        const dormTag = typeof r.dormitory === 'string' && r.dormitory.trim() ? r.dormitory.split(' ').pop() : 'خوابگاه';
+        const emptyBeds = Math.max(0, r.capacity - r.current_occupants);
+
+        return `
+        <div onclick="Modal.openRoom(${r.id})" style="grid-row: span ${r.capacity >= 6 ? 2 : 1}; animation-delay:${Math.min(i,10)*25}ms"
+             class="entity-card glass ${bg} ${sizeClass} p-4 flex flex-col justify-between cursor-pointer">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-2">
+                <p class="font-extrabold text-[16px]">اتاق ${r.room_number}</p>
+                <span class="text-[10px] px-2 py-1 rounded-full glass">${dormTag}</span>
+              </div>
+              <p class="text-[11px] mt-1 text-muted">ظرفیت: ${r.capacity} | پر: ${r.current_occupants} | خالی: ${emptyBeds}</p>
             </div>
-            <p class="text-[11px] mt-1 text-muted">ظرفیت: ${r.capacity} | پر: ${r.current_occupants} | خالی: ${r.capacity - r.current_occupants}</p>
+            ${ringSvg(percent, ringColor)}
           </div>
-          ${ringSvg(percent, ringColor)}
-        </div>
-        <div>
-          <p class="text-[10px] font-bold mt-2">اجاره: ${Utils.toToman(r.monthly_rent)}</p>
-          <div class="flex flex-wrap gap-1 mt-2">${r.occupants.map(o=>`<span class="text-[9px] glass px-2 py-1 rounded-full">${o.first_name}</span>`).join('') || '<span class="text-[9px] text-faint">بدون ساکن</span>'}</div>
-        </div>
-      </div>`;
-    }).join('') || `<div class="empty-state col-span-full">🛏 اتاقی با این فیلتر یافت نشد</div>`;
+          <div>
+            <p class="text-[10px] font-bold mt-2">اجاره: ${Utils.toToman(r.monthly_rent)}</p>
+            <div class="flex flex-wrap gap-1 mt-2">
+              ${r.occupants.map(o => `<span class="text-[9px] glass px-2 py-1 rounded-full">${o.first_name || o.full_name || 'ساکن'}</span>`).join('') || '<span class="text-[9px] text-faint">بدون ساکن (خالی)</span>'}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
 
-    Utils.animateCounter(document.getElementById('kpi-full'), DB.rooms.filter(r=>{
-      const c = DB.residents.filter(x=>x.room.id===r.id).length; return c>=r.capacity;
-    }).length);
-    Utils.animateCounter(document.getElementById('kpi-empty'), DB.rooms.filter(r=>
-      DB.residents.filter(x=>x.room.id===r.id).length===0
-    ).length);
+    const fullCount = DB.stats?.full_rooms ?? (DB.rooms || []).filter(r => {
+      const c = (DB.residents || []).filter(x => x.room && x.room.id === r.id && x.status === 'ACTIVE').length;
+      return c >= r.capacity;
+    }).length;
+
+    const emptyCount = DB.stats?.empty_rooms ?? (DB.rooms || []).filter(r => {
+      return (DB.residents || []).filter(x => x.room && x.room.id === r.id && x.status === 'ACTIVE').length === 0;
+    }).length;
+
+    const kpiFull = document.getElementById('kpi-full');
+    const kpiEmpty = document.getElementById('kpi-empty');
+    if (kpiFull) Utils.animateCounter(kpiFull, fullCount);
+    if (kpiEmpty) Utils.animateCounter(kpiEmpty, emptyCount);
   }
 
-  return { render };
+  return { render, populateRoomDormFilter };
 })();
