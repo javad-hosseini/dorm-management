@@ -133,28 +133,42 @@ class RoomAdmin(admin.ModelAdmin):
 class TransactionInline(admin.TabularInline):
     model = Transaction
     extra = 0
-    fields = ['amount_display', 'transaction_type', 'payment_method', 'payment_date', 'reference_number',
-              'view_receipt']
-    readonly_fields = ['amount_display', 'view_receipt']
+    fields = [
+        'period_name_display', 'amount_display', 'transaction_type',
+        'payment_method', 'approval_badge', 'payment_date', 'reference_number', 'view_receipt'
+    ]
+    readonly_fields = ['period_name_display', 'amount_display', 'approval_badge', 'view_receipt']
     can_delete = False
     show_change_link = True
     ordering = ['-payment_date']
 
+    def period_name_display(self, obj):
+        return format_html('<b>{}</b>', obj.period_name or "اجاره ماهانه")
+
+    period_name_display.short_description = "بابت ماه / دوره"
+
     def amount_display(self, obj):
         """Show amount in Tomans"""
-        amount = obj.amount / 10
-        return format_html('<b>{}</b> Tomans', f'{amount:,.1f}')
+        amount = obj.amount // 10
+        return format_html('<b>{:,.0f}</b> تومان', amount)
 
-    amount_display.short_description = "Amount"
+    amount_display.short_description = "مبلغ"
+
+    def approval_badge(self, obj):
+        if obj.is_approved:
+            return format_html('<span style="color: #27ae60; font-weight: bold;">✅ تایید شده</span>')
+        return format_html('<span style="color: #e74c3c; font-weight: bold;">⏳ در انتظار تایید</span>')
+
+    approval_badge.short_description = "وضعیت تایید"
 
     def view_receipt(self, obj):
         """Link to view receipt details"""
         if obj.pk:
             url = reverse('admin:dormitory_transaction_change', args=[obj.pk])
-            return format_html('<a href="{}" target="_blank">📄 View Receipt</a>', url)
+            return format_html('<a href="{}" target="_blank">📄 مشاهده رسید</a>', url)
         return "-"
 
-    view_receipt.short_description = "Receipt"
+    view_receipt.short_description = "رسید"
 
     def has_add_permission(self, request, obj):
         return False  # از طریق Transaction admin اضافه کن
@@ -167,37 +181,39 @@ class TransactionInline(admin.TabularInline):
 class ResidentAdmin(admin.ModelAdmin):
     list_display = [
         'full_name', 'national_code', 'occupation_badge', 'dormitory_link',
-        'room_number_display', 'status_badge', 'monthly_payment_day',
-        'entry_date', 'payment_summary', 'view_transactions_link',
-        'settled_until', 'debt_status',
-
+        'room_number_display', 'status_badge',
+        'entry_date', 'settled_until', 'debt_status', 'payment_summary',
+        'view_transactions_link',
     ]
     actions = ['archive_left_residents']
 
     fieldsets = (
-        ('Personal Information', {
+        ('اطلاعات فردی', {
             'fields': ('first_name', 'last_name', 'national_code', 'occupation', 'phone_number', 'parent_phone_number')
         }),
-        ('Room Assignment', {
+        ('تخصیص اتاق و روز پرداخت', {
             'fields': ('dormitory', 'room', 'monthly_payment_day')
         }),
-        ('Status & Dates', {
+        ('وضعیت اقامت و تاریخ‌ها', {
             'fields': ('entry_date', 'exit_date', 'settled_until', 'status')
         }),
-        ('Administrative', {
+        ('وضعیت حساب و ریزجزئیات مالی به روز', {
+            'fields': ('financial_account_display',),
+            'classes': ('wide',)
+        }),
+        ('امور اداری', {
             'fields': ('registered_by', 'id_card_image')
         }),
-        ('Payment History', {
+        ('تاریخچه پرداخت‌های ثبت‌شده', {
             'fields': ('payment_history_display',),
             'classes': ('wide',)
         }),
     )
     list_filter = [
         'status', 'occupation', 'dormitory', 'entry_date', 'monthly_payment_day', 'settled_until'
-
     ]
     search_fields = ['first_name', 'last_name', 'national_code', 'phone_number', 'room__room_number']
-    readonly_fields = ['created_at', 'payment_history_display']
+    readonly_fields = ['created_at', 'financial_account_display', 'payment_history_display']
     list_select_related = ['dormitory', 'room']
     inlines = [TransactionInline]
 
@@ -226,16 +242,140 @@ class ResidentAdmin(admin.ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def debt_status(self, obj):
-        """Show debt status with color"""
-        if obj.is_in_debt:
+        """Show detailed daily debt status with overdue days and unpaid months"""
+        summary = obj.financial_status_summary
+        status = summary["status"]
+
+        if status == "SETTLED":
+            days = summary["days_until_due"]
+            due_date = obj.settled_until.strftime('%Y/%m/%d') if obj.settled_until else ''
             return format_html(
-                '<span style="color: red; font-weight: bold;">⚠️ In Debt</span>'
+                '<div style="white-space: nowrap;">'
+                '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟢 تسویه به روز</span><br>'
+                '<small style="color: #27ae60; font-size: 11px;">⏳ {} روز تا سررسید ({})</small>'
+                '</div>',
+                days, due_date
             )
+        elif status == "DUE_TODAY":
+            debt_t = summary["debt_tomans"]
+            unpaid = summary["unpaid_months"]
+            return format_html(
+                '<div style="white-space: nowrap;">'
+                '<span style="background: #f39c12; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟡 سررسید امروز</span><br>'
+                '<small style="color: #d35400; font-size: 11px;">{} ({:,.0f} ت)</small>'
+                '</div>',
+                unpaid, debt_t
+            )
+        elif status == "OVERDUE":
+            overdue = summary["overdue_days"]
+            debt_t = summary["debt_tomans"]
+            unpaid = summary["unpaid_months"]
+            return format_html(
+                '<div style="white-space: nowrap;">'
+                '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🔴 {} روز تاخیر</span><br>'
+                '<small style="color: #c0392b; font-weight: bold; font-size: 11px;">{}</small><br>'
+                '<small style="color: #666; font-size: 11px;">بدهی: {:,.0f} تومان</small>'
+                '</div>',
+                overdue, unpaid, debt_t
+            )
+        elif status == "NO_ROOM":
+            return format_html('<span style="color: #7f8c8d; font-size: 11px;">⚪ بدون اتاق</span>')
+        else:
+            return format_html('<span style="color: #7f8c8d; font-size: 11px;">⚪ {}</span>', obj.get_status_display())
+
+    debt_status.short_description = "وضعیت تسویه و بدهی"
+
+    def financial_account_display(self, obj):
+        """Rich detailed financial account view for resident change form"""
+        if not obj.pk:
+            return "پس از ذخیره اولیه، محاسبات مالی نمایش داده می‌شود."
+
+        summary = obj.financial_status_summary
+        rent_tomans = obj.current_monthly_rent_tomans
+        settled_str = obj.settled_until.strftime('%Y/%m/%d') if obj.settled_until else 'ثبت نشده'
+        unpaid = obj.unpaid_periods
+
+        if unpaid:
+            unpaid_rows = "".join([
+                f"<tr style='border-bottom: 1px solid #fee2e2;'>"
+                f"<td style='padding: 8px 12px; font-weight: bold; color: #991b1b;'>{p['name']}</td>"
+                f"<td style='padding: 8px 12px; color: #666;'>{p['start_date']} تا {p['end_date']}</td>"
+                f"<td style='padding: 8px 12px; color: #b91c1c; font-weight: bold;'>{p['overdue_days']} روز تاخیر</td>"
+                f"<td style='padding: 8px 12px; font-weight: bold;'>{p['amount_tomans']:,} تومان</td>"
+                f"</tr>"
+                for p in unpaid
+            ])
+            table_html = f"""
+            <table style='width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; text-align: right; background: white; border-radius: 6px; overflow: hidden; border: 1px solid #fee2e2;'>
+                <thead>
+                    <tr style='background: #fecaca; color: #991b1b;'>
+                        <th style='padding: 8px 12px;'>نام ماه عقب‌افتاده</th>
+                        <th style='padding: 8px 12px;'>بازه دوره اجاره</th>
+                        <th style='padding: 8px 12px;'>دیرکرد</th>
+                        <th style='padding: 8px 12px;'>مبلغ ماهانه</th>
+                    </tr>
+                </thead>
+                <tbody>{unpaid_rows}</tbody>
+            </table>
+            """
+        else:
+            table_html = "<div style='color: #27ae60; font-weight: bold; margin-top: 8px; font-size: 13px;'>✅ تمامی ماه‌های اقامت تا این لحظه به طور کامل تسویه هستند.</div>"
+
+        counter_color = "#c0392b" if summary["overdue_days"] > 0 else "#27ae60"
+        counter_text = f"{summary['overdue_days']} روز تاخیر" if summary["overdue_days"] > 0 else f"{summary['days_until_due']} روز مانده تا موعد"
+        debt_color = "#c0392b" if summary["debt_tomans"] > 0 else "#27ae60"
+
         return format_html(
-            '<span style="color: green;">✅ Settled</span>'
+            '''
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; font-family: tahoma, sans-serif; direction: rtl;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
+                    <div>
+                        <span style="font-size: 14px; font-weight: bold; margin-left: 8px;">وضعیت لحظه‌ای حساب:</span>
+                        <span style="background: {color}; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 12px;">{badge}</span>
+                    </div>
+                    <div style="font-size: 13px;">
+                        <b>اجاره ماهانه اتاق:</b> {rent:,} تومان
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                        <span style="color: #64748b; font-size: 12px;">تسویه شده تا تاریخ:</span><br>
+                        <b style="font-size: 14px; color: #1e293b;">{settled_until}</b>
+                    </div>
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                        <span style="color: #64748b; font-size: 12px;">شمارنده روزها:</span><br>
+                        <b style="font-size: 14px; color: {counter_color};">{counter_text}</b>
+                    </div>
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                        <span style="color: #64748b; font-size: 12px;">مبلغ کل بدهی معوقه:</span><br>
+                        <b style="font-size: 15px; color: {debt_color};">{debt_amount:,} تومان</b>
+                    </div>
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                        <span style="color: #64748b; font-size: 12px;">آخرین ماه تسویه شده:</span><br>
+                        <b style="font-size: 12px; color: #334155;">{last_paid}</b>
+                    </div>
+                </div>
+
+                <div>
+                    <span style="font-size: 13px; font-weight: bold; color: #334155;">ریزجزئیات ماه‌های معوقه:</span>
+                    {table}
+                </div>
+            </div>
+            ''',
+            color=summary["color"],
+            badge=summary["label"],
+            rent=rent_tomans,
+            settled_until=settled_str,
+            counter_color=counter_color,
+            counter_text=counter_text,
+            debt_color=debt_color,
+            debt_amount=summary["debt_tomans"],
+            last_paid=summary.get("last_paid", "-"),
+            table=format_html(table_html)
         )
 
-    debt_status.short_description = "Debt Status"
+    financial_account_display.short_description = "ریزجزئیات حساب مالی به روز"
 
     # ---- Custom display methods ----
     def occupation_badge(self, obj):
@@ -442,7 +582,7 @@ class TransactionForm(forms.ModelForm):
 class TransactionAdmin(admin.ModelAdmin):
     form = TransactionForm
     list_display = [
-        'receipt_number', 'resident_link', 'amount_display', 'applicable_rent_display',
+        'receipt_number', 'resident_link', 'period_display', 'amount_display', 'applicable_rent_display',
         'transaction_type_badge', 'payment_method', 'approval_status',
         'payment_date', 'dormitory', 'created_by'
     ]
@@ -452,31 +592,43 @@ class TransactionAdmin(admin.ModelAdmin):
         'payment_date', 'created_by'
     ]
 
-    search_fields = ['resident__first_name', 'resident__last_name', 'reference_number', 'id']
+    search_fields = ['resident__first_name', 'resident__last_name', 'reference_number', 'id', 'period_name']
     date_hierarchy = 'payment_date'
-    readonly_fields = ['created_at', 'receipt_display']
+    readonly_fields = ['created_at', 'period_name', 'period_start', 'period_end', 'receipt_display']
     list_select_related = ['resident', 'dormitory', 'created_by']
     actions = ['approve_transactions', 'unapprove_transactions']
 
     fieldsets = (
-        ('Transaction Information', {
+        ('اطلاعات پرداخت', {
             'fields': ('resident', 'dormitory', 'amount_tomans', 'transaction_type', 'payment_method')
         }),
-        ('Payment Details', {
+        ('دوره اجاره و سررسید', {
+            'fields': ('period_name', 'period_start', 'period_end'),
+            'description': 'دوره ماهانه اجاره به طور خودکار بر اساس وضعیت تسویه ساکن محاسبه می‌شود.'
+        }),
+        ('جزئیات رسید و پیگیری', {
             'fields': ('payment_date', 'reference_number', 'description')
         }),
-        ('Approval', {
+        ('تایید و بازبینی', {
             'fields': ('is_approved',),
-            'description': 'CASH and BANK_TRANSFER payments need approval'
+            'description': 'پرداخت‌های نقدی و کارت‌به‌کارت نیاز به تایید دارند. پس از تایید، تاریخ تسویه ساکن به طور خودکار به روز می‌شود.'
         }),
-        ('Audit', {
+        ('ثبت‌کننده', {
             'fields': ('created_by', 'created_at'),
         }),
-        ('Receipt Preview', {
+        ('پیش‌نمایش رسید پرداخت', {
             'fields': ('receipt_display',),
             'classes': ('wide', 'collapse')
         }),
     )
+
+    def period_display(self, obj):
+        if obj.period_name:
+            return format_html('<span style="font-weight: bold; color: #1e3a8a;">{}</span>', obj.period_name)
+        return "-"
+
+    period_display.short_description = "بابت ماه / دوره"
+    period_display.admin_order_field = 'period_name'
 
     def receipt_display(self, obj):
         if not obj.pk:
@@ -492,27 +644,33 @@ class TransactionAdmin(admin.ModelAdmin):
             approval_text = '⏳ Pending Approval'
             approval_color = '#e74c3c'
 
+        period_line = format_html(
+            '<p><b>دوره پرداخت:</b> {}</p>',
+            obj.period_name
+        ) if obj.period_name else ''
+
         return format_html(
             '''
-            <div style="border: 2px solid #ddd; padding: 20px; max-width: 400px; font-family: monospace; 
-                        background: #fafafa; border-radius: 5px;">
-                <h3 style="text-align: center; margin-bottom: 15px;">🧾 PAYMENT RECEIPT</h3>
+            <div style="border: 2px solid #ddd; padding: 20px; max-width: 420px; font-family: monospace; 
+                        background: #fafafa; border-radius: 5px; direction: rtl; text-align: right;">
+                <h3 style="text-align: center; margin-bottom: 15px;">🧾 رسید پرداخت خوابگاه</h3>
                 <hr>
-                <p><b>Receipt No:</b> RCP-{id:06d}</p>
-                <p><b>Date:</b> {date}</p>
-                <p><b>Resident:</b> {resident}</p>
-                <p><b>Dormitory:</b> {dormitory}</p>
-                <p><b>Room:</b> {room}</p>
-                <p><b>Type:</b> {type}</p>
-                <p><b>Method:</b> {method}</p>
+                <p><b>شماره رسید:</b> RCP-{id:06d}</p>
+                <p><b>تاریخ:</b> {date}</p>
+                <p><b>نام ساکن:</b> {resident}</p>
+                <p><b>خوابگاه:</b> {dormitory}</p>
+                <p><b>شماره اتاق:</b> {room}</p>
+                <p><b>نوع تراکنش:</b> {type}</p>
+                <p><b>روش پرداخت:</b> {method}</p>
+                {period_line}
                 {rate_line}
-                <p style="font-size: 18px; font-weight: bold;">Amount: {amount:,.3f}M Tomans</p>
-                <p><b>Status:</b> <span style="color: {approval_color};">{approval_text}</span></p>
-                <p><b>Ref:</b> {ref}</p>
-                <p><b>Description:</b> {desc}</p>
+                <p style="font-size: 16px; font-weight: bold;">مبلغ پرداختی: {amount:,.0f} تومان</p>
+                <p><b>وضعیت تایید:</b> <span style="color: {approval_color}; font-weight: bold;">{approval_text}</span></p>
+                <p><b>شماره پیگیری:</b> {ref}</p>
+                <p><b>توضیحات:</b> {desc}</p>
                 <hr>
                 <p style="text-align: center; font-size: 11px; color: #888;">
-                    Registered by: {created_by} | {created_at}
+                    ثبت توسط: {created_by} | {created_at}
                 </p>
             </div>
             ''',
@@ -523,11 +681,12 @@ class TransactionAdmin(admin.ModelAdmin):
             room=obj.resident.room.room_number if obj.resident.room else 'N/A',
             type=obj.get_transaction_type_display(),
             method=obj.get_payment_method_display(),
+            period_line=period_line,
             rate_line=format_html(
-                '<p><b>Room Rate:</b> {}M Tomans</p>',
-                f"{obj.applicable_rent / 10000000:,.3f}"
+                '<p><b>نرخ اتاق:</b> {:,.0f} تومان</p>',
+                obj.applicable_rent // 10
             ) if obj.applicable_rent else '',
-            amount=obj.amount / 10000000,
+            amount=obj.amount // 10,
             approval_text=approval_text,
             approval_color=approval_color,
             ref=obj.reference_number or '-',
@@ -536,27 +695,27 @@ class TransactionAdmin(admin.ModelAdmin):
             created_at=obj.created_at.strftime('%Y/%m/%d - %H:%M')
         )
 
-    receipt_display.short_description = "Receipt"
+    receipt_display.short_description = "رسید چاپی"
 
     def receipt_number(self, obj):
         return f"RCP-{obj.id:06d}"
 
-    receipt_number.short_description = "Receipt #"
+    receipt_number.short_description = "شماره رسید"
     receipt_number.admin_order_field = 'id'
 
     def applicable_rent_display(self, obj):
         if obj.applicable_rent:
-            return f"{obj.applicable_rent / 10000000:,.3f}M Tomans"
+            return format_html('{:,.0f} تومان', obj.applicable_rent // 10)
         return "-"
 
-    applicable_rent_display.short_description = "Room Rate"
+    applicable_rent_display.short_description = "نرخ اتاق"
     applicable_rent_display.admin_order_field = 'applicable_rent'
 
     def resident_link(self, obj):
         url = reverse('admin:dormitory_resident_change', args=[obj.resident_id])
         return format_html('<a href="{}">{}</a>', url, obj.resident.full_name)
 
-    resident_link.short_description = "Resident"
+    resident_link.short_description = "ساکن"
     resident_link.admin_order_field = 'resident__last_name'
 
     def amount_display(self, obj):
@@ -575,49 +734,45 @@ class TransactionAdmin(admin.ModelAdmin):
             color, obj.get_transaction_type_display()
         )
 
-    transaction_type_badge.short_description = "Type"
+    transaction_type_badge.short_description = "نوع"
 
     def approval_status(self, obj):
-        # CASH و BANK_TRANSFER نیاز به تأیید دارن
         if obj.payment_method in ['CASH', 'BANK_TRANSFER']:
             if obj.is_approved:
                 return format_html(
-                    '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">✅ Approved</span>'
+                    '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">✅ تایید شده</span>'
                 )
             else:
                 return format_html(
-                    '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">⏳ Pending</span>'
+                    '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">⏳ در انتظار</span>'
                 )
-        # CARD و ONLINE_GATEWAY خودکار تأیید میشن
         return format_html(
-            '<span style="background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">🔵 Auto</span>'
+            '<span style="background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; white-space: nowrap;">🔵 خودکار</span>'
         )
 
-    approval_status.short_description = "Approval"
+    approval_status.short_description = "وضعیت تایید"
 
-    @admin.action(description="✅ Approve selected transactions")
+    @admin.action(description="✅ تایید تراکنش‌های انتخابی و تسویه خودکار")
     def approve_transactions(self, request, queryset):
-        # فقط CASH و BANK_TRANSFER که تأیید نشدن
-        updated = queryset.filter(
-            payment_method__in=['CASH', 'BANK_TRANSFER'],
-            is_approved=False
-        ).update(is_approved=True)
-        self.message_user(request, f"{updated} transaction(s) approved.")
+        count = 0
+        for transaction in queryset.filter(payment_method__in=['CASH', 'BANK_TRANSFER'], is_approved=False):
+            transaction.is_approved = True
+            transaction.save()
+            count += 1
+        self.message_user(request, f"✅ {count} تراکنش با موفقیت تایید شد و وضعیت تسویه ساکنین به‌روزرسانی گردید.")
 
-    @admin.action(description="❌ Unapprove selected transactions")
+    @admin.action(description="❌ لغو تایید تراکنش‌های انتخابی")
     def unapprove_transactions(self, request, queryset):
-        # فقط CASH و BANK_TRANSFER که تأیید شدن
-        updated = queryset.filter(
-            payment_method__in=['CASH', 'BANK_TRANSFER'],
-            is_approved=True
-        ).update(is_approved=False)
-        self.message_user(request, f"{updated} transaction(s) unapproved.")
+        count = 0
+        for transaction in queryset.filter(is_approved=True):
+            transaction.is_approved = False
+            transaction.save()
+            count += 1
+        self.message_user(request, f"❌ {count} تراکنش لغو تایید شدند.")
 
     def save_model(self, request, obj, form, change):
-        # CARD و ONLINE_GATEWAY خودکار تأیید میشن
         if obj.payment_method in ['CARD', 'ONLINE_GATEWAY']:
             obj.is_approved = True
-        # CASH و BANK_TRANSFER در صورت عدم تیک صریح، در ثبت اولیه تایید نشده باقی می‌مانند
         elif obj.payment_method in ['CASH', 'BANK_TRANSFER'] and not change:
             if not form.cleaned_data.get('is_approved'):
                 obj.is_approved = False
@@ -650,3 +805,4 @@ class TransactionAdmin(admin.ModelAdmin):
         if 'amount' in form.base_fields:
             form.base_fields['amount'].widget = forms.HiddenInput()
         return form
+

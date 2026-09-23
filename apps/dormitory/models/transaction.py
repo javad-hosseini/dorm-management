@@ -1,5 +1,8 @@
 from django.db import models
 from django_jalali.db import models as jmodels
+import jdatetime
+
+from apps.dormitory.jalali_utils import add_jalali_months, format_period_name
 
 
 class Transaction(models.Model):
@@ -40,7 +43,7 @@ class Transaction(models.Model):
         blank=True,
         help_text="Additional notes about the transaction"
     )
-    payment_date = jmodels.jDateTimeField(  # Changed to Jalali
+    payment_date = jmodels.jDateTimeField(
         help_text="When the payment was actually made"
     )
     reference_number = models.CharField(
@@ -55,17 +58,33 @@ class Transaction(models.Model):
         help_text="Room rent at the time of this transaction (in Rials). Only for RENT type."
     )
 
+    period_start = jmodels.jDateField(
+        null=True,
+        blank=True,
+        help_text="Start date of rent period covered (Jalali)"
+    )
+    period_end = jmodels.jDateField(
+        null=True,
+        blank=True,
+        help_text="End date of rent period covered (Jalali)"
+    )
+    period_name = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Persian name of the covered month/period (e.g. اجاره مهر ماه ۱۴۰۵)"
+    )
+
     is_approved = models.BooleanField(
         default=False,
-        help_text="Whether the payment has been approved by supervisor (required for CASH and CARD)"
+        help_text="Whether the payment has been approved by supervisor (required for CASH and BANK_TRANSFER)"
     )
 
     created_by = models.ForeignKey(
-        'accounts.Supervisor',  # درستش اینه
+        'accounts.Supervisor',
         on_delete=models.PROTECT,
         related_name='created_transactions'
     )
-    created_at = jmodels.jDateTimeField(auto_now_add=True)  # Changed to Jalali
+    created_at = jmodels.jDateTimeField(auto_now_add=True)  # Jalali
 
     class Meta:
         verbose_name = "Transaction"
@@ -73,7 +92,8 @@ class Transaction(models.Model):
         ordering = ['-payment_date']
 
     def __str__(self):
-        return f"{self.resident.full_name} - {self.transaction_type} - {self.amount} Rials"
+        period_info = f" ({self.period_name})" if self.period_name else ""
+        return f"{self.resident.full_name} - {self.get_transaction_type_display()}{period_info} - {self.amount_in_tomans:,} Tomans"
 
     @property
     def amount_in_tomans(self):
@@ -89,3 +109,35 @@ class Transaction(models.Model):
     def needs_approval(self):
         """Check if this transaction needs supervisor approval (Cash and Bank Transfer only)"""
         return self.payment_method in ['CASH', 'BANK_TRANSFER']
+
+    def save(self, *args, **kwargs):
+        # Auto-fill applicable_rent if empty for RENT type
+        if self.transaction_type == self.TransactionType.RENT and not self.applicable_rent:
+            if self.resident and self.resident.room and self.resident.room.monthly_rent:
+                self.applicable_rent = self.resident.room.monthly_rent
+
+        # Auto-compute period for RENT transactions
+        if self.transaction_type == self.TransactionType.RENT:
+            rent_rate = self.applicable_rent or (self.resident.room.monthly_rent if self.resident and self.resident.room else self.amount)
+            months_paid = max(1, round(self.amount / rent_rate)) if rent_rate and rent_rate > 0 else 1
+
+            if not self.period_start and self.resident:
+                base_date = self.resident.settled_until or self.resident.entry_date or jdatetime.date.today()
+                self.period_start = base_date
+
+            if self.period_start and not self.period_end:
+                self.period_end = add_jalali_months(self.period_start, months_paid)
+
+            if not self.period_name and self.period_start and self.period_end:
+                self.period_name = format_period_name(self.period_start, self.period_end)
+
+        super().save(*args, **kwargs)
+
+        # If approved RENT payment, advance resident's settled_until
+        if self.is_approved and self.transaction_type == self.TransactionType.RENT and self.period_end:
+            res = self.resident
+            if res:
+                if not res.settled_until or self.period_end > res.settled_until:
+                    res.settled_until = self.period_end
+                    res.save(update_fields=['settled_until'])
+
