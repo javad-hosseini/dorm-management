@@ -7,9 +7,13 @@ class ArchivedResident(models.Model):
     # همه فیلدهای Resident کپی میشن
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
-    national_code = models.CharField(max_length=10)
+    father_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="نام پدر")
+    is_foreign = models.BooleanField(default=False, verbose_name="اتباع")
+    national_code = models.CharField(max_length=30, null=True, blank=True)
     phone_number = models.CharField(max_length=15)
     parent_phone_number = models.CharField(max_length=15, blank=True, null=True)
+    has_deposit = models.BooleanField(default=False, verbose_name="ودیعه دارد")
+    has_lease = models.BooleanField(default=False, verbose_name="اجاره‌نامه دارد")
     occupation = models.CharField(max_length=20)
     entry_date = jmodels.jDateField()
     exit_date = jmodels.jDateField(null=True, blank=True)
@@ -17,6 +21,9 @@ class ArchivedResident(models.Model):
     status = models.CharField(max_length=10)
     original_id = models.IntegerField(help_text="Original resident ID")
     archived_at = jmodels.jDateTimeField(auto_now_add=True)
+    id_card_image = models.ImageField(upload_to="archived_id_cards/", null=True, blank=True)
+    id_card_image_2 = models.ImageField(upload_to="archived_id_cards/", null=True, blank=True)
+    id_card_image_3 = models.ImageField(upload_to="archived_id_cards/", null=True, blank=True)
 
     # اطلاعات اتاق و خوابگاه زمان خروج
     dormitory_name = models.CharField(max_length=255)

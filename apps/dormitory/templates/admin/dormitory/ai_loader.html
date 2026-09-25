@@ -1,0 +1,754 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .ai-loader-container {
+    padding: 20px;
+    font-family: inherit;
+    direction: rtl;
+  }
+  .step-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+  .step-card-header {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: white;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .step-card-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-card-body {
+    padding: 20px;
+  }
+  .prompt-box {
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: monospace;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 14px;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    direction: ltr;
+    text-align: left;
+    border: 1px solid #334155;
+  }
+  .btn-copy {
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  .btn-copy:hover {
+    background: #059669;
+    color: white;
+  }
+  .json-textarea {
+    width: 100%;
+    min-height: 160px;
+    font-family: monospace;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    padding: 12px;
+    direction: ltr;
+    background: #f8fafc;
+  }
+  .json-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  .badge-action {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    color: white;
+    white-space: nowrap;
+  }
+  .badge-RENT_PAYMENT { background: #2563eb; }
+  .badge-DEPOSIT_PAYMENT { background: #8b5cf6; }
+  .badge-CHECK_OUT { background: #ef4444; }
+  .badge-CHECK_IN { background: #059669; }
+  .badge-ROOM_CHANGE { background: #f59e0b; }
+  .badge-MAINTENANCE_NOTE { background: #64748b; }
+  .badge-NOTE { background: #64748b; }
+
+  .badge-status {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .status-READY { background: #dcfce7; color: #166534; }
+  .status-WARNING { background: #fef3c7; color: #92400e; }
+  .status-ERROR { background: #fee2e2; color: #991b1b; }
+
+  .summary-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .preview-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 15px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .preview-table th {
+    background: #f1f5f9;
+    padding: 12px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    border-bottom: 2px solid #cbd5e1;
+    text-align: right;
+  }
+  .preview-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  .preview-table tr:hover td {
+    background: #f8fafc;
+  }
+  .spinner-border {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border .75s linear infinite;
+  }
+  @keyframes spinner-border {
+    to { transform: rotate(360deg); }
+  }
+  .toast-alert {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 9999;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ai-loader-container">
+  
+  <!-- HEADER & DORMITORY SELECTOR -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+    <div>
+      <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #1e293b;">
+        🤖 ثبت هوشمند وقایع روزانه با هوش مصنوعی (لاگ صوتی)
+      </h2>
+      <p style="margin: 5px 0 0 0; color: #64748b; font-size: 13px;">
+        ویس خود را به DeepSeek بدهید، خروجی JSON را اینجا بگذارید و وقایع را با یک کلیک تایید و ثبت کنید.
+      </p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-weight: 600; font-size: 13px;">خوابگاه:</span>
+      <select id="dormitorySelect" class="form-control" style="width: auto; font-weight: bold; border-radius: 8px;">
+        {% for dorm in dormitories %}
+          <option value="{{ dorm.id }}" {% if dorm.id == selected_dormitory.id %}selected{% endif %}>{{ dorm.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="badge badge-info" style="font-size: 13px; padding: 8px 12px; border-radius: 8px;">
+        📅 تاریخ امروز: <b>{{ today_jalali_display }}</b> ({{ today_jalali }})
+      </span>
+    </div>
+  </div>
+
+  <!-- STEP 1: PROMPT FOR DEEPSEEK -->
+  <div class="step-card">
+    <div class="step-card-header">
+      <h3>
+        <i class="fas fa-magic"></i>
+        گام ۱: دریافت پرامپت اختصاصی برای DeepSeek
+      </h3>
+      <button type="button" class="btn-copy" id="copyPromptBtn">
+        <i class="fas fa-copy"></i>
+        <span>📋 کپی پرامپت آماده با تاریخ امروز</span>
+      </button>
+    </div>
+    <div class="step-card-body">
+      <p style="font-size: 13px; color: #475569; margin-bottom: 10px;">
+        این پرامپت شامل قوانین مالی خوابگاه، نام انواع تراکنش‌ها و تاریخ امروز (<b>{{ today_jalali }}</b>) است. 
+        آن را کپی کنید و در چت DeepSeek قرار دهید، سپس ویس یا متن روزانه خود را ارسال کنید:
+      </p>
+      <div class="prompt-box" id="promptText">{{ prompt_text }}</div>
+    </div>
+  </div>
+
+  <!-- STEP 2: PASTE JSON PAYLOAD -->
+  <div class="step-card">
+    <div class="step-card-header">
+      <h3>
+        <i class="fas fa-file-code"></i>
+        گام ۲: قرار دادن خروجی هوش مصنوعی (JSON)
+      </h3>
+      <span style="font-size: 12px; opacity: 0.9;">کد دریافتی از دیپ‌سیک را در این کادر قرار دهید</span>
+    </div>
+    <div class="step-card-body">
+      <textarea id="jsonInput" class="json-textarea" placeholder='خروجی JSON دریافتی از DeepSeek را اینجا Paste کنید (مانند: { "report_date": "{{ today_jalali }}", "events": [...] })'></textarea>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+        <button type="button" id="loadSampleBtn" class="btn btn-outline-secondary btn-sm" style="border-radius: 6px;">
+          <i class="fas fa-vial"></i> تست با داده نمونه
+        </button>
+        <button type="button" id="previewBtn" class="btn btn-primary" style="padding: 10px 24px; font-weight: 700; border-radius: 8px;">
+          <span id="previewBtnText"><i class="fas fa-search"></i> بررسی و پیش‌نمایش هوشمند</span>
+          <span id="previewSpinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        </button>
+      </div>
+      <div id="jsonError" style="display: none; margin-top: 10px; color: #dc2626; font-size: 13px; font-weight: bold;"></div>
+    </div>
+  </div>
+
+  <!-- STEP 3: PREVIEW & INTERACTIVE EDITING -->
+  <div class="step-card" id="previewCard" style="display: none;">
+    <div class="step-card-header" style="background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);">
+      <h3>
+        <i class="fas fa-tasks"></i>
+        گام ۳: پیش‌نمایش، اعتبارسنجی و تایید وقایع
+      </h3>
+      <div id="summaryBadges" style="display: flex; gap: 8px;"></div>
+    </div>
+    <div class="step-card-body">
+      
+      <div id="summaryTextAlert" class="alert alert-info" style="border-radius: 8px; font-size: 13px; font-weight: 500;"></div>
+
+      <div style="overflow-x: auto;">
+        <table class="preview-table" id="eventsTable">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">
+                <input type="checkbox" id="selectAllCheckbox" checked>
+              </th>
+              <th>نوع عملیات</th>
+              <th>ساکن و اتاق</th>
+              <th>مبلغ (تومان)</th>
+              <th>روش پرداخت</th>
+              <th>تاریخ</th>
+              <th>توضیحات و محاسبات</th>
+              <th>وضعیت</th>
+            </tr>
+          </thead>
+          <tbody id="eventsTableBody">
+            <!-- Dynamic rows populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 25px; display: flex; justify-content: flex-end; align-items: center; gap: 15px;">
+        <button type="button" id="executeBtn" class="btn btn-success" style="padding: 12px 32px; font-size: 1.05rem; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+          <span id="executeBtnText"><i class="fas fa-check-circle"></i> تایید نهایی و اعمال در سیستم</span>
+          <span id="executeSpinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- STEP 4: SUCCESS REPORT / AUDIT RECEIPT -->
+  <div class="step-card" id="successCard" style="display: none; border-color: #10b981;">
+    <div class="step-card-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">
+      <h3>
+        <i class="fas fa-check-double"></i>
+        رسید ثبت وقایع در سیستم با موفقیت صادر شد!
+      </h3>
+    </div>
+    <div class="step-card-body">
+      <div id="successDetails" style="font-size: 14px;"></div>
+      <div style="margin-top: 20px;">
+        <button type="button" class="btn btn-primary" onclick="location.reload();" style="border-radius: 8px;">
+          <i class="fas fa-redo"></i> ثبت گزارش روزانه جدید
+        </button>
+        <a href="/admin/dormitory/transaction/" class="btn btn-outline-secondary" style="border-radius: 8px; margin-right: 10px;">
+          <i class="fas fa-receipt"></i> مشاهده لیست تراکنش‌ها
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST ALERT -->
+<div id="toastAlert" class="toast-alert" style="background: #1e293b;"></div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const promptText = document.getElementById("promptText").innerText;
+  const copyBtn = document.getElementById("copyPromptBtn");
+  const jsonInput = document.getElementById("jsonInput");
+  const previewBtn = document.getElementById("previewBtn");
+  const previewBtnText = document.getElementById("previewBtnText");
+  const previewSpinner = document.getElementById("previewSpinner");
+  const jsonError = document.getElementById("jsonError");
+  const previewCard = document.getElementById("previewCard");
+  const eventsTableBody = document.getElementById("eventsTableBody");
+  const summaryBadges = document.getElementById("summaryBadges");
+  const summaryTextAlert = document.getElementById("summaryTextAlert");
+  const executeBtn = document.getElementById("executeBtn");
+  const executeBtnText = document.getElementById("executeBtnText");
+  const executeSpinner = document.getElementById("executeSpinner");
+  const successCard = document.getElementById("successCard");
+  const successDetails = document.getElementById("successDetails");
+  const toastAlert = document.getElementById("toastAlert");
+  const dormitorySelect = document.getElementById("dormitorySelect");
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+
+  let currentEventsData = [];
+
+  function showToast(message, bgColor = "#10b981") {
+    toastAlert.innerText = message;
+    toastAlert.style.background = bgColor;
+    toastAlert.style.display = "block";
+    setTimeout(() => { toastAlert.style.display = "none"; }, 3000);
+  }
+
+  // Copy Prompt
+  copyBtn.addEventListener("click", function() {
+    navigator.clipboard.writeText(promptText).then(() => {
+      showToast("✅ پرامپت با موفقیت کپی شد! اکنون می‌توانید آن را به DeepSeek بدهید.");
+    }).catch(err => {
+      showToast("خطا در کپی کردن متن.", "#ef4444");
+    });
+  });
+
+  // Load Sample
+  document.getElementById("loadSampleBtn").addEventListener("click", function() {
+    const samplePayload = {
+      "report_date": "{{ today_jalali }}",
+      "summary": "گزارش روزانه خوابگاه - واریز اجاره مهر، ثبت خروج و ثبت ساکن جدید",
+      "events": [
+        {
+          "action": "RENT_PAYMENT",
+          "resident_name": "ساکن نمونه",
+          "room_number": 101,
+          "amount_tomans": 3000000,
+          "payment_date": "{{ today_jalali }}",
+          "payment_method": "CASH",
+          "reference_number": null,
+          "description": "اجاره مهر ماه"
+        },
+        {
+          "action": "CHECK_OUT",
+          "resident_name": "علی رضایی",
+          "room_number": 102,
+          "exit_date": "{{ today_jalali }}",
+          "note": "تحویل کلید و تسویه حساب"
+        },
+        {
+          "action": "CHECK_IN",
+          "first_name": "امیرحسین",
+          "last_name": "کریمی",
+          "room_number": 101,
+          "entry_date": "{{ today_jalali }}",
+          "phone_number": "09123456789",
+          "occupation": "STUDENT",
+          "initial_deposit_tomans": 2000000,
+          "initial_rent_tomans": 3000000,
+          "payment_method": "BANK_TRANSFER",
+          "note": "پذیرش ترم پاییز"
+        },
+        {
+          "action": "MAINTENANCE_NOTE",
+          "title": "تعمیر رادیاتور شوفاژ",
+          "room_number": 101,
+          "content": "شیر رادیاتور چکه می‌کند"
+        }
+      ]
+    };
+    jsonInput.value = JSON.stringify(samplePayload, null, 2);
+    showToast("داده نمونه بارگذاری شد.");
+  });
+
+  // Select all checkbox
+  selectAllCheckbox.addEventListener("change", function() {
+    const checkboxes = document.querySelectorAll(".event-checkbox");
+    checkboxes.forEach(cb => cb.checked = selectAllCheckbox.checked);
+  });
+
+  // Preview Action
+  previewBtn.addEventListener("click", function() {
+    const payload = jsonInput.value.trim();
+    if (!payload) {
+      jsonError.innerText = "لطفاً ابتدا خروجی JSON را در کادر بالا وارد کنید.";
+      jsonError.style.display = "block";
+      return;
+    }
+    jsonError.style.display = "none";
+    previewBtnText.style.display = "none";
+    previewSpinner.style.display = "inline-block";
+    previewBtn.disabled = true;
+
+    fetch("/admin/ai-loader/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrfToken()
+      },
+      body: JSON.stringify({
+        action: "preview",
+        payload: payload,
+        dormitory_id: dormitorySelect.value
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      previewBtnText.style.display = "inline";
+      previewSpinner.style.display = "none";
+      previewBtn.disabled = false;
+
+      if (!data.success) {
+        jsonError.innerText = data.error || "خطا در پردازش JSON";
+        jsonError.style.display = "block";
+        return;
+      }
+
+      renderPreview(data);
+    })
+    .catch(err => {
+      previewBtnText.style.display = "inline";
+      previewSpinner.style.display = "none";
+      previewBtn.disabled = false;
+      jsonError.innerText = "خطای ارتباط با سرور: " + err;
+      jsonError.style.display = "block";
+    });
+  });
+
+  function renderPreview(data) {
+    currentEventsData = data.events;
+    summaryTextAlert.innerHTML = `<b>خلاصه گزارش:</b> ${data.summary} (تاریخ گزارش: ${data.report_date})`;
+
+    summaryBadges.innerHTML = `
+      <span class="badge badge-light" style="font-size: 12px;">کل وقایع: ${data.total_events}</span>
+      <span class="badge badge-success" style="font-size: 12px;">🟢 آماده ثبت: ${data.ready_count}</span>
+      ${data.warning_count > 0 ? `<span class="badge badge-warning" style="font-size: 12px;">🟡 نیاز به انتخاب: ${data.warning_count}</span>` : ''}
+      ${data.error_count > 0 ? `<span class="badge badge-danger" style="font-size: 12px;">🔴 خطا: ${data.error_count}</span>` : ''}
+    `;
+
+    eventsTableBody.innerHTML = "";
+
+    const actionLabels = {
+      "RENT_PAYMENT": "واریز اجاره",
+      "DEPOSIT_PAYMENT": "واریز ودیعه",
+      "CHECK_OUT": "خروج و تسویه",
+      "CHECK_IN": "پذیرش ساکن جدید",
+      "ROOM_CHANGE": "جابجایی اتاق",
+      "MAINTENANCE_NOTE": "تعمیرات / یادداشت",
+      "NOTE": "یادداشت روزانه"
+    };
+
+    data.events.forEach((ev, idx) => {
+      const tr = document.createElement("tr");
+
+      // Checkbox
+      const isChecked = ev.status !== "ERROR";
+      const chkCol = `
+        <td style="text-align: center;">
+          <input type="checkbox" class="event-checkbox" data-index="${idx}" ${isChecked ? "checked" : ""}>
+        </td>
+      `;
+
+      // Action Badge
+      const actionLabel = actionLabels[ev.action] || ev.action;
+      const actionCol = `
+        <td>
+          <span class="badge-action badge-${ev.action}">${actionLabel}</span>
+        </td>
+      `;
+
+      // Resident & Room Column
+      let resCol = "";
+      if (ev.action === "CHECK_IN") {
+        const d = ev.details || {};
+        resCol = `
+          <div>
+            <b>${d.first_name || ""} ${d.last_name || ""}</b><br>
+            <small style="color: #64748b;">اتاق پیشنهادی: <b>${ev.room_number || "-"}</b></small><br>
+            <small style="color: #64748b;">همراه: ${d.phone_number || "-"}</small>
+          </div>
+        `;
+      } else if (ev.candidates && ev.candidates.length > 1) {
+        // Dropdown for candidate selection
+        let options = `<option value="">-- انتخاب ساکن از میان ${ev.candidates.length} نفر --</option>`;
+        ev.candidates.forEach(c => {
+          options += `<option value="${c.id}">${c.name} (اتاق ${c.room || '-'})</option>`;
+        });
+        resCol = `
+          <div>
+            <span style="color: #d97706; font-weight: bold; font-size: 12px;">⚠️ تشابه اسمی برای «${ev.resident_name}»:</span>
+            <select class="form-control form-control-sm candidate-select" data-index="${idx}" style="margin-top: 4px; border-color: #f59e0b;">
+              ${options}
+            </select>
+          </div>
+        `;
+      } else if (ev.resident_id) {
+        resCol = `
+          <div>
+            <b>${ev.resident_name}</b><br>
+            <small style="color: #64748b;">اتاق فعلی: <b>${ev.room_number || "-"}</b></small>
+          </div>
+        `;
+      } else {
+        resCol = `
+          <div>
+            <b style="color: #dc2626;">${ev.resident_name || "-"}</b><br>
+            <small style="color: #dc2626;">(یافت نشد)</small>
+          </div>
+        `;
+      }
+
+      // Amount Column
+      let amountCol = "";
+      if (ev.amount_tomans > 0) {
+        amountCol = `
+          <td>
+            <input type="number" class="form-control form-control-sm amount-input" data-index="${idx}" value="${ev.amount_tomans}" style="width: 120px; font-weight: bold; text-align: left; direction: ltr;">
+            <small style="color: #64748b;">${(ev.amount_tomans / 1000000).toFixed(2)} م.تومان</small>
+          </td>
+        `;
+      } else if (ev.action === "CHECK_IN") {
+        const d = ev.details || {};
+        amountCol = `
+          <td style="font-size: 11px;">
+            ودیعه: ${(d.initial_deposit_tomans || 0).toLocaleString()} ت<br>
+            اجاره: ${(d.initial_rent_tomans || 0).toLocaleString()} ت
+          </td>
+        `;
+      } else {
+        amountCol = `<td style="color: #94a3b8;">-</td>`;
+      }
+
+      // Payment Method Column
+      const methodCol = `
+        <td>
+          <select class="form-control form-control-sm method-select" data-index="${idx}" style="font-size: 11px;">
+            <option value="CASH" ${ev.payment_method === 'CASH' ? 'selected' : ''}>💵 نقدی</option>
+            <option value="CARD" ${ev.payment_method === 'CARD' ? 'selected' : ''}>💳 کارتخوان</option>
+            <option value="BANK_TRANSFER" ${ev.payment_method === 'BANK_TRANSFER' ? 'selected' : ''}>🏦 کارت به کارت</option>
+            <option value="ONLINE_GATEWAY" ${ev.payment_method === 'ONLINE_GATEWAY' ? 'selected' : ''}>🌐 آنلاین</option>
+          </select>
+        </td>
+      `;
+
+      // Date Column
+      const dateCol = `
+        <td>
+          <input type="text" class="form-control form-control-sm date-input" data-index="${idx}" value="${ev.date}" style="width: 95px; text-align: center; direction: ltr; font-size: 11px;">
+        </td>
+      `;
+
+      // Details / Notes Column
+      let detailsHtml = "";
+      if (ev.action === "RENT_PAYMENT" && ev.details && ev.details.period_name) {
+        detailsHtml = `
+          <span style="color: #2563eb; font-weight: bold; font-size: 12px;">🗓️ ${ev.details.period_name}</span><br>
+          <small style="color: #10b981;">پیشروی تسویه تا: ${ev.details.projected_settled_until}</small><br>
+        `;
+      } else if (ev.action === "ROOM_CHANGE" && ev.details) {
+        detailsHtml = `<span style="font-size: 12px;">انتقال از اتاق ${ev.details.old_room} به اتاق <b>${ev.details.new_room}</b></span><br>`;
+      }
+      if (ev.description) {
+        detailsHtml += `<small style="color: #64748b;">${ev.description}</small>`;
+      }
+      const detailsCol = `<td>${detailsHtml || "-"}</td>`;
+
+      // Status Column
+      const statusCol = `
+        <td>
+          <span class="badge-status status-${ev.status}">${ev.status_label}</span><br>
+          <small style="font-size: 11px; color: #64748b;">${ev.message || ""}</small>
+        </td>
+      `;
+
+      tr.innerHTML = chkCol + actionCol + `<td>${resCol}</td>` + amountCol + methodCol + dateCol + detailsCol + statusCol;
+      eventsTableBody.appendChild(tr);
+    });
+
+    previewCard.style.display = "block";
+    previewCard.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Handle Candidate Selection change
+  eventsTableBody.addEventListener("change", function(e) {
+    if (e.target.classList.contains("candidate-select")) {
+      const idx = e.target.getAttribute("data-index");
+      const selectedId = e.target.value;
+      if (selectedId && currentEventsData[idx]) {
+        currentEventsData[idx].resident_id = parseInt(selectedId);
+        currentEventsData[idx].status = "READY";
+        currentEventsData[idx].status_label = "آماده ثبت";
+      }
+    }
+  });
+
+  // Execute Action
+  executeBtn.addEventListener("click", function() {
+    const checkedRows = document.querySelectorAll(".event-checkbox:checked");
+    if (checkedRows.length === 0) {
+      alert("لطفاً حداقل یک رویداد را برای ثبت تایید کنید.");
+      return;
+    }
+
+    const eventsToExecute = [];
+    let hasUnresolvedCandidate = false;
+
+    checkedRows.forEach(cb => {
+      const idx = parseInt(cb.getAttribute("data-index"));
+      const ev = currentEventsData[idx];
+
+      // Update values from table inputs
+      const row = cb.closest("tr");
+      const amountInput = row.querySelector(".amount-input");
+      if (amountInput) ev.amount_tomans = parseInt(amountInput.value) || ev.amount_tomans;
+
+      const methodSelect = row.querySelector(".method-select");
+      if (methodSelect) ev.payment_method = methodSelect.value;
+
+      const dateInput = row.querySelector(".date-input");
+      if (dateInput) ev.date = dateInput.value;
+
+      const candidateSelect = row.querySelector(".candidate-select");
+      if (candidateSelect && candidateSelect.value) {
+        ev.resident_id = parseInt(candidateSelect.value);
+      } else if (candidateSelect && !candidateSelect.value) {
+        hasUnresolvedCandidate = true;
+      }
+
+      eventsToExecute.push(ev);
+    });
+
+    if (hasUnresolvedCandidate) {
+      alert("برای یکی از ردیف‌ها بیش از یک نام مشابه وجود دارد و هنوز ساکن را انتخاب نکرده‌اید. لطفاً شخص مورد نظر را در جدول انتخاب کنید.");
+      return;
+    }
+
+    if (!confirm(`آیا از ثبت نهایی ${eventsToExecute.length} رویداد در دیتابیس اطمینان دارید؟`)) {
+      return;
+    }
+
+    executeBtnText.style.display = "none";
+    executeSpinner.style.display = "inline-block";
+    executeBtn.disabled = true;
+
+    fetch("/admin/ai-loader/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrfToken()
+      },
+      body: JSON.stringify({
+        action: "execute",
+        events: eventsToExecute,
+        dormitory_id: dormitorySelect.value
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      executeBtnText.style.display = "inline";
+      executeSpinner.style.display = "none";
+      executeBtn.disabled = false;
+
+      if (!data.success) {
+        alert("خطا در ثبت: " + data.error);
+        return;
+      }
+
+      // Hide preview and show success receipt
+      previewCard.style.display = "none";
+      let detailsHtml = `
+        <div class="alert alert-success" style="font-size: 15px; font-weight: bold;">
+          🎉 تمامی ${data.total_actions} عملیات با موفقیت و در یک تراکنش اتمیک ثبت شدند.
+        </div>
+        <ul style="line-height: 2;">
+          <li><b>تراکنش‌های مالی جدید:</b> ${data.created_transactions} فقره</li>
+          <li><b>خروج و تسویه ساکنین:</b> ${data.updated_residents} نفر</li>
+          <li><b>ساکنین جدید پذیرش‌شده:</b> ${data.created_residents} نفر</li>
+          <li><b>یادداشت‌ها و تعمیرات ثبت‌شده:</b> ${data.created_notes} مورد</li>
+        </ul>
+        <h5 style="margin-top: 15px; font-weight: bold;">ریز عملیات ثبت‌شده:</h5>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+      `;
+
+      data.results.forEach(r => {
+        let text = "";
+        if (r.action === "RENT_PAYMENT") {
+          text = `واریز اجاره: <b>${r.resident}</b> - مبلغ ${r.amount_tomans.toLocaleString()} تومان (${r.period_name || ''}) ⬅️ تسویه تا: ${r.settled_until}`;
+        } else if (r.action === "DEPOSIT_PAYMENT") {
+          text = `ودیعه: <b>${r.resident}</b> - مبلغ ${r.amount_tomans.toLocaleString()} تومان`;
+        } else if (r.action === "CHECK_OUT") {
+          text = `خروج و تسویه: <b>${r.resident}</b> از اتاق ${r.room} در تاریخ ${r.exit_date}`;
+        } else if (r.action === "CHECK_IN") {
+          text = `پذیرش ساکن جدید: <b>${r.resident}</b> در اتاق ${r.room}`;
+        } else if (r.action === "ROOM_CHANGE") {
+          text = `جابجایی: <b>${r.resident}</b> از اتاق ${r.old_room} به اتاق ${r.new_room}`;
+        } else if (r.action === "MAINTENANCE_NOTE") {
+          text = `یادداشت تعمیرات: <b>${r.title}</b> (اتاق ${r.room})`;
+        }
+        detailsHtml += `<div style="padding: 6px 0; border-bottom: 1px solid #f1f5f9;"><a href="${r.url}" target="_blank" style="text-decoration: underline;">${text}</a></div>`;
+      });
+
+      detailsHtml += `</div>`;
+      successDetails.innerHTML = detailsHtml;
+      successCard.style.display = "block";
+      successCard.scrollIntoView({ behavior: 'smooth' });
+    })
+    .catch(err => {
+      executeBtnText.style.display = "inline";
+      executeSpinner.style.display = "none";
+      executeBtn.disabled = false;
+      alert("خطای ارتباط با سرور: " + err);
+    });
+  });
+
+  function getCsrfToken() {
+    const cookie = document.cookie.split("; ").find(row => row.startsWith("csrftoken="));
+    return cookie ? cookie.split("=")[1] : "";
+  }
+});
+</script>
+{% endblock %}

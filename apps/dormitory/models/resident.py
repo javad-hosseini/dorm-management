@@ -24,22 +24,54 @@ class Resident(models.Model):
     # Personal information
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
+    father_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="نام پدر",
+        help_text="نام پدر ساکن. در صورت عدم دسترسی، خالی بگذارید (جزو کسری مدارک محسوب می‌شود).",
+    )
+
+    is_foreign = models.BooleanField(
+        default=False,
+        verbose_name="تبعه خارجی (اتباع)",
+        help_text="در صورت علامت زدن، فیلد شناسه به عنوان شماره پاسپورت یا کد فراگیر اتباع ثبت می‌شود.",
+    )
 
     national_code = models.CharField(
-        max_length=10,
+        max_length=30,
         unique=True,
-        help_text="National identification number",
+        null=True,
+        blank=True,
+        verbose_name="کد ملی / شماره پاسپورت",
+        help_text="کد ملی ۱۰ رقمی (ایرانی) یا شماره پاسپورت / کد فراگیر (اتباع). در صورت عدم دسترسی، خالی بگذارید.",
     )
 
     phone_number = models.CharField(
         max_length=11,
         unique=True,
+        verbose_name="شماره تماس ساکن",
     )
 
     parent_phone_number = models.CharField(
         max_length=11,
         blank=True,
         null=True,
+        verbose_name="شماره تماس والدین",
+        help_text="شماره تماس والدین یا بستگان درجه یک. در صورت عدم دسترسی، خالی یا 'ندارد' بگذارید.",
+    )
+
+    # Documents & Deposit status
+    has_deposit = models.BooleanField(
+        default=False,
+        verbose_name="ودیعه دارد",
+        help_text="مشخص می‌کند که آیا ودیعه از ساکن دریافت شده است یا خیر.",
+    )
+
+    has_lease = models.BooleanField(
+        default=False,
+        verbose_name="اجاره‌نامه دارد",
+        help_text="مشخص می‌کند که آیا اجاره‌نامه رسمی با ساکن منعقد/تحویل شده است یا خیر.",
     )
 
     # Room assignment
@@ -112,7 +144,24 @@ class Resident(models.Model):
         upload_to="id_cards/",
         null=True,
         blank=True,
-        help_text="Scanned copy of ID card",
+        verbose_name="تصویر مدارک شناسایی (۱)",
+        help_text="تصویر روی کارت ملی یا صفحه اول پاسپورت (فشرده‌سازی خودکار تا زیر ۱ مگابایت).",
+    )
+
+    id_card_image_2 = models.ImageField(
+        upload_to="id_cards/",
+        null=True,
+        blank=True,
+        verbose_name="تصویر مدارک شناسایی (۲)",
+        help_text="تصویر پشت کارت ملی یا صفحه دوم پاسپورت (اختیاری - فشرده‌سازی خودکار).",
+    )
+
+    id_card_image_3 = models.ImageField(
+        upload_to="id_cards/",
+        null=True,
+        blank=True,
+        verbose_name="تصویر مدارک شناسایی (۳)",
+        help_text="تصویر شناسنامه یا سایر مدارک هویتی (اختیاری - فشرده‌سازی خودکار).",
     )
 
     created_at = jmodels.jDateTimeField(auto_now_add=True)  # Jalali
@@ -142,6 +191,228 @@ class Resident(models.Model):
             self.status == self.Status.ACTIVE
             and self.exit_date is None
         )
+
+    # ========================================================
+    # PROFILE COMPLETION & MISSING DOCUMENTS (کسری مدارک و اطلاعات)
+    # ========================================================
+
+    @property
+    def identity_title(self) -> str:
+        """Label describing identification code type"""
+        return "شماره پاسپورت / کد فراگیر" if self.is_foreign else "کد ملی"
+
+    @property
+    def identity_display(self) -> str:
+        """Formatted identification string"""
+        if not self.national_code:
+            return "⚠️ ثبت‌نشده"
+        if self.is_foreign:
+            return f"{self.national_code} (اتباع)"
+        return self.national_code
+
+    @property
+    def has_id_card_image(self) -> bool:
+        """Check if at least one identity document photo is uploaded"""
+        return bool(self.id_card_image or self.id_card_image_2 or self.id_card_image_3)
+
+    @property
+    def uploaded_id_images_count(self) -> int:
+        """Return count of uploaded identity document photos (max 3)"""
+        return sum([bool(self.id_card_image), bool(self.id_card_image_2), bool(self.id_card_image_3)])
+
+    @property
+    def id_cards_images_list(self) -> List[Any]:
+        """Return list of valid uploaded image fields"""
+        imgs = []
+        if self.id_card_image:
+            imgs.append(self.id_card_image)
+        if self.id_card_image_2:
+            imgs.append(self.id_card_image_2)
+        if self.id_card_image_3:
+            imgs.append(self.id_card_image_3)
+        return imgs
+
+    @property
+    def has_incomplete_profile(self) -> bool:
+        """Check if resident has missing national code, father name, parent phone number, lease contract, or ID card image"""
+        return (
+            not bool(self.national_code)
+            or not bool(self.father_name)
+            or not bool(self.parent_phone_number)
+            or not self.has_lease
+            or not self.has_id_card_image
+        )
+
+    @property
+    def missing_profile_fields(self) -> List[str]:
+        """Return list of missing field names in Persian"""
+        missing = []
+        if not self.national_code:
+            missing.append("شماره پاسپورت یا کد فراگیر" if self.is_foreign else "کد ملی")
+        if not self.father_name:
+            missing.append("نام پدر")
+        if not self.parent_phone_number:
+            missing.append("شماره تماس والدین")
+        if not self.has_lease:
+            missing.append("اجاره‌نامه")
+        if not self.has_id_card_image:
+            missing.append("عکس مدرک شناسایی")
+        return missing
+
+    @property
+    def profile_completion_status(self) -> str:
+        """Return code indicating which documents are missing"""
+        missing_code = not bool(self.national_code)
+        missing_father = not bool(self.father_name)
+        missing_parent = not bool(self.parent_phone_number)
+        missing_lease = not self.has_lease
+        missing_image = not self.has_id_card_image
+
+        if not any([missing_code, missing_father, missing_parent, missing_lease, missing_image]):
+            return "COMPLETE"
+        
+        missing_count = sum([missing_code, missing_father, missing_parent, missing_lease, missing_image])
+        if missing_count == 5:
+            return "MISSING_ALL"
+        
+        if missing_count == 1:
+            if missing_code:
+                return "MISSING_PASSPORT" if self.is_foreign else "MISSING_NATIONAL_CODE"
+            if missing_father:
+                return "MISSING_FATHER_NAME"
+            if missing_parent:
+                return "MISSING_PARENT_PHONE"
+            if missing_lease:
+                return "MISSING_LEASE"
+            if missing_image:
+                return "MISSING_ID_IMAGE"
+
+        if missing_code and missing_parent and not missing_father and not missing_lease and not missing_image:
+            return "MISSING_BOTH"
+
+        return "INCOMPLETE"
+
+    # ========================================================
+    # PROFILE EXPORT & COPY FORMATTING (خروجی و کپی مشخصات بدون مالی)
+    # ========================================================
+
+    def get_export_dict(self) -> dict:
+        """Return comprehensive non-financial profile dictionary"""
+        room_num = str(self.room.room_number) if self.room else "تعیین‌نشده"
+        rent_tomans = f"{self.current_monthly_rent_tomans:,}" if self.room and self.room.monthly_rent else "نامشخص"
+        dorm_name = self.dormitory.name if self.dormitory else "نامشخص"
+        nat_code = self.national_code or "⚠️ ثبت‌نشده"
+        if self.is_foreign and self.national_code:
+            nat_code = f"{self.national_code} (اتباع / گذرنامه)"
+        parent_phone = self.parent_phone_number or "⚠️ ثبت‌نشده"
+        occ_map = {"STUDENT": "دانشجو", "EMPLOYED": "شاغل", "OTHER": "سایر"}
+        occ_text = occ_map.get(self.occupation, self.occupation or "سایر")
+        status_text = "فعال" if self.status == self.Status.ACTIVE else "خارج شده"
+        settled_text = str(self.settled_until) if self.settled_until else "ثبت نشده"
+        entry_text = str(self.entry_date) if self.entry_date else "نامشخص"
+
+        return {
+            "full_name": self.full_name,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "father_name": self.father_name or "⚠️ ثبت‌نشده",
+            "is_foreign": self.is_foreign,
+            "identity_title": self.identity_title,
+            "national_code": nat_code,
+            "phone_number": self.phone_number,
+            "parent_phone_number": parent_phone,
+            "occupation": occ_text,
+            "dormitory": dorm_name,
+            "room_number": room_num,
+            "monthly_rent_tomans": rent_tomans,
+            "entry_date": entry_text,
+            "monthly_payment_day": f"{self.monthly_payment_day or 1}ام هر ماه",
+            "status": status_text,
+            "settled_until": settled_text,
+            "settled_until_display": self.settled_until_display,
+            "next_due_date": str(self.next_due_date) if self.next_due_date else "",
+            "next_due_date_display": self.next_due_date_display,
+            "due_status_display": self.due_status_display,
+            "has_deposit": self.has_deposit,
+            "has_lease": self.has_lease,
+            "deposit_status": "دارد" if self.has_deposit else "ندارد",
+            "lease_status": "دارد" if self.has_lease else "ندارد",
+            "has_id_card_image": self.has_id_card_image,
+            "id_images_count": self.uploaded_id_images_count,
+            "id_card_status": f"{self.uploaded_id_images_count} تصویر" if self.has_id_card_image else "ندارد",
+        }
+
+    def get_export_text(self) -> str:
+        """
+        Return cleanly formatted Persian text for clipboard/sharing.
+        Includes bio, contact, room, dates, and status (strictly excluding payment/tx history).
+        """
+        d = self.get_export_dict()
+        id_label = "🛂 شماره پاسپورت/فراگیر (اتباع)" if self.is_foreign else "🆔 کد ملی"
+        lines = [
+            f"👤 نام و نام خانوادگی: {d['full_name']}",
+            f"👨 نام پدر: {d['father_name']}",
+            f"{id_label}: {d['national_code']}",
+            f"📱 شماره تماس: {d['phone_number']}",
+            f"👨‍👩‍👦 شماره والدین: {d['parent_phone_number']}",
+            f"💼 شغل: {d['occupation']}",
+            f"🏢 خوابگاه: {d['dormitory']}",
+            f"🚪 شماره اتاق: {d['room_number']} (اجاره: {d['monthly_rent_tomans']} تومان)",
+            f"📄 اجاره‌نامه: {'✅ دارد' if d.get('has_lease') else '⚠️ ندارد (کسری مدرک)'}",
+            f"📸 عکس مدارک شناسایی: {d['id_card_status'] if d.get('has_id_card_image') else '⚠️ ندارد (کسری مدرک)'}",
+            f"💰 ودیعه: {'✅ دارد' if d.get('has_deposit') else '❌ ندارد'}",
+            f"📅 تاریخ ورود: {d['entry_date']}",
+            f"🗓️ موعد پرداخت: {d['monthly_payment_day']}",
+            f"📌 وضعیت اقامت: {d['status']}",
+            f"⌛ تسویه تا: {d['settled_until_display']}",
+            f"🗓️ سررسید موعد: {d['next_due_date_display']} ({d['due_status_display']})",
+        ]
+        return "\n".join(lines)
+
+    def clean(self):
+        super().clean()
+
+        def clean_val(val, uppercase_letters=False):
+            if val is None:
+                return None
+            val_str = str(val).strip()
+            # Normalize Persian/Arabic digits
+            p_to_e = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧۸۹', '01234567890123456789')
+            val_str = val_str.translate(p_to_e).strip()
+
+            # Common placeholder tokens representing missing/unknown value
+            placeholders = {'', '-', '_', 'ندارد', 'null', 'none', 'فاقد', 'نامشخص', 'بدون', 'ثبت نشده', '0', '0000000000'}
+            if val_str.lower() in placeholders:
+                return None
+            if uppercase_letters:
+                return val_str.upper()
+            return val_str
+
+        self.father_name = clean_val(self.father_name)
+        self.national_code = clean_val(self.national_code, uppercase_letters=bool(self.is_foreign))
+        self.parent_phone_number = clean_val(self.parent_phone_number)
+
+        if self.phone_number:
+            p_to_e = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧۸۹', '01234567890123456789')
+            self.phone_number = str(self.phone_number).translate(p_to_e).strip()
+
+    def save(self, *args, **kwargs):
+        # Auto-compress any newly uploaded ID card images before saving to disk
+        from apps.dormitory.image_utils import compress_image
+        from django.core.files.uploadedfile import UploadedFile
+
+        for field_name in ['id_card_image', 'id_card_image_2', 'id_card_image_3']:
+            field_file = getattr(self, field_name, None)
+            if not field_file:
+                continue
+            underlying = getattr(field_file, '_file', None) or (field_file if isinstance(field_file, UploadedFile) else None)
+            if underlying and isinstance(underlying, UploadedFile):
+                compressed = compress_image(underlying)
+                setattr(self, field_name, compressed)
+
+        self.clean()
+        super().save(*args, **kwargs)
+
 
     # ========================================================
     # ACCOUNTING & PRE-PAYMENT LOGIC (حسابداری پیش‌پرداخت و دیرکرد)
@@ -196,6 +467,54 @@ class Resident(models.Model):
         if self.settled_until >= today:
             return (self.settled_until - today).days
         return 0
+
+    @property
+    def next_due_date(self) -> Optional[jdatetime.date]:
+        """
+        The next payment due date (سررسید موعد بعدی).
+        In the prepaid model, this is settled_until date (or entry_date if unsettled).
+        """
+        return self.settled_until or self.entry_date
+
+    @property
+    def next_due_date_display(self) -> str:
+        """Formatted string of next due date"""
+        d = self.next_due_date
+        return d.strftime('%Y/%m/%d') if d else "ثبت نشده"
+
+    @property
+    def settled_until_display(self) -> str:
+        """Formatted string of settled_until date"""
+        return self.settled_until.strftime('%Y/%m/%d') if self.settled_until else "تسویه نشده (فاقد پرداخت)"
+
+    @property
+    def due_status_display(self) -> str:
+        """
+        Human readable Persian summary of settlement date and upcoming due date / overdue days.
+        """
+        if self.status != self.Status.ACTIVE:
+            return self.get_status_display()
+        if not self.room:
+            return "بدون اتاق"
+
+        due_date_str = self.next_due_date_display
+
+        if not self.settled_until:
+            if self.is_in_debt:
+                if self.overdue_days == 0:
+                    return f"سررسید موعد ورود امروز ({due_date_str})"
+                return f"{self.overdue_days} روز تاخیر از ورود ({due_date_str})"
+            return f"ورود در آینده ({due_date_str})"
+
+        if self.is_in_debt:
+            if self.overdue_days == 0:
+                return f"سررسید موعد امروز ({due_date_str})"
+            return f"{self.overdue_days} روز تاخیر در پرداخت (سررسید: {due_date_str})"
+        else:
+            days = self.days_until_due
+            if days == 0:
+                return f"سررسید موعد امروز ({due_date_str})"
+            return f"{days} روز مانده تا سررسید ({due_date_str})"
 
     @property
     def unpaid_periods(self) -> List[Dict[str, Any]]:

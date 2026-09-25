@@ -1,0 +1,205 @@
+/* ===================================================================
+   PERSIAN DATEPICKER (تقویم شمسی مدرن داشبورد)
+   Glassmorphic, RTL-native, responsive
+=================================================================== */
+
+.persian-datepicker-input {
+  cursor: pointer !important;
+}
+
+.persian-datepicker-popup {
+  position: absolute;
+  z-index: 9999;
+  width: 310px;
+  background: var(--glass-bg-strong, rgba(255, 255, 255, 0.92));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border-strong, rgba(255, 255, 255, 0.3));
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+  direction: rtl;
+  user-select: none;
+  animation: pdpFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pdpFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header & Selectors */
+.pdp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--glass-border, rgba(0, 0, 0, 0.08));
+}
+
+.pdp-nav-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+  background: var(--glass-bg, rgba(255, 255, 255, 0.5));
+  color: var(--text-0, #1e293b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pdp-nav-btn:hover {
+  background: var(--brand-500, #3b82f6);
+  color: #fff;
+  border-color: var(--brand-500, #3b82f6);
+  transform: scale(1.05);
+}
+
+.pdp-selectors {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.pdp-select {
+  background: var(--glass-bg, rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+  color: var(--text-0, #1e293b);
+  border-radius: 0.6rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.pdp-select:focus {
+  border-color: var(--brand-500, #3b82f6);
+}
+
+/* Weekdays */
+.pdp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+  text-align: center;
+  margin-bottom: 0.4rem;
+}
+
+.pdp-weekday {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-2, #64748b);
+  padding: 0.3rem 0;
+}
+
+.pdp-weekday.pdp-friday {
+  color: #ef4444;
+}
+
+/* Day grid */
+.pdp-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.pdp-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-0, #1e293b);
+  border-radius: 0.65rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pdp-day:not(.pdp-empty):hover {
+  background: color-mix(in srgb, var(--brand-500, #3b82f6) 20%, transparent);
+  color: var(--brand-500, #3b82f6);
+  transform: scale(1.08);
+}
+
+.pdp-day.pdp-empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.pdp-day.pdp-today {
+  border: 1.5px solid var(--brand-500, #3b82f6);
+  color: var(--brand-500, #3b82f6);
+  font-weight: 800;
+}
+
+.pdp-day.pdp-selected {
+  background: linear-gradient(135deg, var(--brand-500, #3b82f6), var(--brand-700, #1d4ed8)) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transform: scale(1.05);
+}
+
+.pdp-day.pdp-friday:not(.pdp-selected) {
+  color: #ef4444;
+}
+
+/* Footer Actions */
+.pdp-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--glass-border, rgba(0, 0, 0, 0.08));
+}
+
+.pdp-action-btn {
+  background: var(--glass-bg, rgba(255, 255, 255, 0.5));
+  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+  color: var(--text-1, #334155);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.pdp-action-btn:hover {
+  background: var(--glass-bg-strong, rgba(255, 255, 255, 0.8));
+  color: var(--text-0, #0f172a);
+}
+
+.pdp-today-btn {
+  color: var(--brand-500, #3b82f6);
+  font-weight: 700;
+}
+
+.pdp-today-btn:hover {
+  background: color-mix(in srgb, var(--brand-500, #3b82f6) 15%, transparent);
+  color: var(--brand-500, #3b82f6);
+}
+
+.pdp-clear-btn {
+  color: #ef4444;
+}
+
+.pdp-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}

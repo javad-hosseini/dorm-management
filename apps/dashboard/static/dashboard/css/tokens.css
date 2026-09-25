@@ -30,12 +30,13 @@
   --aurora-c:#7c3aed;
   --aurora-d:#0ea5b7;
 
-  --glass-bg:rgba(18,26,46,.55);
-  --glass-bg-strong:rgba(18,26,46,.78);
+  --glass-bg:rgba(18,26,46,.75);
+  --glass-bg-strong:rgba(18,26,46,.90);
   --glass-border:rgba(255,255,255,.08);
   --glass-border-strong:rgba(255,255,255,.16);
   --glass-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
-  --glass-blur:20px;
+  --glass-blur:8px;
+
 
   --text-0:#f4f7ff;
   --text-1:#c7d1e8;
@@ -71,9 +72,10 @@
   --aurora-c:#c9b8ff;
   --aurora-d:#a8e6df;
 
-  --glass-bg:rgba(255,255,255,.5);
-  --glass-bg-strong:rgba(255,255,255,.72);
+  --glass-bg:rgba(255,255,255,.82);
+  --glass-bg-strong:rgba(255,255,255,.94);
   --glass-border:rgba(255,255,255,.65);
+
   --glass-border-strong:rgba(255,255,255,.85);
   --glass-shadow:0 20px 50px rgba(74,144,226,.16), inset 0 1px 0 rgba(255,255,255,.7);
 
@@ -86,10 +88,9 @@
   color-scheme: light;
 }
 
-/* --- Theme transition: everything fades smoothly when the user swaps theme --- */
-body, .glass, .glass-strong, .surface{
+/* --- Theme transition: applied to body only to prevent thousands of element transition checks --- */
+body{
   transition: background-color var(--dur-slow) var(--ease-smooth),
-              border-color var(--dur-slow) var(--ease-smooth),
-              color var(--dur-slow) var(--ease-smooth),
-              box-shadow var(--dur-slow) var(--ease-smooth);
+              color var(--dur-slow) var(--ease-smooth);
 }
+

@@ -18,8 +18,17 @@ from django.contrib import admin
 from django.urls import path, include
 
 
+from apps.dormitory.views import ai_daily_loader_view
+from django.conf import settings
+from django.conf.urls.static import static
+
 urlpatterns = [
     path('dashboard/', include('apps.dashboard.urls'), name="dashboard"),
     path('i18n/', include('django.conf.urls.i18n')),
+    path('admin/ai-loader/', ai_daily_loader_view, name='ai_daily_loader'),
     path('admin/', admin.site.urls),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

@@ -2,8 +2,8 @@
    ANIMATIONS — all keyframes + stagger utility classes live here
 =================================================================== */
 
-@keyframes float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-6px); } }
-.float{ animation:float 5s ease-in-out infinite; }
+.float{ transition:transform var(--dur-med) var(--ease-spring); }
+.float:hover{ transform:translateY(-4px); }
 
 @keyframes fadeInUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
 @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
@@ -23,8 +23,8 @@
 .stagger > *:nth-child(6){ animation-delay:.17s; }
 .stagger > *:nth-child(n+7){ animation-delay:.2s; }
 
-@keyframes pulseGlow{ 0%,100%{ box-shadow:0 0 0 0 var(--brand-glow); } 50%{ box-shadow:0 0 0 8px transparent; } }
-.pulse-glow{ animation:pulseGlow 2.4s ease-in-out infinite; }
+.pulse-glow{ box-shadow:0 0 16px var(--brand-glow); }
+
 
 @keyframes spin{ to{ transform:rotate(360deg); } }
 .spin{ animation:spin 1s linear infinite; }

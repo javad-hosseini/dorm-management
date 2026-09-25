@@ -12,12 +12,12 @@
 
 
 <!-- Same design-system stylesheets as the Admin Dashboard, in the same order -->
-<link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/animations.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'dashboard/css/animations.css' %}?v=3">
 <!-- Student-only additions: sidebar, mobile drawer, profile/payment layouts -->
-<link rel="stylesheet" href="{% static 'dashboard/css/student.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard/css/student.css' %}?v=3">
 </head>
 <body class="p-3 md:p-4">
 
@@ -42,6 +42,36 @@
       <div class="avatar-lg">ج</div>
       <h3 class="font-bold mt-3">جواد حسینی</h3>
       <p class="text-[11px] text-muted">کد ملی: 0012345678</p>
+      <div class="theme-toggle classic-theme-switch mt-3 mx-auto w-fit" role="group" aria-label="حالت نمایش سیستم">
+        <button data-mode="light" class="theme-btn" title="حالت روز (روشن)">
+          <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <span class="theme-label">روشن</span>
+        </button>
+        <button data-mode="dark" class="theme-btn" title="حالت شب (تیره)">
+          <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <span class="theme-label">تیره</span>
+        </button>
+        <button data-mode="auto" class="theme-btn" title="تنظیم خودکار با دستگاه">
+          <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          <span class="theme-label">خودکار</span>
+        </button>
+      </div>
     </div>
     <div class="flex flex-col gap-1.5">
       <button data-menu onclick="switchMenu('dashboard')" class="side-link"><i data-lucide="layout-dashboard"></i> داشبورد</button>
@@ -62,18 +92,43 @@
   <!-- DESKTOP SIDEBAR -->
   <div class="desktop-sidebar lg:w-[300px] flex flex-col gap-4">
     <div class="glass rounded-[1.8rem] p-5 text-center animate-fadeInUp">
-      <div class="avatar-lg" id="student-avatar">ج</div>
-      <h3 class="font-bold mt-3 text-[16px]" id="student-name">جواد حسینی</h3>
-      <p class="text-[11px] text-muted" id="student-code">کد ملی: 0012345678</p>
-      <p class="text-[11px] text-muted">اتاق 302 - خوابگاه پسرانه 1</p>
+      <div class="avatar-lg" id="student-avatar">د</div>
+      <h3 class="font-bold mt-3 text-[16px]" id="student-name">دانشجو</h3>
+      <p class="text-[11px] text-muted" id="student-code">کد ملی: -</p>
+      <p class="text-[11px] text-muted" id="student-room-dorm">اتاق - خوابگاه</p>
       <div class="mt-3 flex gap-2 justify-center">
-        <span class="text-[10px] bg-emerald-500 text-white px-3 py-1 rounded-full">فعال</span>
-        <span class="text-[10px] glass px-3 py-1 rounded-full" id="debt-badge">تسویه</span>
+        <span class="text-[10px] bg-emerald-500 text-white px-3 py-1 rounded-full" id="student-status-badge">فعال</span>
+        <span class="text-[10px] glass px-3 py-1 rounded-full font-semibold" id="debt-badge">تسویه</span>
       </div>
-      <div class="theme-toggle mt-4 mx-auto w-fit" role="group" aria-label="حالت نمایش">
-        <button data-mode="light" title="روشن">☀️</button>
-        <button data-mode="dark" title="تیره">🌙</button>
-        <button data-mode="auto" title="خودکار">🖥️</button>
+      <div class="theme-toggle classic-theme-switch mt-4 mx-auto w-fit" role="group" aria-label="حالت نمایش سیستم">
+        <button data-mode="light" class="theme-btn" title="حالت روز (روشن)">
+          <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <span class="theme-label">روشن</span>
+        </button>
+        <button data-mode="dark" class="theme-btn" title="حالت شب (تیره)">
+          <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <span class="theme-label">تیره</span>
+        </button>
+        <button data-mode="auto" class="theme-btn" title="تنظیم خودکار با دستگاه">
+          <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          <span class="theme-label">خودکار</span>
+        </button>
       </div>
     </div>
 
@@ -90,11 +145,12 @@
     </div>
 
     <div class="glass rounded-[1.8rem] p-4 animate-fadeInUp" style="animation-delay:.1s">
-      <p class="text-[11px] font-bold">وضعیت مالی سریع</p>
-      <div class="mt-3 space-y-2">
-        <div class="quick-row glass"><span class="text-muted">تسویه تا</span><b id="quick-settled">1403/08/15</b></div>
-        <div class="quick-row glass"><span class="text-muted">این ماه</span><b id="quick-paid" class="text-emerald-500">پرداخت شده</b></div>
-        <div class="quick-row glass"><span class="text-muted">اجاره</span><b id="quick-rent">3,500,000 تومان</b></div>
+      <p class="text-[11px] font-bold">وضعیت مالی و سررسید</p>
+      <div class="mt-3 space-y-2 text-xs">
+        <div class="quick-row glass"><span class="text-muted">تسویه تا تاریخ</span><b id="quick-settled" class="text-blue-400 font-bold">-</b></div>
+        <div class="quick-row glass"><span class="text-muted">سررسید موعد</span><b id="quick-due" class="text-amber-400 font-bold">-</b></div>
+        <div class="quick-row glass"><span class="text-muted">وضعیت مهلت</span><b id="quick-due-status" class="text-emerald-400 font-bold">-</b></div>
+        <div class="quick-row glass"><span class="text-muted">اجاره ماهانه</span><b id="quick-rent">-</b></div>
       </div>
     </div>
   </div>
@@ -105,24 +161,45 @@
     <!-- DASHBOARD -->
     <div id="sec-dashboard" class="space-y-4 tab-section">
       <div class="glass rounded-[1.8rem] p-6">
-        <h2 class="text-xl font-bold flex items-center gap-2">سلام، <span id="dash-name">جواد</span> عزیز <i data-lucide="sparkles" class="w-5 h-5 text-blue-400"></i></h2>
-        <p class="text-[13px] text-muted mt-1">اینجا خلاصه وضعیت اسکان شما در خوابگاه است</p>
+        <h2 class="text-xl font-bold flex items-center gap-2">سلام، <span id="dash-name">دانشجو</span> عزیز <i data-lucide="sparkles" class="w-5 h-5 text-blue-400"></i></h2>
+        <p class="text-[13px] text-muted mt-1">اینجا خلاصه وضعیت اسکان و موعد تسویه حساب شما در خوابگاه است</p>
+
+        <!-- بنر اختصاصی و برجسته سررسید موعد و تسویه دانشجو -->
+        <div id="dash-due-banner" class="mt-4 p-4 rounded-2xl glass border border-emerald-500/30 bg-emerald-500/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div class="flex items-center gap-3">
+            <div id="dash-due-icon" class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-emerald-500/20 text-emerald-400">
+              🗓️
+            </div>
+            <div>
+              <p class="text-[11px] text-muted">وضعیت تسویه حساب و موعد بعدی</p>
+              <h4 id="dash-due-title" class="font-bold text-sm md:text-base text-emerald-400 mt-0.5">تسویه به روز</h4>
+              <p id="dash-due-desc" class="text-xs text-muted mt-0.5">در حال بارگذاری وضعیت سررسید...</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 self-stretch md:self-auto justify-end">
+            <button onclick="switchMenu('pay')" class="btn btn-primary text-xs px-4 py-2 rounded-xl font-semibold flex items-center gap-1.5 whitespace-nowrap">
+              <span>💳</span>
+              <span>مشاهده و پرداخت اجاره</span>
+            </button>
+          </div>
+        </div>
+
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5 stagger">
           <div class="stat-tile glass border border-blue-500/25">
             <div class="stat-icon" style="background:color-mix(in srgb, var(--brand-500) 20%, transparent); color:var(--brand-500)"><i data-lucide="bed-double"></i></div>
-            <p class="text-[11px] text-muted">اتاق من</p><p class="font-bold text-lg">302</p><p class="text-[10px] text-muted">خوابگاه پسرانه 1 - ظرفیت 4</p>
+            <p class="text-[11px] text-muted">اتاق من</p><p class="font-bold text-lg" id="dash-room-num">-</p><p class="text-[10px] text-muted" id="dash-dorm-capacity">-</p>
           </div>
-          <div class="stat-tile glass border border-emerald-500/25">
-            <div class="stat-icon" style="background:color-mix(in srgb, var(--success-500) 20%, transparent); color:var(--success-500)"><i data-lucide="badge-check"></i></div>
-            <p class="text-[11px] text-muted">وضعیت پرداخت</p><p class="font-bold text-lg text-emerald-500">تسویه</p><p class="text-[10px] text-muted">تا 1403/08/15</p>
+          <div class="stat-tile glass border border-emerald-500/25" id="dash-payment-tile">
+            <div class="stat-icon" id="dash-payment-icon" style="background:color-mix(in srgb, var(--success-500) 20%, transparent); color:var(--success-500)"><i data-lucide="badge-check"></i></div>
+            <p class="text-[11px] text-muted">تسویه تا تاریخ</p><p class="font-bold text-lg text-emerald-500" id="dash-pay-status">-</p><p class="text-[10px] text-muted" id="dash-settled-info">-</p>
           </div>
-          <div class="stat-tile glass border border-amber-500/25">
-            <div class="stat-icon" style="background:color-mix(in srgb, var(--warning-500) 20%, transparent); color:var(--warning-500)"><i data-lucide="wrench"></i></div>
-            <p class="text-[11px] text-muted">درخواست‌ها</p><p class="font-bold text-lg">1 باز</p><p class="text-[10px] text-muted">تعمیر کولر</p>
+          <div class="stat-tile glass border border-amber-500/25" id="dash-due-tile">
+            <div class="stat-icon" style="background:color-mix(in srgb, var(--warning-500) 20%, transparent); color:var(--warning-500)"><i data-lucide="calendar"></i></div>
+            <p class="text-[11px] text-muted">موعد سررسید بعدی</p><p class="font-bold text-lg text-amber-400" id="dash-due-date">-</p><p class="text-[10px] text-muted" id="dash-due-countdown">-</p>
           </div>
           <div class="stat-tile glass border border-violet-500/25">
             <div class="stat-icon" style="background:color-mix(in srgb, var(--info-500) 20%, transparent); color:var(--info-500)"><i data-lucide="file-text"></i></div>
-            <p class="text-[11px] text-muted">قرارداد</p><p class="font-bold text-lg">فعال</p><p class="text-[10px] text-muted">تا 1404/06/01</p>
+            <p class="text-[11px] text-muted">اجاره‌نامه و ودیعه</p><p class="font-bold text-base" id="dash-contract-status">فعال</p><p class="text-[10px] text-muted" id="dash-contract-lease">-</p>
           </div>
         </div>
       </div>
@@ -144,14 +221,16 @@
     <div id="sec-profile" class="hidden glass rounded-[1.8rem] p-6 md:p-8 tab-section">
       <h3 class="font-bold text-lg mb-6 flex items-center gap-2"><i data-lucide="user"></i> پروفایل من - اطلاعات شخصی</h3>
       <div class="grid md:grid-cols-2 gap-4 text-sm stagger">
-        <div class="info-tile glass"><p class="text-[11px] text-muted">نام و نام خانوادگی</p><p class="font-bold mt-1">جواد حسینی</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">کد ملی</p><p class="font-bold mt-1">0012345678</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">شماره موبایل</p><p class="font-bold mt-1">09121234567</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">شماره والدین</p><p class="font-bold mt-1">09129876543</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">شغل</p><p class="font-bold mt-1">دانشجو</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">تاریخ ورود</p><p class="font-bold mt-1">1403/06/01</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">روز پرداخت ماهانه</p><p class="font-bold mt-1">5 ام هر ماه</p></div>
-        <div class="info-tile glass"><p class="text-[11px] text-muted">وضعیت</p><p class="font-bold mt-1 text-emerald-500">فعال</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">نام و نام خانوادگی</p><p class="font-bold mt-1" id="prof-name">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">کد ملی / شناسه</p><p class="font-bold mt-1" id="prof-natcode">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">شماره موبایل</p><p class="font-bold mt-1" id="prof-phone">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">شماره والدین</p><p class="font-bold mt-1" id="prof-parent-phone">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">شغل</p><p class="font-bold mt-1" id="prof-occupation">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">تاریخ ورود</p><p class="font-bold mt-1" id="prof-entry">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">روز پرداخت ماهانه</p><p class="font-bold mt-1" id="prof-pay-day">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">تسویه تا تاریخ</p><p class="font-bold mt-1 text-blue-400" id="prof-settled">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">تاریخ سررسید موعد بعدی</p><p class="font-bold mt-1 text-amber-400" id="prof-due-date">-</p></div>
+        <div class="info-tile glass"><p class="text-[11px] text-muted">وضعیت سررسید و مهلت</p><p class="font-bold mt-1" id="prof-due-status">-</p></div>
       </div>
       <div class="mt-6 flex gap-3">
         <button class="btn btn-ghost px-6 py-2.5 rounded-xl text-sm">تغییر رمز عبور</button>
@@ -193,10 +272,11 @@
         <h3 class="font-bold text-xl mt-4">پرداخت اجاره ماه جاری</h3>
         <p class="text-[13px] text-muted mt-2">مبلغ: 3,500,000 تومان</p>
         <div class="glass rounded-2xl p-4 max-w-md mx-auto mt-6 text-right text-[12px] space-y-2">
-          <div class="flex justify-between"><span class="text-muted">اتاق:</span><b>302 - ظرفیت 4</b></div>
-          <div class="flex justify-between"><span class="text-muted">ماه:</span><b>آبان 1403</b></div>
-          <div class="flex justify-between"><span class="text-muted">تسویه قبلی تا:</span><b>1403/07/15</b></div>
-          <div class="flex justify-between"><span class="text-muted">جریمه دیرکرد:</span><b class="text-rose-500">0</b></div>
+          <div class="flex justify-between"><span class="text-muted">اتاق و خوابگاه:</span><b id="pay-room-desc">-</b></div>
+          <div class="flex justify-between"><span class="text-muted">تسویه قبلی تا تاریخ:</span><b id="pay-settled-until" class="text-blue-400">-</b></div>
+          <div class="flex justify-between"><span class="text-muted">تاریخ سررسید موعد:</span><b id="pay-due-date" class="text-amber-400">-</b></div>
+          <div class="flex justify-between"><span class="text-muted">وضعیت مهلت / تاخیر:</span><b id="pay-due-status">-</b></div>
+          <div class="flex justify-between"><span class="text-muted">مبلغ قابل پرداخت اجاره:</span><b id="pay-amount-toman" class="text-emerald-400 font-bold">-</b></div>
         </div>
         <button onclick="openPayModal()" class="btn btn-primary px-10 py-4 rounded-2xl font-bold text-[15px] mt-6 w-full max-w-md">پرداخت آنلاین</button>
 
@@ -226,11 +306,14 @@
       <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="file-text"></i> قرارداد اسکان</h3>
       <div class="grid md:grid-cols-2 gap-6 mt-6">
         <div class="space-y-3 text-[13px] stagger">
-          <div class="info-tile glass flex justify-between"><span class="text-muted">شماره قرارداد</span><b>#RES302</b></div>
-          <div class="info-tile glass flex justify-between"><span class="text-muted">تاریخ شروع</span><b>1403/06/01</b></div>
-          <div class="info-tile glass flex justify-between"><span class="text-muted">تاریخ پایان</span><b>1404/06/01</b></div>
-          <div class="info-tile glass flex justify-between"><span class="text-muted">ودیعه</span><b>60,000,000 تومان</b></div>
-          <div class="info-tile glass flex justify-between"><span class="text-muted">خوابگاه</span><b>پسرانه 1 - اتاق 302</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">شماره قرارداد</span><b id="contract-number">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">تاریخ شروع</span><b id="contract-start">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">تاریخ پایان</span><b id="contract-end">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">وضعیت اجاره‌نامه</span><b id="contract-lease">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">وضعیت ودیعه</span><b id="contract-deposit">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">تسویه تا تاریخ</span><b id="contract-settled" class="text-blue-400">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">سررسید موعد بعدی</span><b id="contract-due" class="text-amber-400">-</b></div>
+          <div class="info-tile glass flex justify-between"><span class="text-muted">خوابگاه و اتاق</span><b id="contract-room">-</b></div>
         </div>
         <div class="glass rounded-[1.5rem] p-6 flex flex-col items-center justify-center border-2 border-dashed" style="border-color:var(--glass-border-strong)">
           <div class="w-20 h-20 rounded-2xl flex items-center justify-center" style="background:color-mix(in srgb, var(--danger-500) 15%, transparent)"><i data-lucide="file-text" class="w-9 h-9 text-rose-500"></i></div>

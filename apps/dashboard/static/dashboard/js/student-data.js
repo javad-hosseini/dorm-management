@@ -15,8 +15,13 @@ const StudentDB = (() => {
     entry_date: "-",
     monthly_payment_day: 1,
     status: "ACTIVE",
-    is_in_debt: false,
     settled_until: "-",
+    settled_until_display: "-",
+    next_due_date: "-",
+    next_due_date_display: "-",
+    due_status_display: "-",
+    days_until_due: 0,
+    overdue_days: 0,
     room: { room_number: "-", dormitory: "-", capacity: 0, current_occupants: 0, monthly_rent: 0 },
     contract: { number: "-", start: "-", end: "-", deposit_toman: "-" }
   };

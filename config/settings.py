@@ -70,6 +70,17 @@ JALALI_DATE_DEFAULTS = {
     },
 }
 
+JALALI_SETTINGS = {
+    'ADMIN_JS_STATIC_FILES': [
+        'dormitory/js/admin_jalali_datepicker.js',
+    ],
+    'ADMIN_CSS_STATIC_FILES': {
+        'all': [
+            'dormitory/css/admin_jalali_datepicker.css',
+        ]
+    },
+}
+
 USE_L10N = True
 
 MIDDLEWARE = [
@@ -87,7 +98,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -98,6 +109,7 @@ TEMPLATES = [
         },
     },
 ]
+
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
@@ -154,6 +166,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

@@ -1,13 +1,38 @@
+import csv
+import datetime
+import html
 from django import forms
 from django.apps import apps
 from django.contrib import admin
 from django.contrib.admin import SimpleListFilter
 from django.db import models
 from django.db.models import Count, Q
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.urls import reverse
 from django.utils.html import format_html
+import jdatetime
+from django_jalali.db import models as jmodels
+from django_jalali import forms as jforms
 from apps.archive.models import ArchivedResident, ArchivedTransaction
-from .models import Dormitory, Room, Resident, Transaction
+from .models import Dormitory, Room, Resident, Transaction, DailyNote
+
+
+class AdminPersianDateWidget(jforms.jDateInput):
+    """Modern Persian Jalali datepicker widget for Django Admin"""
+    class Media:
+        css = {
+            'all': ('dormitory/css/admin_jalali_datepicker.css',)
+        }
+        js = (
+            'dormitory/js/admin_jalali_datepicker.js',
+        )
+
+    def __init__(self, attrs=None, format=None):
+        final_attrs = {'class': 'vjDateField form-control', 'size': '10'}
+        if attrs is not None:
+            final_attrs.update(attrs)
+        super().__init__(attrs=final_attrs, format=format)
 
 
 class VacancyFilter(SimpleListFilter):
@@ -41,6 +66,66 @@ class VacancyFilter(SimpleListFilter):
             return queryset.filter(occupant_count=0)
 
         return queryset
+
+
+class IncompleteProfileFilter(SimpleListFilter):
+    """Filter residents by completeness of profile and documents"""
+    title = 'وضعیت مدارک و اطلاعات'
+    parameter_name = 'profile_status'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('incomplete', '⚠️ دارای کسری اطلاعات و مدارک'),
+            ('missing_id_image', '⚠️ فاقد عکس مدارک شناسایی'),
+            ('missing_father_name', '⚠️ فاقد نام پدر'),
+            ('missing_lease', '⚠️ فاقد اجاره‌نامه'),
+            ('missing_national_code', '⚠️ فاقد کد ملی / پاسپورت'),
+            ('missing_parent_phone', '⚠️ فاقد شماره والدین'),
+            ('complete', '✅ اطلاعات و مدارک کامل'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if isinstance(val, (list, tuple)):
+            val = val[0] if val else None
+
+        if val == 'incomplete':
+            return queryset.filter(
+                Q(national_code__isnull=True) | Q(national_code='') |
+                Q(father_name__isnull=True) | Q(father_name='') |
+                Q(parent_phone_number__isnull=True) | Q(parent_phone_number='') |
+                Q(has_lease=False) |
+                ((Q(id_card_image__isnull=True) | Q(id_card_image='')) &
+                 (Q(id_card_image_2__isnull=True) | Q(id_card_image_2='')) &
+                 (Q(id_card_image_3__isnull=True) | Q(id_card_image_3='')))
+            )
+        if val == 'missing_id_image':
+            return queryset.filter(
+                (Q(id_card_image__isnull=True) | Q(id_card_image='')) &
+                (Q(id_card_image_2__isnull=True) | Q(id_card_image_2='')) &
+                (Q(id_card_image_3__isnull=True) | Q(id_card_image_3=''))
+            )
+        if val == 'missing_father_name':
+            return queryset.filter(Q(father_name__isnull=True) | Q(father_name=''))
+        if val == 'missing_lease':
+            return queryset.filter(has_lease=False)
+        if val == 'missing_national_code':
+            return queryset.filter(Q(national_code__isnull=True) | Q(national_code=''))
+        if val == 'missing_parent_phone':
+            return queryset.filter(Q(parent_phone_number__isnull=True) | Q(parent_phone_number=''))
+        if val == 'complete':
+            return queryset.filter(
+                national_code__isnull=False,
+                father_name__isnull=False,
+                parent_phone_number__isnull=False,
+                has_lease=True
+            ).exclude(national_code='').exclude(father_name='').exclude(parent_phone_number='').filter(
+                (Q(id_card_image__isnull=False) & ~Q(id_card_image='')) |
+                (Q(id_card_image_2__isnull=False) & ~Q(id_card_image_2='')) |
+                (Q(id_card_image_3__isnull=False) & ~Q(id_card_image_3=''))
+            )
+        return queryset
+
 
 
 # ============================================
@@ -94,9 +179,9 @@ class RoomAdmin(admin.ModelAdmin):
 
     def monthly_rent_display(self, obj):
         """Show rent in Million Tomans and formatted Tomans"""
-        amount_m = obj.monthly_rent / 10000000
-        amount_t = obj.monthly_rent // 10
-        return format_html('<b>{:,.1f}</b> م.تومان <small style="color:#666;">({:,.0f} تومان)</small>', amount_m, amount_t)
+        amount_m = f"{obj.monthly_rent / 10000000:,.1f}"
+        amount_t = f"{obj.monthly_rent // 10:,.0f}"
+        return format_html('<b>{}</b> م.تومان <small style="color:#666;">({} تومان)</small>', amount_m, amount_t)
 
     monthly_rent_display.short_description = "اجاره ماهانه"
     monthly_rent_display.admin_order_field = 'monthly_rent'
@@ -149,8 +234,8 @@ class TransactionInline(admin.TabularInline):
 
     def amount_display(self, obj):
         """Show amount in Tomans"""
-        amount = obj.amount // 10
-        return format_html('<b>{:,.0f}</b> تومان', amount)
+        amount = f"{obj.amount // 10:,.0f}"
+        return format_html('<b>{}</b> تومان', amount)
 
     amount_display.short_description = "مبلغ"
 
@@ -180,19 +265,41 @@ class TransactionInline(admin.TabularInline):
 @admin.register(Resident)
 class ResidentAdmin(admin.ModelAdmin):
     list_display = [
-        'full_name', 'national_code', 'occupation_badge', 'dormitory_link',
+        'full_name', 'national_code_display', 'document_status_badge', 'id_documents_badge', 'deposit_status_badge', 'occupation_badge', 'dormitory_link',
         'room_number_display', 'status_badge',
         'entry_date', 'settled_until', 'debt_status', 'payment_summary',
+        'copy_profile_action',
         'view_transactions_link',
     ]
-    actions = ['archive_left_residents']
+    actions = ['archive_left_residents', 'export_selected_to_clipboard', 'export_selected_to_csv']
 
     fieldsets = (
         ('اطلاعات فردی', {
-            'fields': ('first_name', 'last_name', 'national_code', 'occupation', 'phone_number', 'parent_phone_number')
+            'fields': (
+                ('first_name', 'last_name', 'father_name'),
+                ('is_foreign', 'national_code'),
+                'occupation',
+                ('phone_number', 'parent_phone_number'),
+            )
+        }),
+        ('تصاویر مدارک هویتی (حداکثر ۳ تصویر با دوربین/فایل - فشرده‌سازی خودکار تا زیر ۱ مگابایت)', {
+            'fields': (
+                ('id_card_image', 'id_card_image_2', 'id_card_image_3'),
+                'id_cards_preview_display',
+            ),
+            'description': 'با دوربین گوشی یا انتخاب فایل، تا ۳ تصویر از کارت ملی (رو و پشت)، پاسپورت یا شناسنامه را آپلود کنید. حجم فایل‌ها به صورت خودکار به زیر ۱ مگابایت فشرده می‌شود.',
+        }),
+        ('خروجی و کپی مشخصات', {
+            'fields': ('copy_profile_panel',),
+            'classes': ('collapse',)
         }),
         ('تخصیص اتاق و روز پرداخت', {
             'fields': ('dormitory', 'room', 'monthly_payment_day')
+        }),
+        ('وضعیت ودیعه و اجاره‌نامه', {
+            'fields': (
+                ('has_deposit', 'has_lease'),
+            )
         }),
         ('وضعیت اقامت و تاریخ‌ها', {
             'fields': ('entry_date', 'exit_date', 'settled_until', 'status')
@@ -202,7 +309,7 @@ class ResidentAdmin(admin.ModelAdmin):
             'classes': ('wide',)
         }),
         ('امور اداری', {
-            'fields': ('registered_by', 'id_card_image')
+            'fields': ('registered_by',)
         }),
         ('تاریخچه پرداخت‌های ثبت‌شده', {
             'fields': ('payment_history_display',),
@@ -210,12 +317,138 @@ class ResidentAdmin(admin.ModelAdmin):
         }),
     )
     list_filter = [
-        'status', 'occupation', 'dormitory', 'entry_date', 'monthly_payment_day', 'settled_until'
+        'has_deposit', 'has_lease', 'is_foreign', IncompleteProfileFilter, 'status', 'occupation', 'dormitory', 'entry_date', 'monthly_payment_day', 'settled_until'
     ]
-    search_fields = ['first_name', 'last_name', 'national_code', 'phone_number', 'room__room_number']
-    readonly_fields = ['created_at', 'financial_account_display', 'payment_history_display']
+    search_fields = ['first_name', 'last_name', 'father_name', 'national_code', 'phone_number', 'room__room_number']
+    readonly_fields = ['created_at', 'financial_account_display', 'payment_history_display', 'copy_profile_panel', 'id_cards_preview_display']
     list_select_related = ['dormitory', 'room']
     inlines = [TransactionInline]
+
+    formfield_overrides = {
+        jmodels.jDateField: {'widget': AdminPersianDateWidget},
+    }
+
+    class Media:
+        css = {
+            'all': ('dormitory/css/admin_jalali_datepicker.css',)
+        }
+        js = (
+            'dormitory/js/resident_admin_copy.js',
+            'dormitory/js/admin_resident_foreign.js',
+            'dormitory/js/admin_jalali_datepicker.js',
+        )
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        if 'entry_date' not in initial:
+            initial['entry_date'] = jdatetime.date.today() - datetime.timedelta(days=1)
+        return initial
+
+    def national_code_display(self, obj):
+        if obj.national_code:
+            if obj.is_foreign:
+                return format_html('<span>{}</span> <span style="background:#0284c7; color:#fff; font-size:10px; padding:2px 6px; border-radius:4px; margin-right:4px;">🌐 اتباع</span>', obj.national_code)
+            return obj.national_code
+        return format_html('<span style="color:#e67e22; font-style:italic;">⚠️ ثبت‌نشده</span>')
+    national_code_display.short_description = "کد ملی / پاسپورت"
+    national_code_display.admin_order_field = 'national_code'
+
+    def id_documents_badge(self, obj):
+        count = obj.uploaded_id_images_count
+        if count == 0:
+            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="فاقد عکس مدارک هویتی">📷 بدون عکس</span>')
+        return format_html('<span style="background:#0284c7; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="{} تصویر مدرک بارگذاری شده">📷 {} تصویر</span>', count, count)
+    id_documents_badge.short_description = "عکس مدارک"
+    id_documents_badge.admin_order_field = 'id_card_image'
+
+    def id_cards_preview_display(self, obj):
+        if not obj or not obj.id_cards_images_list:
+            return format_html('<span style="color:#e67e22; font-style:italic;">⚠️ هنوز هیچ تصویری از مدارک شناسایی بارگذاری نشده است.</span>')
+        cards = []
+        labels = ["تصویر اول (روی کارت / پاسپورت)", "تصویر دوم (پشت کارت)", "تصویر سوم (شناسنامه / سایر)"]
+        for idx, img_field in enumerate(obj.id_cards_images_list):
+            lbl = labels[idx] if idx < len(labels) else f"تصویر {idx+1}"
+            try:
+                size_str = f"{img_field.size / 1024:.1f} KB" if img_field.size < 1024 * 1024 else f"{img_field.size / (1024 * 1024):.2f} MB"
+            except Exception:
+                size_str = "کمتر از ۱ مگابایت"
+            cards.append(format_html(
+                '<div style="display:inline-block; margin:6px; text-align:center; border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:8px; background:rgba(0,0,0,0.2);">'
+                '<div style="font-size:11px; margin-bottom:4px; font-weight:bold; color:#38bdf8;">{}</div>'
+                '<a href="{}" target="_blank" title="مشاهده اندازه کامل">'
+                '<img src="{}" style="max-height:130px; max-width:180px; object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.1); display:block; margin:0 auto;" />'
+                '</a>'
+                '<div style="font-size:10px; color:#aaa; margin-top:4px;">حجم: {}</div>'
+                '</div>',
+                lbl, img_field.url, img_field.url, size_str
+            ))
+        return format_html('<div style="display:flex; flex-wrap:wrap; gap:8px;">{}</div>', format_html(''.join(cards)))
+    id_cards_preview_display.short_description = "پیش‌نمایش مدارک بارگذاری‌شده"
+
+    def deposit_status_badge(self, obj):
+        if obj.has_deposit:
+            return format_html('<span style="color:#27ae60; font-weight:bold; font-size:11px;">✅ دارد</span>')
+        return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-weight:bold; font-size:11px;">❌ فاقد ودیعه</span>')
+    deposit_status_badge.short_description = "ودیعه"
+    deposit_status_badge.admin_order_field = 'has_deposit'
+
+    def document_status_badge(self, obj):
+        st = obj.profile_completion_status
+        if st == "COMPLETE":
+            return format_html('<span style="color:#27ae60; font-size:11px; font-weight:bold;">✅ کامل</span>')
+        elif st == "MISSING_ALL":
+            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="فاقد تمام مدارک">⚠️ فاقد مدارک (کل)</span>')
+        elif st == "MISSING_BOTH":
+            lbl = "فاقد پاسپورت و والدین" if obj.is_foreign else "فاقد کدملی و والدین"
+            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="{}">⚠️ {}</span>', lbl, lbl)
+        elif st == "MISSING_LEASE":
+            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="فاقد اجاره‌نامه">⚠️ فاقد اجاره‌نامه</span>')
+        elif st == "MISSING_NATIONAL_CODE":
+            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد کد ملی</span>')
+        elif st == "MISSING_PASSPORT":
+            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد شماره پاسپورت</span>')
+        elif st == "MISSING_PARENT_PHONE":
+            return format_html('<span style="background:#f39c12; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد تلفن والدین</span>')
+        elif st == "MISSING_FATHER_NAME":
+            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد نام پدر</span>')
+        elif st == "MISSING_ID_IMAGE":
+            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد عکس مدارک</span>')
+        
+        missing_text = " و ".join(obj.missing_profile_fields)
+        return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد {}</span>', missing_text)
+    document_status_badge.short_description = "وضعیت مدارک"
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name in ('id_card_image', 'id_card_image_2', 'id_card_image_3'):
+            kwargs['widget'] = forms.FileInput(attrs={'accept': 'image/*', 'capture': 'environment'})
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        res = self.get_object(request, object_id)
+        if res:
+            from django.contrib import messages
+            if not res.has_id_card_image:
+                messages.warning(
+                    request,
+                    f"⚠️ هشدار کسری مدارک: تصویر مدارک شناسایی برای «{res.full_name}» بارگذاری نشده است! لطفاً تصویر کارت ملی یا پاسپورت را با دوربین یا فایل آپلود نمایید."
+                )
+            if not res.father_name:
+                messages.warning(
+                    request,
+                    f"⚠️ هشدار کسری مدارک: نام پدر برای «{res.full_name}» ثبت نشده است! لطفاً جهت تکمیل پرونده نام پدر را وارد نمایید."
+                )
+            if not res.has_lease:
+                messages.warning(
+                    request,
+                    f"⚠️ هشدار کسری مدارک: «{res.full_name}» فاقد اجاره‌نامه معتبر می‌باشد! لطفاً پس از دریافت، تیک اجاره‌نامه را ثبت نمایید."
+                )
+            if not res.has_deposit:
+                messages.info(
+                    request,
+                    f"ℹ️ توجه: برای «{res.full_name}» هنوز ودیعه ثبت یا علامت‌گذاری نشده است (فاقد ودیعه)."
+                )
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+
 
     def save_model(self, request, obj, form, change):
         if not change and not obj.registered_by_id:
@@ -257,24 +490,24 @@ class ResidentAdmin(admin.ModelAdmin):
                 days, due_date
             )
         elif status == "DUE_TODAY":
-            debt_t = summary["debt_tomans"]
+            debt_t = f"{summary['debt_tomans']:,}"
             unpaid = summary["unpaid_months"]
             return format_html(
                 '<div style="white-space: nowrap;">'
                 '<span style="background: #f39c12; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟡 سررسید امروز</span><br>'
-                '<small style="color: #d35400; font-size: 11px;">{} ({:,.0f} ت)</small>'
+                '<small style="color: #d35400; font-size: 11px;">{} ({} ت)</small>'
                 '</div>',
                 unpaid, debt_t
             )
         elif status == "OVERDUE":
             overdue = summary["overdue_days"]
-            debt_t = summary["debt_tomans"]
+            debt_t = f"{summary['debt_tomans']:,}"
             unpaid = summary["unpaid_months"]
             return format_html(
                 '<div style="white-space: nowrap;">'
                 '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🔴 {} روز تاخیر</span><br>'
                 '<small style="color: #c0392b; font-weight: bold; font-size: 11px;">{}</small><br>'
-                '<small style="color: #666; font-size: 11px;">بدهی: {:,.0f} تومان</small>'
+                '<small style="color: #666; font-size: 11px;">بدهی: {} تومان</small>'
                 '</div>',
                 overdue, unpaid, debt_t
             )
@@ -501,9 +734,16 @@ class ResidentAdmin(admin.ModelAdmin):
             ArchivedResident.objects.create(
                 first_name=resident.first_name,
                 last_name=resident.last_name,
+                father_name=resident.father_name,
+                is_foreign=resident.is_foreign,
                 national_code=resident.national_code,
                 phone_number=resident.phone_number,
                 parent_phone_number=resident.parent_phone_number,
+                has_deposit=resident.has_deposit,
+                has_lease=resident.has_lease,
+                id_card_image=resident.id_card_image,
+                id_card_image_2=resident.id_card_image_2,
+                id_card_image_3=resident.id_card_image_3,
                 occupation=resident.occupation,
                 entry_date=resident.entry_date,
                 exit_date=resident.exit_date,
@@ -523,6 +763,119 @@ class ResidentAdmin(admin.ModelAdmin):
             request,
             f"✅ {archived_count} residents and {transactions_count} transactions archived and removed."
         )
+
+    def copy_profile_action(self, obj):
+        text = obj.get_export_text()
+        escaped_text = html.escape(text, quote=True)
+        return format_html(
+            '<button type="button" class="btn btn-xs btn-outline-info" '
+            'data-resident-text="{}" onclick="copyResidentClipboard(this)" '
+            'title="کپی مشخصات کامل این ساکن" style="white-space:nowrap; font-weight:600; font-size:11px;">'
+            '📋 کپی مشخصات</button>',
+            escaped_text
+        )
+    copy_profile_action.short_description = "خروجی / کپی"
+
+    def copy_profile_panel(self, obj):
+        if not obj or not obj.pk:
+            return "-"
+        text = obj.get_export_text()
+        escaped_text = html.escape(text, quote=True)
+        return format_html(
+            '<div style="max-width:650px;">'
+            '<button type="button" class="btn btn-sm btn-primary mb-2" '
+            'data-resident-text="{}" onclick="copyResidentClipboard(this)" style="font-weight:600;">'
+            '📋 کپی مشخصات این ساکن در کلیپ‌بورد</button>'
+            '<pre style="direction:rtl; text-align:right; background:#f8fafc; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:12px; line-height:1.7; white-space:pre-wrap;">{}</pre>'
+            '</div>',
+            escaped_text, text
+        )
+    copy_profile_panel.short_description = "خروجی و کپی مشخصات فردی"
+
+    @admin.action(description="📋 کپی مشخصات افراد انتخاب‌شده (متن کامل)")
+    def export_selected_to_clipboard(self, request, queryset):
+        count = queryset.count()
+        if count == 0:
+            self.message_user(request, "هیچ ساکنی انتخاب نشده است.", level='warning')
+            return None
+
+        delimiter = "\n" + ("═" * 45) + "\n\n"
+        profiles = []
+        ordered_residents = queryset.select_related('dormitory', 'room').order_by(
+            'dormitory__name', 'room__room_number', 'last_name'
+        )
+        for i, resident in enumerate(ordered_residents, 1):
+            profiles.append(f"ردیف {i}:\n" + resident.get_export_text())
+
+        combined_text = f"📋 فهرست مشخصات ساکنین ({count} نفر)\n" + ("═" * 45) + "\n\n" + delimiter.join(profiles)
+        selected_ids = list(queryset.values_list('id', flat=True))
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'خروجی مشخصات ساکنین انتخاب‌شده',
+            'count': count,
+            'combined_text': combined_text,
+            'selected_ids': selected_ids,
+        }
+        return render(request, 'admin/dormitory/resident/export_clipboard.html', context)
+
+    @admin.action(description="📊 خروجی فایل اکسل (CSV) افراد انتخاب‌شده")
+    def export_selected_to_csv(self, request, queryset):
+        count = queryset.count()
+        if count == 0:
+            self.message_user(request, "هیچ ساکنی انتخاب نشده است.", level='warning')
+            return None
+
+        response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+        response['Content-Disposition'] = f'attachment; filename="residents_export_{count}_persons.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'ردیف',
+            'نام و نام خانوادگی',
+            'نام',
+            'نام خانوادگی',
+            'کد ملی',
+            'شماره تماس ساکن',
+            'شماره تماس والدین',
+            'شغل',
+            'خوابگاه',
+            'شماره اتاق',
+            'اجاره ماهانه (تومان)',
+            'تاریخ ورود',
+            'موعد پرداخت',
+            'وضعیت اقامت',
+            'تسویه تا تاریخ',
+            'اجاره‌نامه',
+            'ودیعه'
+        ])
+
+        ordered_residents = queryset.select_related('dormitory', 'room').order_by(
+            'dormitory__name', 'room__room_number', 'last_name'
+        )
+        for i, r in enumerate(ordered_residents, 1):
+            d = r.get_export_dict()
+            writer.writerow([
+                i,
+                d['full_name'],
+                d['first_name'],
+                d['last_name'],
+                d['national_code'],
+                d['phone_number'],
+                d['parent_phone_number'],
+                d['occupation'],
+                d['dormitory'],
+                d['room_number'],
+                d['monthly_rent_tomans'],
+                d['entry_date'],
+                d['monthly_payment_day'],
+                d['status'],
+                d['settled_until'],
+                d['lease_status'],
+                d['deposit_status']
+            ])
+
+        return response
 
 
 # ============================================
@@ -597,6 +950,18 @@ class TransactionAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'period_name', 'period_start', 'period_end', 'receipt_display']
     list_select_related = ['resident', 'dormitory', 'created_by']
     actions = ['approve_transactions', 'unapprove_transactions']
+
+    formfield_overrides = {
+        jmodels.jDateField: {'widget': AdminPersianDateWidget},
+    }
+
+    class Media:
+        css = {
+            'all': ('dormitory/css/admin_jalali_datepicker.css',)
+        }
+        js = (
+            'dormitory/js/admin_jalali_datepicker.js',
+        )
 
     fieldsets = (
         ('اطلاعات پرداخت', {
@@ -683,8 +1048,8 @@ class TransactionAdmin(admin.ModelAdmin):
             method=obj.get_payment_method_display(),
             period_line=period_line,
             rate_line=format_html(
-                '<p><b>نرخ اتاق:</b> {:,.0f} تومان</p>',
-                obj.applicable_rent // 10
+                '<p><b>نرخ اتاق:</b> {} تومان</p>',
+                f"{obj.applicable_rent // 10:,.0f}"
             ) if obj.applicable_rent else '',
             amount=obj.amount // 10,
             approval_text=approval_text,
@@ -705,7 +1070,7 @@ class TransactionAdmin(admin.ModelAdmin):
 
     def applicable_rent_display(self, obj):
         if obj.applicable_rent:
-            return format_html('{:,.0f} تومان', obj.applicable_rent // 10)
+            return format_html('{} تومان', f"{obj.applicable_rent // 10:,.0f}")
         return "-"
 
     applicable_rent_display.short_description = "نرخ اتاق"
@@ -719,9 +1084,9 @@ class TransactionAdmin(admin.ModelAdmin):
     resident_link.admin_order_field = 'resident__last_name'
 
     def amount_display(self, obj):
-        amount_m = obj.amount / 10000000
-        amount_t = obj.amount // 10
-        return format_html('<b>{:,.3f}</b> م.تومان<br><small style="color:#666;">({:,.0f} تومان)</small>', amount_m, amount_t)
+        amount_m = f"{obj.amount / 10000000:,.3f}"
+        amount_t = f"{obj.amount // 10:,.0f}"
+        return format_html('<b>{}</b> م.تومان<br><small style="color:#666;">({} تومان)</small>', amount_m, amount_t)
 
     amount_display.short_description = "مبلغ"
     amount_display.admin_order_field = 'amount'
@@ -805,4 +1170,87 @@ class TransactionAdmin(admin.ModelAdmin):
         if 'amount' in form.base_fields:
             form.base_fields['amount'].widget = forms.HiddenInput()
         return form
+
+
+# ============================================
+# DAILY NOTE & MAINTENANCE ADMIN
+# ============================================
+@admin.register(DailyNote)
+class DailyNoteAdmin(admin.ModelAdmin):
+    list_display = [
+        'title', 'dormitory', 'date', 'note_type_badge', 'room_display',
+        'resident_link', 'is_resolved', 'created_by'
+    ]
+    list_filter = ['dormitory', 'note_type', 'is_resolved', 'date']
+    search_fields = [
+        'title', 'content', 'room__room_number',
+        'resident__first_name', 'resident__last_name'
+    ]
+    list_editable = ['is_resolved']
+
+    readonly_fields = ['created_at']
+
+    formfield_overrides = {
+        jmodels.jDateField: {'widget': AdminPersianDateWidget},
+    }
+
+    class Media:
+        css = {
+            'all': ('dormitory/css/admin_jalali_datepicker.css',)
+        }
+        js = (
+            'dormitory/js/admin_jalali_datepicker.js',
+        )
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        if 'date' not in initial:
+            initial['date'] = jdatetime.date.today() - datetime.timedelta(days=1)
+        return initial
+
+    def note_type_badge(self, obj):
+        colors = {
+            'MAINTENANCE': '#e74c3c',
+            'DISCIPLINARY': '#e67e22',
+            'CLEANING': '#3498db',
+            'GENERAL': '#7f8c8d',
+        }
+        color = colors.get(obj.note_type, '#7f8c8d')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 8px; font-size: 11px;">{}</span>',
+            color, obj.get_note_type_display()
+        )
+    note_type_badge.short_description = "نوع گزارش"
+
+    def is_resolved_badge(self, obj):
+        if obj.is_resolved:
+            return format_html('<span style="color: #27ae60; font-weight: bold;">✅ حل شده</span>')
+        return format_html('<span style="color: #e67e22; font-weight: bold;">⏳ در دست پیگیری</span>')
+    is_resolved_badge.short_description = "وضعیت پیگیری"
+
+    def room_display(self, obj):
+        if obj.room:
+            return f"اتاق {obj.room.room_number}"
+        return "-"
+    room_display.short_description = "اتاق"
+
+    def resident_link(self, obj):
+        if obj.resident:
+            url = reverse('admin:dormitory_resident_change', args=[obj.resident.id])
+            return format_html('<a href="{}">{}</a>', url, obj.resident.full_name)
+        return "-"
+    resident_link.short_description = "ساکن مربوطه"
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by_id:
+            Supervisor = apps.get_model('accounts', 'Supervisor')
+            supervisor = (
+                Supervisor.objects.filter(id=request.user.id).first()
+                or Supervisor.objects.filter(national_code=getattr(request.user, 'username', '')).first()
+                or Supervisor.objects.first()
+            )
+            if supervisor:
+                obj.created_by = supervisor
+        super().save_model(request, obj, form, change)
+
 

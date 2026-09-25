@@ -78,6 +78,11 @@ JAZZMIN_SETTINGS = {
             "url": "admin:index",
         },
         {
+            "name": "🤖 ثبت هوشمند با هوش مصنوعی",
+            "url": "/admin/ai-loader/",
+            "new_window": False,
+        },
+        {
             "name": "داشبورد تحلیلی",
             "url": "/dashboard/admin/",
             "new_window": True,
@@ -101,6 +106,7 @@ JAZZMIN_SETTINGS = {
         "dormitory.room": "fas fa-door-open",
         "dormitory.resident": "fas fa-user-graduate",
         "dormitory.transaction": "fas fa-receipt",
+        "dormitory.dailynote": "fas fa-clipboard-list",
 
         "archive": "fas fa-archive",
         "archive.archivedresident": "fas fa-user-slash",
@@ -128,6 +134,12 @@ JAZZMIN_SETTINGS = {
     # ------------------------------------------------------
 
     "language_chooser": False,
+
+    # ------------------------------------------------------
+    # Custom Static Files (Persian Jalali Datepicker)
+    # ------------------------------------------------------
+    "custom_css": "dormitory/css/admin_jalali_datepicker.css",
+    "custom_js": "dormitory/js/admin_jalali_datepicker.js",
 
 }
 

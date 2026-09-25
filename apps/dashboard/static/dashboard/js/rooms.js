@@ -49,7 +49,7 @@ const Rooms = (() => {
     });
 
     if (dorm) list = list.filter(r => r.dormitory === dorm);
-    if (stat === "empty") list = list.filter(r => r.is_empty);
+    if (stat === "empty") list = list.filter(r => r.current_occupants < r.capacity);
     if (stat === "full") list = list.filter(r => r.is_full);
     if (stat === "half") list = list.filter(r => r.is_half);
 
@@ -65,13 +65,13 @@ const Rooms = (() => {
         const emptyBeds = Math.max(0, r.capacity - r.current_occupants);
 
         return `
-        <div onclick="Modal.openRoom(${r.id})" style="grid-row: span ${r.capacity >= 6 ? 2 : 1}; animation-delay:${Math.min(i,10)*25}ms"
-             class="entity-card glass ${bg} ${sizeClass} p-4 flex flex-col justify-between cursor-pointer">
+        <div onclick="Modal.openRoom(${r.id})" style="grid-row: span ${r.capacity >= 6 ? 2 : 1};"
+             class="entity-card ${bg} ${sizeClass} p-4 flex flex-col justify-between cursor-pointer">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-2">
                 <p class="font-extrabold text-[16px]">اتاق ${r.room_number}</p>
-                <span class="text-[10px] px-2 py-1 rounded-full glass">${dormTag}</span>
+                <span class="text-[10px] px-2 py-1 rounded-full chip">${dormTag}</span>
               </div>
               <p class="text-[11px] mt-1 text-muted">ظرفیت: ${r.capacity} | پر: ${r.current_occupants} | خالی: ${emptyBeds}</p>
             </div>
@@ -80,10 +80,11 @@ const Rooms = (() => {
           <div>
             <p class="text-[10px] font-bold mt-2">اجاره: ${Utils.toToman(r.monthly_rent)}</p>
             <div class="flex flex-wrap gap-1 mt-2">
-              ${r.occupants.map(o => `<span class="text-[9px] glass px-2 py-1 rounded-full">${o.first_name || o.full_name || 'ساکن'}</span>`).join('') || '<span class="text-[9px] text-faint">بدون ساکن (خالی)</span>'}
+              ${r.occupants.map(o => `<span class="text-[9px] chip px-2 py-1 rounded-full">${o.first_name || o.full_name || 'ساکن'}</span>`).join('') || '<span class="text-[9px] text-faint">بدون ساکن (خالی)</span>'}
             </div>
           </div>
         </div>`;
+
       }).join('');
     }
 
@@ -93,7 +94,8 @@ const Rooms = (() => {
     }).length;
 
     const emptyCount = DB.stats?.empty_rooms ?? (DB.rooms || []).filter(r => {
-      return (DB.residents || []).filter(x => x.room && x.room.id === r.id && x.status === 'ACTIVE').length === 0;
+      const c = (DB.residents || []).filter(x => x.room && x.room.id === r.id && x.status === 'ACTIVE').length;
+      return c < r.capacity;
     }).length;
 
     const kpiFull = document.getElementById('kpi-full');

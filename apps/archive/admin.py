@@ -4,10 +4,10 @@ from .models import ArchivedResident, ArchivedTransaction
 
 @admin.register(ArchivedResident)
 class ArchivedResidentAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'national_code', 'dormitory_name', 'room_number',
+    list_display = ['full_name', 'national_code', 'is_foreign', 'has_deposit', 'has_lease', 'dormitory_name', 'room_number',
                     'entry_date', 'exit_date', 'archived_at']
-    search_fields = ['first_name', 'last_name', 'national_code']
-    list_filter = ['dormitory_name', 'archived_at']
+    search_fields = ['first_name', 'last_name', 'father_name', 'national_code']
+    list_filter = ['has_deposit', 'has_lease', 'is_foreign', 'dormitory_name', 'archived_at']
     readonly_fields = ['original_id', 'archived_at']
 
     def full_name(self, obj):

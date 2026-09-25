@@ -1,0 +1,206 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}خروجی مشخصات ساکنین | پنل مدیریت{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .export-container {
+    padding: 24px;
+    direction: rtl;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .export-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .export-header {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: white;
+    padding: 18px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .export-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .export-body {
+    padding: 24px;
+  }
+  .export-textarea {
+    width: 100%;
+    min-height: 420px;
+    padding: 16px;
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.8;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    resize: vertical;
+    direction: rtl;
+    white-space: pre-wrap;
+    box-sizing: border-box;
+  }
+  .export-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  .export-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .btn-copy-all {
+    background: #10b981;
+    color: white;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .btn-copy-all:hover {
+    background: #059669;
+    color: white;
+  }
+  .btn-download-txt {
+    background: #3b82f6;
+    color: white;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .btn-download-txt:hover {
+    background: #2563eb;
+    color: white;
+  }
+  .btn-back {
+    background: #64748b;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .btn-back:hover {
+    background: #475569;
+    color: white;
+    text-decoration: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="export-container">
+  <div class="export-card">
+    <div class="export-header">
+      <div>
+        <h2>📋 خروجی و مشخصات ساکنین انتخاب‌شده</h2>
+        <small style="opacity: 0.85;">تعداد افراد انتخاب‌شده: {{ count }} نفر (بدون اطلاعات مالی و تراکنش‌ها)</small>
+      </div>
+      <div>
+        <a href="{% url 'admin:dormitory_resident_changelist' %}" class="btn-back">بازگشت به لیست ساکنین</a>
+      </div>
+    </div>
+
+    <div class="export-body">
+      <p style="color: #64748b; font-size: 13px; margin-bottom: 12px;">
+        متن زیر با فرمت منظم برای ارسال در پیام‌رسان‌ها (واتساپ، ایتا، بله، تلگرام، پیامک یا نگهداری در یادداشت‌ها) آماده است:
+      </p>
+
+      <textarea id="export-textarea" class="export-textarea" readonly>{{ combined_text }}</textarea>
+
+      <div class="export-actions">
+        <button type="button" id="copy-btn" class="btn-copy-all" onclick="copyAllText()">
+          📋 کپی تمام متن در کلیپ‌بورد
+        </button>
+        <button type="button" class="btn-download-txt" onclick="downloadTxtFile()">
+          📥 دانلود فایل متنی (.txt)
+        </button>
+        <form method="post" action="" style="display:inline;">
+          {% csrf_token %}
+          {% for r_id in selected_ids %}
+            <input type="hidden" name="_selected_action" value="{{ r_id }}">
+          {% endfor %}
+          <input type="hidden" name="action" value="export_selected_to_csv">
+          <input type="hidden" name="select_across" value="0">
+          <button type="submit" class="btn btn-outline-success" style="padding: 10px 18px; border-radius: 8px; font-weight: 600;">
+            📊 دانلود فایل اکسل (CSV)
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function copyAllText() {
+    const ta = document.getElementById('export-textarea');
+    if (!ta) return;
+    const btn = document.getElementById('copy-btn');
+    
+    function markDone() {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✅ با موفقیت کپی شد!';
+      btn.style.background = '#047857';
+      setTimeout(() => {
+        btn.innerHTML = orig;
+        btn.style.background = '#10b981';
+      }, 2500);
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(ta.value).then(markDone).catch(() => {
+        ta.select();
+        document.execCommand('copy');
+        markDone();
+      });
+    } else {
+      ta.select();
+      document.execCommand('copy');
+      markDone();
+    }
+  }
+
+  function downloadTxtFile() {
+    const text = document.getElementById('export-textarea').value;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `residents_export_{{ count }}_persons.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,278 @@
+/* ===================================================================
+   ADMIN PERSIAN JALALI DATEPICKER (تقویم شمسی جلالی پنل مدیریت جنگو)
+   Optimized for Jazzmin, Bootstrap 4 tabs, and high-z-index popups
+=================================================================== */
+
+/* Hide Django's Gregorian shortcuts and old jQuery UI triggers */
+.datetimeshortcuts,
+.ui-datepicker-trigger,
+span.datetimeshortcuts {
+    display: none !important;
+}
+
+/* Input group wrapper */
+.admin-pdp-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    max-width: 240px;
+    width: 100%;
+    vertical-align: middle;
+}
+
+.admin-pdp-wrap input.vjDateField,
+.admin-pdp-wrap input.vDateField,
+.admin-pdp-input {
+    direction: ltr !important;
+    text-align: center !important;
+    font-weight: 600 !important;
+    letter-spacing: 1px !important;
+    font-family: 'Consolas', 'Courier New', monospace, 'Vazirmatn', sans-serif !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    cursor: pointer;
+}
+
+.admin-pdp-trigger {
+    background: #007bff;
+    color: #fff;
+    border: 1px solid #007bff;
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.15s ease, transform 0.1s ease;
+    user-select: none;
+}
+
+.admin-pdp-trigger:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.admin-pdp-trigger:active {
+    transform: scale(0.96);
+}
+
+/* Datepicker Popup */
+.admin-pdp-popup {
+    position: absolute;
+    z-index: 999999 !important;
+    width: 320px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
+    padding: 12px 14px;
+    font-family: 'Vazirmatn', 'IRANSans', system-ui, -apple-system, sans-serif;
+    direction: rtl;
+    user-select: none;
+    box-sizing: border-box;
+    animation: adminPdpFadeIn 0.15s ease-out;
+}
+
+@keyframes adminPdpFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header & Navigation */
+.admin-pdp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-pdp-nav-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.admin-pdp-nav-btn:hover {
+    background: #007bff;
+    color: #ffffff;
+    border-color: #007bff;
+}
+
+.admin-pdp-selectors {
+    display: flex;
+    gap: 6px;
+}
+
+.admin-pdp-select {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+}
+
+.admin-pdp-select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Weekdays */
+.admin-pdp-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+.admin-pdp-weekday {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    padding: 3px 0;
+}
+
+.admin-pdp-weekday.admin-pdp-friday {
+    color: #dc3545;
+}
+
+/* Days grid */
+.admin-pdp-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+
+.admin-pdp-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.admin-pdp-day:not(.admin-pdp-empty):hover {
+    background: #e0f2fe;
+    color: #0284c7;
+    font-weight: bold;
+    transform: scale(1.08);
+}
+
+.admin-pdp-day.admin-pdp-empty {
+    cursor: default;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.admin-pdp-day.admin-pdp-today {
+    border: 1.5px solid #007bff;
+    color: #007bff;
+    font-weight: bold;
+}
+
+.admin-pdp-day.admin-pdp-selected {
+    background: #007bff !important;
+    color: #ffffff !important;
+    font-weight: bold;
+}
+
+.admin-pdp-day.admin-pdp-friday {
+    color: #dc3545;
+}
+
+.admin-pdp-day.admin-pdp-selected.admin-pdp-friday {
+    color: #ffffff !important;
+}
+
+/* Footer & Actions */
+.admin-pdp-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    gap: 4px;
+}
+
+.admin-pdp-btn {
+    flex: 1;
+    padding: 5px 4px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.12s ease;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.admin-pdp-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.admin-pdp-btn-today {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+}
+.admin-pdp-btn-today:hover {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.admin-pdp-btn-yesterday {
+    background: #f0fdf4;
+    color: #15803d;
+    border-color: #bbf7d0;
+}
+.admin-pdp-btn-yesterday:hover {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.admin-pdp-btn-clear {
+    background: #fff1f2;
+    color: #be123c;
+    border-color: #fecdd3;
+}
+.admin-pdp-btn-clear:hover {
+    background: #ffe4e6;
+    color: #9f1239;
+}

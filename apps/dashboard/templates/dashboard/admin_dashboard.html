@@ -1,221 +1,395 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>پنل مدیریت خوابگاه</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- Modular stylesheet: tokens must load first, the rest depend on its variables -->
-{% load static %}
-<link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/layout.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard/css/animations.css' %}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل مدیریت خوابگاه</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Modular stylesheet: tokens must load first, the rest depend on its variables -->
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/layout.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/animations.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/datepicker.css' %}?v=3">
 </head>
+
 <body class="p-3 md:p-6">
 
-<div id="aurora"></div>
-<div id="particles"></div>
-<div id="scroll-progress"></div>
-<div id="toast-root"></div>
+  <div id="aurora"></div>
+  <div id="particles"></div>
+  <div id="scroll-progress"></div>
+  <div id="toast-root"></div>
 
-<div class="app-shell max-w-shell">
+  <div class="app-shell max-w-shell">
 
-  <!-- HEADER -->
-  <div class="glass rounded-[2rem] p-5 md:p-7 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 animate-fadeInUp">
-    <div class="flex items-center gap-4">
-      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-lg float">🏢</div>
-      <div>
-        <h1 class="text-2xl font-extrabold">پنل مدیریت خوابگاه</h1>
-        <p class="text-[13px] text-muted">مدیریت هوشمند - بر اساس مدل‌های Room, Resident, Transaction, Dormitory</p>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2">
-      <div class="kpi-card glass px-4 py-2 text-center">
-        <div class="kpi-glow" style="background:var(--brand-500)"></div>
-        <p class="text-[10px] text-muted">کل ساکنین فعال</p><p class="font-bold text-lg" id="kpi-active">0</p>
-      </div>
-      <div class="kpi-card glass px-4 py-2 text-center">
-        <div class="kpi-glow" style="background:var(--info-500)"></div>
-        <p class="text-[10px] text-muted">اتاق پر / خالی</p><p class="font-bold text-lg"><span id="kpi-full">0</span>/<span id="kpi-empty">0</span></p>
-      </div>
-      <div class="kpi-card glass px-4 py-2 text-center border border-emerald-500/30">
-        <div class="kpi-glow" style="background:var(--success-500)"></div>
-        <div class="flex items-center gap-2">
-          <div><p class="text-[10px] text-muted">درآمد ماه جاری</p><p class="font-bold text-lg text-emerald-500" id="kpi-income">0 تومان</p></div>
-          <canvas id="spark-income" class="sparkline"></canvas>
-        </div>
-      </div>
-      <div class="kpi-card glass px-4 py-2 text-center border border-rose-500/30">
-        <div class="kpi-glow" style="background:var(--danger-500)"></div>
-        <div class="flex items-center gap-2">
-          <div><p class="text-[10px] text-muted">بدهکار</p><p class="font-bold text-lg text-rose-500" id="kpi-debt">0</p></div>
-          <canvas id="spark-debt" class="sparkline"></canvas>
+    <!-- HEADER -->
+    <div
+      class="glass rounded-[2rem] p-5 md:p-7 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 animate-fadeInUp">
+      <div class="flex items-center gap-4">
+        <div
+          class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-lg float">
+          🏢</div>
+        <div>
+          <h1 class="text-2xl font-extrabold">پنل مدیریت خوابگاه</h1>
+          <p class="text-[13px] text-muted">مدیریت هوشمند - بر اساس مدل‌های Room, Resident, Transaction, Dormitory</p>
         </div>
       </div>
 
-      <div class="theme-toggle" role="group" aria-label="حالت نمایش">
-        <button data-mode="light" title="روشن">☀️</button>
-        <button data-mode="dark" title="تیره">🌙</button>
-        <button data-mode="auto" title="خودکار">🖥️</button>
-      </div>
-    </div>
-  </div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="kpi-card kpi-active px-4 py-2.5 text-center">
+          <p class="text-[10px] text-muted font-medium">کل ساکنین فعال</p>
+          <p class="font-bold text-lg text-blue-400" id="kpi-active">0</p>
+        </div>
 
-  <!-- TABS -->
-  <div class="glass rounded-[1.5rem] p-2 flex gap-1 w-fit mb-6 relative animate-fadeInUp" style="animation-delay:.05s">
-    <div id="tab-indicator" class="tab-indicator"></div>
-    <button onclick="App.switchTab('students')" id="tab-students" class="tab-btn active">👥 دانشجوها</button>
-    <button onclick="App.switchTab('rooms')" id="tab-rooms" class="tab-btn">🛏️ اتاق‌ها</button>
-    <button onclick="App.switchTab('finance')" id="tab-finance" class="tab-btn">💰 مالی</button>
-  </div>
+        <div class="kpi-card kpi-rooms px-4 py-2.5 text-center" title="تعداد اتاق‌های پر / تعداد اتاق‌های دارای حداقل ۱ تخت خالی">
+          <p class="text-[10px] text-muted font-medium">اتاق پر / دارای جای خالی</p>
+          <p class="font-bold text-lg text-cyan-400"><span id="kpi-full" title="اتاق‌های تکمیل">0</span>/<span id="kpi-empty" title="اتاق‌های دارای حداقل ۱ تخت خالی">0</span></p>
+        </div>
 
-  <!-- STUDENTS TAB -->
-  <div id="section-students" class="tab-section">
-    <div class="glass rounded-[1.8rem] p-5 mb-5">
-      <div class="flex flex-col md:flex-row gap-3">
-        <div class="field flex-1">
-          <input id="search-student" oninput="filterStudents()" placeholder="جستجو: نام، کد ملی، موبایل، اتاق...">
+        <div class="kpi-card kpi-income px-4 py-2.5 text-center" title="درآمد وصول‌شده در ماه جاری">
+          <p class="text-[10px] text-muted font-medium">درآمد ماه جاری</p>
+          <p class="font-bold text-lg text-emerald-400" id="kpi-income">0 تومان</p>
         </div>
-        <div class="field">
-          <select id="filter-dorm" onchange="filterStudents()">
-            <option value="">همه خوابگاه‌ها</option>
-          </select>
+
+        <div class="kpi-card kpi-debt px-4 py-2.5 text-center cursor-pointer hover:border-rose-400/60 transition"
+          onclick="document.getElementById('tab-students').click(); const s = document.getElementById('filter-status'); if (s) { s.value='debt'; filterStudents(); }"
+          title="فیلتر دانشجویان بدهکار">
+          <p class="text-[10px] text-muted font-medium">بدهکار</p>
+          <p class="font-bold text-lg text-rose-400" id="kpi-debt">0</p>
         </div>
-        <div class="field">
-          <select id="filter-status" onchange="filterStudents()">
-            <option value="">همه وضعیت‌ها</option>
-            <option value="debt">بدهکار</option>
-            <option value="paid">تسویه</option>
-            <option value="ACTIVE">فعال</option>
-          </select>
+
+        <div class="kpi-card kpi-incomplete px-4 py-2.5 text-center cursor-pointer hover:border-amber-400/60 transition"
+          onclick="document.getElementById('tab-students').click(); const s = document.getElementById('filter-status'); if (s) { s.value='incomplete'; filterStudents(); }"
+          title="فیلتر ساکنین دارای کسری مدارک (کد ملی، نام پدر، تلفن والدین یا اجاره‌نامه)">
+          <p class="text-[10px] text-muted font-medium">⚠️ کسری مدارک</p>
+          <p class="font-bold text-lg text-amber-400" id="kpi-incomplete">0</p>
         </div>
-        <div class="field">
-          <select id="filter-occupation" onchange="filterStudents()">
-            <option value="">همه شغل‌ها</option>
-            <option value="STUDENT">دانشجو</option>
-            <option value="EMPLOYED">شاغل</option>
-            <option value="OTHER">سایر</option>
-          </select>
+
+        <!-- Classic Luxury Segmented Theme Switcher -->
+        <div class="theme-toggle classic-theme-switch" role="group" aria-label="حالت نمایش سیستم">
+          <button data-mode="light" class="theme-btn" title="حالت روز (روشن)">
+            <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <span class="theme-label">روشن</span>
+          </button>
+          <button data-mode="dark" class="theme-btn" title="حالت شب (تیره)">
+            <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span class="theme-label">تیره</span>
+          </button>
+          <button data-mode="auto" class="theme-btn" title="تنظیم خودکار با دستگاه">
+            <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <span class="theme-label">خودکار</span>
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger" id="students-grid"></div>
-  </div>
-
-  <!-- ROOMS TAB -->
-  <div id="section-rooms" class="tab-section hidden">
-    <div class="glass rounded-[1.8rem] p-5 mb-5 flex flex-col md:flex-row justify-between gap-4">
-      <div>
-        <h3 class="font-bold">نمایش اتاق‌ها بر اساس ظرفیت - هرچه ظرفیت بیشتر، باکس بزرگتر</h3>
-        <p class="text-[11px] text-muted mt-1">⚪ خالی: dashed | 🟡 نیمه پر: زرد | 🔵 پر: آبی | حلقه = درصد پر بودن</p>
-      </div>
-      <div class="flex gap-2">
-        <div class="field">
-          <select id="filter-room-dorm" onchange="renderRooms()">
-            <option value="">همه خوابگاه‌ها</option>
-          </select>
-        </div>
-        <div class="field">
-          <select id="filter-room-status" onchange="renderRooms()">
-            <option value="">همه</option>
-            <option value="empty">خالی</option>
-            <option value="half">نیمه پر</option>
-            <option value="full">پر</option>
-          </select>
-        </div>
-      </div>
+    <!-- TABS -->
+    <div class="glass rounded-[1.5rem] p-2 flex gap-1 w-fit mb-6 relative animate-fadeInUp"
+      style="animation-delay:.05s">
+      <div id="tab-indicator" class="tab-indicator"></div>
+      <button onclick="App.switchTab('students')" id="tab-students" class="tab-btn active">👥 دانشجوها</button>
+      <button onclick="App.switchTab('rooms')" id="tab-rooms" class="tab-btn">🛏️ اتاق‌ها</button>
+      <button onclick="App.switchTab('finance')" id="tab-finance" class="tab-btn">💰 مالی</button>
     </div>
-    <div id="rooms-grid" class="grid gap-4 stagger" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));"></div>
-  </div>
 
-  <!-- FINANCE TAB -->
-  <div id="section-finance" class="tab-section hidden">
-    <div class="glass rounded-[1.8rem] p-5 mb-6">
-      <div class="flex flex-col lg:flex-row gap-4 items-end">
-        <div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div class="field"><label>از تاریخ</label><input type="date" id="finance-from"></div>
-          <div class="field"><label>تا تاریخ</label><input type="date" id="finance-to"></div>
-          <div class="field"><label>نوع تراکنش</label>
-            <select id="finance-type"><option value="">همه</option><option value="RENT">اجاره</option><option value="DEPOSIT">ودیعه</option></select>
+    <!-- STUDENTS TAB -->
+    <div id="section-students" class="tab-section">
+      <div class="glass rounded-[1.8rem] p-5 mb-5">
+        <div class="flex flex-col md:flex-row gap-3">
+          <div class="field flex-1">
+            <input id="search-student" oninput="filterStudents()" placeholder="جستجو: نام، کد ملی، موبایل، اتاق...">
           </div>
-          <div class="field"><label>روش پرداخت</label>
-            <select id="finance-method">
-              <option value="">همه</option><option value="CASH">نقدی</option><option value="CARD">کارتخوان</option>
-              <option value="BANK_TRANSFER">کارت به کارت</option><option value="ONLINE_GATEWAY">درگاه آنلاین</option>
+          <div class="field">
+            <select id="filter-dorm" onchange="filterStudents()">
+              <option value="">همه خوابگاه‌ها</option>
+            </select>
+          </div>
+          <div class="field">
+            <select id="filter-status" onchange="filterStudents()">
+              <option value="">همه وضعیت‌ها</option>
+              <option value="debt">بدهکار</option>
+              <option value="paid">تسویه</option>
+              <option value="incomplete">⚠️ کسری مدارک / ناقص</option>
+              <option value="ACTIVE">فعال</option>
+            </select>
+          </div>
+          <div class="field">
+            <select id="filter-occupation" onchange="filterStudents()">
+              <option value="">همه شغل‌ها</option>
+              <option value="STUDENT">دانشجو</option>
+              <option value="EMPLOYED">شاغل</option>
+              <option value="OTHER">سایر</option>
             </select>
           </div>
         </div>
-        <button onclick="applyFinanceFilter()" class="btn btn-primary px-8 py-3 rounded-2xl font-bold text-sm whitespace-nowrap">اعمال فیلتر + بروزرسانی نمودار</button>
+
+        <!-- Export & Action Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10 text-xs">
+          <div class="flex items-center gap-2 text-muted">
+            <span>تعداد نتایج: <strong id="students-count" class="text-white">0</strong> نفر</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="Students.copyFilteredProfiles()" class="btn-tool" title="کپی مشخصات افراد فیلترشده در کلیپ‌بورد">
+              <span>📋</span>
+              <span>کپی مشخصات لیست جاری</span>
+            </button>
+            <button type="button" onclick="Students.downloadFilteredCsv()" class="btn-tool" title="دانلود فایل اکسل افراد فیلترشده">
+              <span>📊</span>
+              <span>خروجی اکسل (CSV)</span>
+            </button>
+            <button type="button" onclick="Students.openExportModal()" class="btn-tool btn-tool-primary" title="انتخاب دسته‌ای و خروجی پیشرفته">
+              <span>⚙️</span>
+              <span>خروجی پیشرفته / انتخاب چند دانشجو</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 stagger">
-        <div class="glass rounded-2xl p-4"><p class="text-[10px] text-muted">جمع درآمد فیلتر شده</p><p class="font-bold text-lg" id="fin-total">0 تومان</p></div>
-        <div class="glass rounded-2xl p-4 border border-emerald-500/25"><p class="text-[10px] text-muted">اجاره</p><p class="font-bold text-lg text-emerald-500" id="fin-rent">0</p></div>
-        <div class="glass rounded-2xl p-4 border border-blue-500/25"><p class="text-[10px] text-muted">ودیعه</p><p class="font-bold text-lg text-blue-400" id="fin-deposit">0</p></div>
-        <div class="glass rounded-2xl p-4 border border-amber-500/25"><p class="text-[10px] text-muted">نیاز تایید (نقدی/کارتخوان)</p><p class="font-bold text-lg text-amber-500" id="fin-pending">0</p></div>
-        <div class="glass rounded-2xl p-4 border border-violet-500/25"><p class="text-[10px] text-muted">میانگین اجاره</p><p class="font-bold text-lg" id="fin-avg">0</p></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="students-grid"></div>
+    </div>
+
+    <!-- ROOMS TAB -->
+    <div id="section-rooms" class="tab-section hidden">
+      <div class="glass rounded-[1.8rem] p-5 mb-5 flex flex-col md:flex-row justify-between gap-4">
+        <div>
+          <h3 class="font-bold">نمایش اتاق‌ها بر اساس ظرفیت - هرچه ظرفیت بیشتر، باکس بزرگتر</h3>
+          <p class="text-[11px] text-muted mt-1">⚪ خالی: dashed | 🟡 نیمه پر: زرد | 🔵 پر: آبی | حلقه = درصد پر بودن</p>
+        </div>
+        <div class="flex gap-2">
+          <div class="field">
+            <select id="filter-room-dorm" onchange="renderRooms()">
+              <option value="">همه خوابگاه‌ها</option>
+            </select>
+          </div>
+          <div class="field">
+            <select id="filter-room-status" onchange="renderRooms()">
+              <option value="">همه</option>
+              <option value="empty">خالی</option>
+              <option value="half">نیمه پر</option>
+              <option value="full">پر</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="rooms-grid" class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
       </div>
     </div>
 
-    <div class="grid lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 glass rounded-[1.8rem] p-6">
-        <h4 class="font-bold mb-4">📈 نمودار درآمد ماهانه - خلاصه همه چیز</h4>
-        <canvas id="monthlyIncomeChart" height="300"></canvas>
-      </div>
-      <div class="space-y-6">
-        <div class="glass rounded-[1.8rem] p-5">
-          <h4 class="font-bold text-sm mb-3">روش‌های پرداخت</h4>
-          <canvas id="methodChart" height="200"></canvas>
+    <!-- FINANCE TAB -->
+    <div id="section-finance" class="tab-section hidden">
+      <div class="glass rounded-[1.8rem] p-5 mb-6">
+        <div class="flex flex-col lg:flex-row gap-4 items-end">
+          <div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div class="field">
+              <label>از تاریخ (شمسی)</label>
+              <div class="relative">
+                <input type="text" id="finance-from" placeholder="مثال: ۱۴۰۵/۰۵/۰۱" autocomplete="off" readonly
+                  onclick="if(window.PersianDatePicker){if(!this._pdp)new PersianDatePicker(this).open();else this._pdp.toggle();}"
+                  class="cursor-pointer pr-9">
+                <span onclick="document.getElementById('finance-from').click()"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-muted cursor-pointer text-xs select-none"></span>
+              </div>
+            </div>
+            <div class="field">
+              <label>تا تاریخ (شمسی)</label>
+              <div class="relative">
+                <input type="text" id="finance-to" placeholder="مثال: ۱۴۰۵/۰۷/۰۱" autocomplete="off" readonly
+                  onclick="if(window.PersianDatePicker){if(!this._pdp)new PersianDatePicker(this).open();else this._pdp.toggle();}"
+                  class="cursor-pointer pr-9">
+                <span onclick="document.getElementById('finance-to').click()"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-muted cursor-pointer text-xs select-none"></span>
+              </div>
+            </div>
+            <div class="field"><label>نوع تراکنش</label>
+              <select id="finance-type">
+                <option value="">همه</option>
+                <option value="RENT">اجاره</option>
+                <option value="DEPOSIT">ودیعه</option>
+              </select>
+            </div>
+            <div class="field"><label>روش پرداخت</label>
+              <select id="finance-method">
+                <option value="">همه</option>
+                <option value="CASH">نقدی</option>
+                <option value="CARD">کارتخوان</option>
+                <option value="BANK_TRANSFER">کارت به کارت</option>
+                <option value="ONLINE_GATEWAY">درگاه آنلاین</option>
+              </select>
+            </div>
+          </div>
+          <button onclick="applyFinanceFilter()"
+            class="btn btn-primary px-8 py-3 rounded-2xl font-bold text-sm whitespace-nowrap">اعمال فیلتر + بروزرسانی
+            نمودار</button>
         </div>
-        <div class="glass rounded-[1.8rem] p-5">
-          <h4 class="font-bold text-sm mb-3">آخرین تراکنش‌ها</h4>
-          <div id="finance-recent" class="space-y-2 max-h-[300px] overflow-auto scroll-thin"></div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 stagger">
+          <div class="glass rounded-2xl p-4">
+            <p class="text-[10px] text-muted">جمع درآمد فیلتر شده</p>
+            <p class="font-bold text-lg" id="fin-total">0 تومان</p>
+          </div>
+          <div class="glass rounded-2xl p-4 border border-emerald-500/25">
+            <p class="text-[10px] text-muted">اجاره</p>
+            <p class="font-bold text-lg text-emerald-500" id="fin-rent">0</p>
+          </div>
+          <div class="glass rounded-2xl p-4 border border-blue-500/25">
+            <p class="text-[10px] text-muted">ودیعه</p>
+            <p class="font-bold text-lg text-blue-400" id="fin-deposit">0</p>
+          </div>
+          <div class="glass rounded-2xl p-4 border border-amber-500/25">
+            <p class="text-[10px] text-muted">نیاز تایید (نقدی/کارتخوان)</p>
+            <p class="font-bold text-lg text-amber-500" id="fin-pending">0</p>
+          </div>
+          <div class="glass rounded-2xl p-4 border border-violet-500/25">
+            <p class="text-[10px] text-muted">میانگین اجاره</p>
+            <p class="font-bold text-lg" id="fin-avg">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 glass rounded-[1.8rem] p-6">
+          <h4 class="font-bold mb-4">📈 نمودار درآمد ماهانه - خلاصه همه چیز</h4>
+          <canvas id="monthlyIncomeChart" height="300"></canvas>
+        </div>
+        <div class="space-y-6">
+          <div class="glass rounded-[1.8rem] p-5">
+            <h4 class="font-bold text-sm mb-3">روش‌های پرداخت</h4>
+            <canvas id="methodChart" height="200"></canvas>
+          </div>
+          <div class="glass rounded-[1.8rem] p-5">
+            <h4 class="font-bold text-sm mb-3">آخرین تراکنش‌ها</h4>
+            <div id="finance-recent" class="space-y-2 max-h-[300px] overflow-auto scroll-thin"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL -->
+  <div id="modal" class="modal-backdrop hidden fixed inset-0">
+    <div class="absolute inset-0" onclick="closeModal()"></div>
+    <div class="relative z-10 min-h-screen flex items-center justify-center p-4">
+      <div id="modal-panel"
+        class="modal-panel glass-strong rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-auto p-6 md:p-8 scroll-thin">
+        <div class="flex justify-between items-start mb-6">
+          <h2 id="modal-title" class="text-xl font-bold"></h2>
+          <button onclick="closeModal()" class="icon-btn">✕</button>
+        </div>
+        <div id="modal-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div id="export-modal" class="modal-backdrop hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="Students.closeExportModal()"></div>
+    <div class="relative z-10 min-h-screen flex items-center justify-center p-4">
+      <div class="modal-panel glass-strong rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-6 md:p-8">
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+          <div>
+            <h2 class="text-xl font-bold flex items-center gap-2">
+              <span>📋</span>
+              <span>خروجی و کپی مشخصات ساکنین</span>
+            </h2>
+            <p class="text-xs text-muted mt-1">انتخاب یک یا چند دانشجو و کپی سریع در کلیپ‌بورد یا دریافت فایل (بدون سوابق مالی و تراکنش‌ها)</p>
+          </div>
+          <button onclick="Students.closeExportModal()" class="icon-btn">✕</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-hidden min-h-[350px]">
+          <!-- Selection Column -->
+          <div class="glass rounded-2xl p-4 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-3">
+              <span class="font-bold text-xs">فهرست ساکنین (<span id="export-selected-count">0</span> نفر انتخاب‌شده)</span>
+              <div class="flex gap-2">
+                <button type="button" onclick="Students.selectAllExport(true)" class="text-[11px] text-blue-400 hover:underline">انتخاب همه</button>
+                <span class="text-white/20">|</span>
+                <button type="button" onclick="Students.selectAllExport(false)" class="text-[11px] text-muted hover:underline">عدم انتخاب</button>
+              </div>
+            </div>
+            <div class="field mb-2">
+              <input type="text" id="export-search" oninput="Students.filterExportList()" placeholder="فیلتر نام، اتاق، کد ملی..." class="text-xs py-1.5 px-3">
+            </div>
+            <div id="export-residents-list" class="space-y-1.5 overflow-y-auto scroll-thin flex-1 pr-1 text-xs"></div>
+          </div>
+
+          <!-- Preview Column -->
+          <div class="glass rounded-2xl p-4 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold text-xs">پیش‌نمایش متن خروجی:</span>
+              <span id="export-preview-lines" class="text-[10px] text-muted">۰ سطر</span>
+            </div>
+            <textarea id="export-preview-text" readonly class="w-full flex-1 bg-black/20 rounded-xl p-3 text-xs leading-relaxed text-slate-200 border border-white/10 resize-none font-mono focus:outline-none scroll-thin" placeholder="متن مشخصات ساکنین انتخاب‌شده اینجا نمایش می‌یابد..."></textarea>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-between items-center gap-3 mt-4 pt-4 border-t border-white/10">
+          <div class="text-xs text-muted">
+            فرمت متن آماده برای ارسال مستقیم در واتساپ، بله، ایتا، تلگرام و پیامک
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="btn-export-copy" onclick="Students.copyExportModalText()" class="btn btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <span>📋</span>
+              <span>کپی در کلیپ‌بورد</span>
+            </button>
+            <button type="button" onclick="Students.downloadExportModalTxt()" class="btn glass px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5">
+              <span>📥</span>
+              <span>دانلود فایل (.txt)</span>
+            </button>
+            <button type="button" onclick="Students.downloadExportModalCsv()" class="btn glass px-4 py-2 rounded-xl text-xs font-medium text-emerald-400 flex items-center gap-1.5">
+              <span>📊</span>
+              <span>دانلود اکسل (CSV)</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-</div>
+  <!-- Back to top -->
+  <button id="fab-top" class="fab" aria-label="بازگشت به بالا">⬆</button>
 
-<!-- MODAL -->
-<div id="modal" class="modal-backdrop hidden fixed inset-0">
-  <div class="absolute inset-0" onclick="closeModal()"></div>
-  <div class="relative z-10 min-h-screen flex items-center justify-center p-4">
-    <div id="modal-panel" class="modal-panel glass-strong rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-auto p-6 md:p-8 scroll-thin">
-      <div class="flex justify-between items-start mb-6">
-        <h2 id="modal-title" class="text-xl font-bold"></h2>
-        <button onclick="closeModal()" class="icon-btn">✕</button>
-      </div>
-      <div id="modal-content"></div>
-    </div>
-  </div>
-</div>
+  <!-- Server bootstrap data -->
+  <script id="server-data" type="application/json">{{ dashboard_json|safe }}</script>
 
-<!-- Back to top -->
-<button id="fab-top" class="fab" aria-label="بازگشت به بالا">⬆</button>
-
-<!-- Server bootstrap data -->
-<script id="server-data" type="application/json">{{ dashboard_json|safe }}</script>
-
-<!-- Modular scripts, load order matters: data/utils first, app.js boots last -->
-<script src="{% static 'dashboard/js/data.js' %}"></script>
-<script src="{% static 'dashboard/js/utils.js' %}"></script>
-<script src="{% static 'dashboard/js/theme.js' %}"></script>
-<script src="{% static 'dashboard/js/toast.js' %}"></script>
-<script src="{% static 'dashboard/js/particles.js' %}"></script>
-<script src="{% static 'dashboard/js/charts.js' %}"></script>
-<script src="{% static 'dashboard/js/students.js' %}"></script>
-<script src="{% static 'dashboard/js/rooms.js' %}"></script>
-<script src="{% static 'dashboard/js/finance.js' %}"></script>
-<script src="{% static 'dashboard/js/modal.js' %}"></script>
-<script src="{% static 'dashboard/js/scroll-chrome.js' %}"></script>
-<script src="{% static 'dashboard/js/app.js' %}"></script>
+  <!-- Modular scripts, load order matters: data/utils first, app.js boots last -->
+  <script src="{% static 'dashboard/js/data.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/utils.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/theme.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/toast.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/particles.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/charts.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/students.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/rooms.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/persian-datepicker.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/finance.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/modal.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/scroll-chrome.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/app.js' %}?v=2"></script>
 </body>
+
 </html>

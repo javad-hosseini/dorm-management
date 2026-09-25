@@ -14,42 +14,24 @@ body{
   position:relative;
 }
 
-/* --- Aurora canvas sits behind everything, fixed, non-interactive --- */
+/* --- Aurora background: fixed, static, lightweight GPU gradient (no continuous repaint) --- */
 #aurora{
   position:fixed; inset:0; z-index:0; pointer-events:none;
   background:
-    radial-gradient(600px 500px at 12% 8%, color-mix(in srgb, var(--aurora-a) 55%, transparent), transparent 60%),
-    radial-gradient(700px 600px at 88% 18%, color-mix(in srgb, var(--aurora-b) 45%, transparent), transparent 60%),
-    radial-gradient(650px 550px at 25% 92%, color-mix(in srgb, var(--aurora-c) 40%, transparent), transparent 60%),
-    radial-gradient(600px 500px at 92% 88%, color-mix(in srgb, var(--aurora-d) 35%, transparent), transparent 60%),
+    radial-gradient(circle 700px at 15% 10%, color-mix(in srgb, var(--aurora-a) 40%, transparent) 0%, transparent 70%),
+    radial-gradient(circle 750px at 85% 15%, color-mix(in srgb, var(--aurora-b) 35%, transparent) 0%, transparent 70%),
+    radial-gradient(circle 700px at 20% 90%, color-mix(in srgb, var(--aurora-c) 30%, transparent) 0%, transparent 70%),
+    radial-gradient(circle 650px at 90% 85%, color-mix(in srgb, var(--aurora-d) 25%, transparent) 0%, transparent 70%),
     var(--bg-0);
-  background-size:200% 200%;
-  animation: auroraDrift 22s ease-in-out infinite alternate;
-  filter:blur(10px) saturate(120%);
-  opacity:.85;
+  background-size:100% 100%;
+  transform:translateZ(0);
+  opacity:.9;
 }
-:root[data-theme="light"] #aurora{ opacity:.6; filter:blur(14px) saturate(110%); }
+:root[data-theme="light"] #aurora{ opacity:.7; }
 
-@keyframes auroraDrift{
-  0%{ background-position: 0% 0%, 100% 0%, 0% 100%, 100% 100%, 0 0; }
-  100%{ background-position: 20% 15%, 80% 25%, 15% 85%, 85% 75%, 0 0; }
-}
+/* --- Particles layer: disabled to save GPU/CPU cycles --- */
+#particles{ display:none !important; }
 
-/* --- Floating noise/particles layer (cheap: CSS dots, GPU-only transforms) --- */
-#particles{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
-.particle{
-  position:absolute; border-radius:50%;
-  background:radial-gradient(circle, rgba(255,255,255,.55), transparent 70%);
-  opacity:.35;
-  animation: floatUp linear infinite;
-}
-:root[data-theme="light"] .particle{ opacity:.5; }
-@keyframes floatUp{
-  0%{ transform:translate3d(0,10vh,0) scale(.6); opacity:0; }
-  10%{ opacity:.5; }
-  90%{ opacity:.35; }
-  100%{ transform:translate3d(var(--drift,0), -110vh,0) scale(1); opacity:0; }
-}
 
 .app-shell{ position:relative; z-index:1; }
 

@@ -34,7 +34,9 @@ def get_admin_dashboard_data():
             "id": res.id,
             "first_name": res.first_name,
             "last_name": res.last_name,
+            "father_name": res.father_name or "",
             "full_name": res.full_name,
+            "is_foreign": res.is_foreign,
             "national_code": res.national_code,
             "phone_number": res.phone_number,
             "parent_phone_number": res.parent_phone_number or "",
@@ -47,6 +49,10 @@ def get_admin_dashboard_data():
             "dormitory": res.dormitory.name if res.dormitory else "",
             "entry_date": str(res.entry_date) if res.entry_date else "",
             "settled_until": str(res.settled_until) if res.settled_until else "",
+            "settled_until_display": res.settled_until_display,
+            "next_due_date": str(res.next_due_date) if res.next_due_date else "",
+            "next_due_date_display": res.next_due_date_display,
+            "due_status_display": res.due_status_display,
             "status": res.status,
             "occupation": res.occupation,
             "monthly_payment_day": res.monthly_payment_day,
@@ -57,6 +63,16 @@ def get_admin_dashboard_data():
             "total_debt_tomans": res.total_debt_amount_tomans,
             "financial_summary": res.financial_status_summary,
             "has_paid_this_month": res.has_paid_this_month(),
+            "has_incomplete_profile": res.has_incomplete_profile,
+            "missing_profile_fields": res.missing_profile_fields,
+            "profile_status": res.profile_completion_status,
+            "has_deposit": res.has_deposit,
+            "has_lease": res.has_lease,
+            "has_id_card_image": res.has_id_card_image,
+            "id_images_count": res.uploaded_id_images_count,
+            "id_card_image_url": res.id_card_image.url if res.id_card_image else None,
+            "id_card_image_2_url": res.id_card_image_2.url if res.id_card_image_2 else None,
+            "id_card_image_3_url": res.id_card_image_3.url if res.id_card_image_3 else None,
         })
 
     # 4. Transactions
@@ -94,8 +110,10 @@ def get_admin_dashboard_data():
     # 5. Stats
     active_count = sum(1 for r in residents_data if r['status'] == 'ACTIVE')
     debt_count = sum(1 for r in residents_data if r['is_in_debt'] and r['status'] == 'ACTIVE')
+    incomplete_count = sum(1 for r in residents_data if r['has_incomplete_profile'] and r['status'] == 'ACTIVE')
     full_rooms = sum(1 for r in rooms_data if r['current_occupants'] >= r['capacity'])
-    empty_rooms = sum(1 for r in rooms_data if r['current_occupants'] == 0)
+    # اتاق‌های دارای ظرفیت خالی (اتاق‌هایی که حداقل یک تخت خالی دارند):
+    empty_rooms = sum(1 for r in rooms_data if r['current_occupants'] < r['capacity'])
 
     current_month_prefix = f"{today.year:04d}/{today.month:02d}"
     current_month_income = sum(
@@ -106,6 +124,7 @@ def get_admin_dashboard_data():
     stats = {
         "active_residents": active_count,
         "debt_residents": debt_count,
+        "incomplete_residents": incomplete_count,
         "total_rooms": len(rooms_data),
         "full_rooms": full_rooms,
         "empty_rooms": empty_rooms,
@@ -216,6 +235,10 @@ def get_student_dashboard_data(user):
         "financial_summary": resident.financial_status_summary,
         "last_paid": resident.last_paid_period_display,
         "settled_until": str(resident.settled_until) if resident.settled_until else "ثبت نشده",
+        "settled_until_display": resident.settled_until_display,
+        "next_due_date": str(resident.next_due_date) if resident.next_due_date else "",
+        "next_due_date_display": resident.next_due_date_display,
+        "due_status_display": resident.due_status_display,
         "room": {
             "room_number": resident.room.room_number if resident.room else "تعیین‌نشده",
             "dormitory": resident.dormitory.name if resident.dormitory else "",
@@ -223,11 +246,15 @@ def get_student_dashboard_data(user):
             "current_occupants": resident.room.current_occupants if resident.room else 0,
             "monthly_rent": resident.room.monthly_rent if resident.room else 0
         },
+        "has_deposit": resident.has_deposit,
+        "has_lease": resident.has_lease,
         "contract": {
             "number": f"RES-{resident.id:04d}",
             "start": str(resident.entry_date) if resident.entry_date else "-",
             "end": str(resident.exit_date) if resident.exit_date else "تمدید خودکار",
-            "deposit_toman": "-"
+            "deposit_toman": "-",
+            "has_deposit": resident.has_deposit,
+            "has_lease": resident.has_lease,
         }
     }
 

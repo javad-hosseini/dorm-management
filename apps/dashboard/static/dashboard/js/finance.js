@@ -3,21 +3,43 @@
 =================================================================== */
 
 const Finance = (() => {
+  let pickersInitialized = false;
+
+  function initPickers() {
+    if (pickersInitialized) return;
+    if (typeof PersianDatePicker !== 'undefined') {
+      const fromEl = document.getElementById('finance-from');
+      const toEl = document.getElementById('finance-to');
+      if (fromEl) {
+        new PersianDatePicker(fromEl, {
+          onSelect: () => render()
+        });
+      }
+      if (toEl) {
+        new PersianDatePicker(toEl, {
+          onSelect: () => render()
+        });
+      }
+      pickersInitialized = true;
+    }
+  }
+
   function getFiltered() {
     const fromEl = document.getElementById('finance-from');
     const toEl = document.getElementById('finance-to');
     const typeEl = document.getElementById('finance-type');
     const methodEl = document.getElementById('finance-method');
 
-    const from = fromEl ? fromEl.value.trim() : '';
-    const to = toEl ? toEl.value.trim() : '';
+    const from = fromEl ? fromEl.value.trim().replace(/-/g, '/') : '';
+    const to = toEl ? toEl.value.trim().replace(/-/g, '/') : '';
     const type = typeEl ? typeEl.value : '';
     const method = methodEl ? methodEl.value : '';
 
     return (DB.transactions || []).filter(t => {
-      const pDate = t.payment_date || '';
-      if (from && pDate < from) return false;
-      if (to && pDate > to) return false;
+      const pDate = (t.payment_date || '').replace(/-/g, '/');
+      const pDateDay = pDate.slice(0, 10);
+      if (from && pDateDay < from) return false;
+      if (to && pDateDay > to) return false;
       if (type && t.transaction_type !== type) return false;
       if (method && t.payment_method !== method) return false;
       return true;
@@ -25,6 +47,7 @@ const Finance = (() => {
   }
 
   function render() {
+    initPickers();
     const filtered = getFiltered();
     const total = filtered.reduce((s, t) => s + (t.amount || 0), 0);
     const rentTotal = filtered.filter(t => t.transaction_type === 'RENT').reduce((s, t) => s + (t.amount || 0), 0);
@@ -87,8 +110,9 @@ const Finance = (() => {
             : '';
 
           return `
-            <div class="glass rounded-xl p-2.5 flex justify-between text-[11px] animate-fadeInUp">
+            <div class="surface-subtle rounded-xl p-2.5 flex justify-between text-[11px]">
               <div>
+
                 <p class="font-bold">${resName} - ${Utils.toToman(t.amount)} ${approvalBadge}</p>
                 <p class="text-[10px] text-muted">${t.payment_date} | ${Utils.methodLabel(t.payment_method)}</p>
               </div>

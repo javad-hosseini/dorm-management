@@ -27,6 +27,7 @@ A fast, simple, and efficient replacement for paper-based dormitory management
 - [📁 Project Structure](#-project-structure)
 - [🖥 Admin Panel](#-admin-panel)
 - [💰 Financial Management](#-financial-management)
+- [🎙 AI Daily Log Loader (Voice-to-DB)](#-ai-daily-log-loader-voice-to-db)
 - [📦 Archive System](#-archive-system)
 - [📈 Reports](#-reports)
 - [🔮 Future Roadmap](#-future-roadmap)
@@ -79,6 +80,13 @@ This project is a **Dormitory Management System** designed to quickly replace th
 - Bulk archive residents who have LEFT
 - Preserve all transactions in archive
 - Remove from main tables for performance
+
+### 🎙 AI Daily Log Loader (Voice-to-DB)
+- **Voice-to-JSON Workflow:** Convert spoken supervisor voice notes into structured JSON using DeepSeek / LLM.
+- **Fuzzy Entity Resolution:** Intelligent fuzzy matching for Persian names, nicknames, and room numbers.
+- **Pre-Commit Interactive Preview:** Review, adjust amounts/methods, resolve name ambiguities, and commit atomically with 1 click.
+- **Automatic Settlement Advance:** Advances `settled_until` and auto-labels month names (`اجاره مهر ماه ۱۴۰۵`).
+- **Complete Documentation:** See [`AI_DAILY_LOADER.md`](AI_DAILY_LOADER.md) for full setup & prompt guides.
 
 ### 📊 Reporting
 - Daily card & bank transfer payment report

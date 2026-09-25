@@ -13,8 +13,8 @@
 }
 .glass-strong{
   background:var(--glass-bg-strong);
-  backdrop-filter:blur(24px);
-  -webkit-backdrop-filter:blur(24px);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
   border:1px solid var(--glass-border-strong);
   box-shadow:var(--glass-shadow);
 }
@@ -47,6 +47,44 @@
   background:var(--glass-bg); color:var(--text-1); border:1px solid var(--glass-border);
 }
 .btn-ghost:hover{ background:var(--glass-bg-strong); color:var(--text-0); }
+
+.btn-tool {
+  background: var(--glass-bg);
+  color: var(--text-1);
+  border: 1px solid var(--glass-border);
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all var(--dur-fast) ease;
+}
+.btn-tool:hover {
+  background: var(--glass-bg-strong);
+  border-color: rgba(255,255,255,0.25);
+  color: var(--text-0);
+  transform: translateY(-1px);
+}
+.btn-tool-primary {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+.btn-tool-primary:hover {
+  background: rgba(59, 130, 246, 0.28);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.55);
+}
+.btn-copy-card {
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.btn-copy-card:hover {
+  transform: scale(1.05);
+}
 
 /* ripple */
 .btn .ripple{
@@ -98,29 +136,191 @@
 .tab-section{ animation: sectionIn var(--dur-med) var(--ease-out); }
 @keyframes sectionIn{ from{ opacity:0; transform:translateY(10px) scale(.99); } to{ opacity:1; transform:none; } }
 
-/* --- KPI cards --- */
-.kpi-card{
-  border-radius:var(--radius-md); padding:1.1rem 1.3rem; position:relative; overflow:hidden;
-  transition:transform var(--dur-med) var(--ease-spring), box-shadow var(--dur-med);
-  cursor:default;
+/* --- High-End Prismatic Glass KPI Cards (شکستگی نور کامل و پر) --- */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md, 1.25rem);
+  padding: 0.75rem 1.15rem;
+  min-width: 105px;
+  background: var(--card-bg, rgba(17, 24, 39, 0.75));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 25px -5px rgba(0, 0, 0, 0.35);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }
-.kpi-card:hover{ transform:translateY(-4px); box-shadow:0 24px 50px rgba(0,0,0,.35); }
-.kpi-card .kpi-glow{
-  position:absolute; inset:-40% -40% auto auto; width:60%; height:60%; border-radius:50%;
-  filter:blur(40px); opacity:.35; pointer-events:none;
+
+:root[data-theme="light"] .kpi-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 20px -4px rgba(0, 0, 0, 0.06);
 }
+
+/* Layer 1: Volumetric Refraction Core (پر کردن شکستگی نور در سرتاسر کادر) */
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+/* Layer 2: Prismatic Diagonal Light Sheen (پرتوی زاویه‌دار و شکستگی منشور) */
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.35) 0%, 
+    rgba(255, 255, 255, 0.12) 25%, 
+    rgba(255, 255, 255, 0.02) 55%, 
+    transparent 75%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+  opacity: 0.85;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-3px) scale(1.02);
+}
+.kpi-card:hover::after {
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+.kpi-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* 1. درآمد ماه جاری (Income) - سبز زمردی پر و درخشان */
+.kpi-card.kpi-income {
+  border-color: rgba(16, 185, 129, 0.38);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 0 28px rgba(16, 185, 129, 0.22),
+    0 10px 25px -5px rgba(16, 185, 129, 0.28);
+}
+.kpi-card.kpi-income::before {
+  background: 
+    radial-gradient(135% 120% at 85% 15%, rgba(16, 185, 129, 0.48) 0%, rgba(5, 150, 105, 0.25) 45%, rgba(4, 120, 87, 0.1) 85%, transparent 100%),
+    linear-gradient(180deg, rgba(16, 185, 129, 0.15) 0%, transparent 100%);
+}
+
+/* 2. بدهکار (Debt) - قرمز رز / یاقوتی پر و درخشان */
+.kpi-card.kpi-debt {
+  border-color: rgba(244, 63, 94, 0.38);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 0 28px rgba(244, 63, 94, 0.22),
+    0 10px 25px -5px rgba(244, 63, 94, 0.28);
+}
+.kpi-card.kpi-debt::before {
+  background: 
+    radial-gradient(135% 120% at 85% 15%, rgba(244, 63, 94, 0.48) 0%, rgba(225, 29, 72, 0.25) 45%, rgba(190, 18, 60, 0.1) 85%, transparent 100%),
+    linear-gradient(180deg, rgba(244, 63, 94, 0.15) 0%, transparent 100%);
+}
+
+/* 3. کسری مدارک (Missing Documents) - کهربایی / طلایی پر و درخشان */
+.kpi-card.kpi-incomplete {
+  border-color: rgba(245, 158, 11, 0.38);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 0 28px rgba(245, 158, 11, 0.22),
+    0 10px 25px -5px rgba(245, 158, 11, 0.28);
+}
+.kpi-card.kpi-incomplete::before {
+  background: 
+    radial-gradient(135% 120% at 85% 15%, rgba(245, 158, 11, 0.48) 0%, rgba(217, 119, 6, 0.25) 45%, rgba(180, 83, 9, 0.1) 85%, transparent 100%),
+    linear-gradient(180deg, rgba(245, 158, 11, 0.15) 0%, transparent 100%);
+}
+
+/* 4. کل ساکنین فعال (Active Residents) - نیلی / آبی سلطنتی */
+.kpi-card.kpi-active {
+  border-color: rgba(59, 130, 246, 0.38);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 0 28px rgba(59, 130, 246, 0.22),
+    0 10px 25px -5px rgba(59, 130, 246, 0.28);
+}
+.kpi-card.kpi-active::before {
+  background: 
+    radial-gradient(135% 120% at 85% 15%, rgba(59, 130, 246, 0.48) 0%, rgba(37, 99, 235, 0.25) 45%, rgba(29, 78, 216, 0.1) 85%, transparent 100%),
+    linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, transparent 100%);
+}
+
+/* 5. اتاق پر / دارای جای خالی (Rooms) - فیروزه‌ای / یخی */
+.kpi-card.kpi-rooms {
+  border-color: rgba(14, 165, 233, 0.38);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 0 28px rgba(14, 165, 233, 0.22),
+    0 10px 25px -5px rgba(14, 165, 233, 0.28);
+}
+.kpi-card.kpi-rooms::before {
+  background: 
+    radial-gradient(135% 120% at 85% 15%, rgba(14, 165, 233, 0.48) 0%, rgba(2, 132, 199, 0.25) 45%, rgba(3, 105, 161, 0.1) 85%, transparent 100%),
+    linear-gradient(180deg, rgba(14, 165, 233, 0.15) 0%, transparent 100%);
+}
+
 .kpi-trend{ display:inline-flex; align-items:center; gap:.25rem; font-size:.68rem; font-weight:700; border-radius:999px; padding:.15rem .55rem; }
 .kpi-trend.up{ color:var(--success-500); background:color-mix(in srgb, var(--success-500) 15%, transparent); }
 .kpi-trend.down{ color:var(--danger-500); background:color-mix(in srgb, var(--danger-500) 15%, transparent); }
 
-/* --- Cards: students / rooms --- */
-.entity-card{
-  border-radius:var(--radius-md); cursor:pointer;
-  transition:transform var(--dur-med) var(--ease-spring), box-shadow var(--dur-med), border-color var(--dur-fast);
-  animation: cardIn var(--dur-med) var(--ease-out) both;
+.surface-subtle, .card-cell, .chip{
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
 }
-.entity-card:hover{ transform:translateY(-5px) scale(1.012); box-shadow:0 26px 55px rgba(0,0,0,.4); border-color:var(--glass-border-strong); }
-@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.97); } to{ opacity:1; transform:none; } }
+:root[data-theme="light"] .surface-subtle,
+:root[data-theme="light"] .card-cell,
+:root[data-theme="light"] .chip{
+  background:#f1f5f9;
+  border:1px solid #e2e8f0;
+}
+
+/* --- Cards: students / rooms (GPU-friendly, no heavy backdrop-filter, virtualized by browser) --- */
+.entity-card{
+  background:var(--bg-1);
+  border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);
+  cursor:pointer;
+  position:relative;
+  box-shadow:0 4px 14px rgba(0,0,0,.22);
+  transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+  content-visibility:auto;
+  contain-intrinsic-size:0 170px;
+}
+:root[data-theme="light"] .entity-card{
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  box-shadow:0 4px 12px rgba(0,0,0,.04);
+}
+.entity-card:hover{
+  transform:translateY(-3px);
+  border-color:var(--brand-500);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+}
+
 
 .status-pill{ font-size:.65rem; padding:.3rem .7rem; border-radius:999px; font-weight:700; transition:transform var(--dur-fast); }
 .entity-card:hover .status-pill{ transform:scale(1.05); }
@@ -170,13 +370,98 @@
 /* --- Empty state --- */
 .empty-state{ text-align:center; padding:3rem 1rem; color:var(--text-2); }
 
-/* --- Theme toggle --- */
-.theme-toggle{ display:flex; gap:.25rem; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:999px; padding:.25rem; }
-.theme-toggle button{ width:2.1rem; height:2.1rem; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:.9rem; color:var(--text-2); transition:all var(--dur-fast); }
-.theme-toggle button.active{ background:linear-gradient(135deg,var(--brand-500),var(--brand-700)); color:#fff; box-shadow:0 6px 16px var(--brand-glow); }
+/* --- Classic Luxury Segmented Theme Switcher --- */
+.classic-theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 
+    inset 0 1px 3px rgba(0, 0, 0, 0.45),
+    0 8px 20px -4px rgba(0, 0, 0, 0.35);
+  user-select: none;
+}
 
-/* --- Sparkline canvas sizing --- */
-.sparkline{ width:70px; height:28px; }
+:root[data-theme="light"] .classic-theme-switch {
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  box-shadow: 
+    inset 0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.classic-theme-switch .theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.38rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-muted, #94a3b8);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.classic-theme-switch .theme-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="light"] .classic-theme-switch .theme-btn:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.classic-theme-switch .theme-btn.active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 100%), #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 
+    0 3px 10px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+:root[data-theme="light"] .classic-theme-switch .theme-btn.active {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #0f172a;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.classic-theme-switch .theme-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.25s ease, stroke 0.25s ease;
+}
+
+.classic-theme-switch .theme-btn:hover .theme-icon {
+  transform: rotate(12deg) scale(1.1);
+}
+
+.classic-theme-switch .theme-btn[data-mode="light"].active .theme-icon {
+  stroke: #f59e0b;
+}
+
+.classic-theme-switch .theme-btn[data-mode="dark"].active .theme-icon {
+  stroke: #38bdf8;
+}
+
+.classic-theme-switch .theme-btn[data-mode="auto"].active .theme-icon {
+  stroke: #a855f7;
+}
 
 /* --- Back to top --- */
 .fab{
