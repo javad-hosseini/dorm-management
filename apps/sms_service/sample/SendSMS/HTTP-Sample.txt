@@ -1,0 +1,7 @@
+POST /api/SendSMS/SendSMS HTTP/1.1
+Host: rest.payamak-panel.com
+Cache-Control: no-cache
+Postman-Token: 7ce78606-0d0b-107d-286c-bbd4b4142760
+Content-Type: application/x-www-form-urlencoded
+
+username=YourUserName&password=YourPassWord&to=936...&from=1000...&text=TestSMS&isflash=false

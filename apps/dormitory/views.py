@@ -106,3 +106,12 @@ def ai_daily_loader_view(request):
     }
 
     return render(request, 'admin/dormitory/ai_loader.html', context)
+
+
+@staff_member_required
+def export_debtors_excel_view(request):
+    """
+    Direct endpoint for downloading debtors Excel report for staff/admin.
+    """
+    from apps.dormitory.services.excel_export import export_debtors_to_excel_response
+    return export_debtors_to_excel_response()

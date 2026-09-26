@@ -82,7 +82,8 @@
       <button data-menu onclick="switchMenu('contract')" class="side-link"><i data-lucide="file-text"></i> قرارداد</button>
       <button data-menu onclick="switchMenu('maintenance')" class="side-link"><i data-lucide="wrench"></i> درخواست تعمیرات</button>
       <div class="h-px bg-white/10 my-1"></div>
-      <button class="side-link danger"><i data-lucide="log-out"></i> خروج</button>
+      <a href="{% url 'accounts:password_change' %}" class="side-link"><i data-lucide="key-round"></i> تغییر کلمه عبور</a>
+      <a href="{% url 'accounts:logout' %}" class="side-link danger"><i data-lucide="log-out"></i> خروج از حساب</a>
     </div>
   </nav>
 </div>
@@ -141,7 +142,8 @@
       <button onclick="switchMenu('contract')" id="m-contract" class="side-link"><i data-lucide="file-text"></i> قرارداد</button>
       <button onclick="switchMenu('maintenance')" id="m-maintenance" class="side-link"><i data-lucide="wrench"></i> درخواست تعمیرات</button>
       <div class="h-px bg-white/10 my-1"></div>
-      <button class="side-link danger"><i data-lucide="log-out"></i> خروج</button>
+      <a href="{% url 'accounts:password_change' %}" class="side-link"><i data-lucide="key-round"></i> تغییر کلمه عبور</a>
+      <a href="{% url 'accounts:logout' %}" class="side-link danger"><i data-lucide="log-out"></i> خروج از حساب</a>
     </div>
 
     <div class="glass rounded-[1.8rem] p-4 animate-fadeInUp" style="animation-delay:.1s">

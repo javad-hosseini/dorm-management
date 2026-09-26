@@ -1,9 +1,11 @@
 import json
 import jdatetime
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.views import View
 from django.views.generic import TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Q
 from apps.dormitory.models import Dormitory, Room, Resident, Transaction
 
 
@@ -57,11 +59,22 @@ def get_admin_dashboard_data():
             "occupation": res.occupation,
             "monthly_payment_day": res.monthly_payment_day,
             "is_in_debt": res.is_in_debt,
+            "debt_urgency": res.debt_urgency,
             "overdue_days": res.overdue_days,
             "days_until_due": res.days_until_due,
             "unpaid_months": res.unpaid_months_display,
             "total_debt_tomans": res.total_debt_amount_tomans,
             "financial_summary": res.financial_status_summary,
+            "unpaid_periods": [
+                {
+                    "name": p["name"],
+                    "start_date": str(p["start_date"]),
+                    "end_date": str(p["end_date"]),
+                    "overdue_days": p["overdue_days"],
+                    "amount_tomans": p["amount_tomans"],
+                }
+                for p in res.unpaid_periods
+            ],
             "has_paid_this_month": res.has_paid_this_month(),
             "has_incomplete_profile": res.has_incomplete_profile,
             "missing_profile_fields": res.missing_profile_fields,
@@ -104,7 +117,12 @@ def get_admin_dashboard_data():
             "reference_number": t.reference_number or "",
             "description": t.description or "",
             "is_approved": t.is_approved,
-            "applicable_rent": t.applicable_rent or (t.resident.room.monthly_rent if t.resident and t.resident.room else 0)
+            "applicable_rent": t.applicable_rent or (t.resident.room.monthly_rent if t.resident and t.resident.room else 0),
+            "discount_amount": t.discount_amount or 0,
+            "discount_in_tomans": t.discount_in_tomans,
+            "discount_reason": t.discount_reason or "",
+            "has_discount": t.has_discount,
+            "total_effective_amount_toman": t.total_effective_amount_in_tomans,
         })
 
     # 5. Stats
@@ -142,14 +160,18 @@ def get_admin_dashboard_data():
 
 
 def get_student_dashboard_data(user):
-    """Serialize real data for the logged-in student or a fallback student"""
+    """Serialize real data strictly for the logged-in student (or staff preview)"""
     resident = None
     if user and user.is_authenticated:
-        # Match by username or national_code
-        resident = Resident.objects.filter(national_code=user.username).first()
+        if hasattr(user, 'resident_profile') and user.resident_profile:
+            resident = user.resident_profile
+        else:
+            resident = Resident.objects.filter(
+                Q(national_code__iexact=user.username) | Q(phone_number=user.username)
+            ).first()
 
-    if not resident:
-        # Fallback to first active resident with a room for demo/admin preview
+    # Only staff/superusers can see a fallback resident preview if they don't have a personal resident profile
+    if not resident and user and (user.is_staff or user.is_superuser):
         resident = Resident.objects.filter(status='ACTIVE', room__isnull=False).first() or Resident.objects.first()
 
     if not resident:
@@ -173,7 +195,6 @@ def get_student_dashboard_data(user):
                 "full_name": rm.full_name,
                 "phone": rm.phone_number,
                 "entry": str(rm.entry_date) if rm.entry_date else "",
-                "national": rm.national_code,
                 "me": False
             })
     # Add self to roommates
@@ -184,7 +205,6 @@ def get_student_dashboard_data(user):
         "full_name": f"{resident.full_name} (شما)",
         "phone": resident.phone_number,
         "entry": str(resident.entry_date) if resident.entry_date else "",
-        "national": resident.national_code,
         "me": True
     })
 
@@ -228,11 +248,22 @@ def get_student_dashboard_data(user):
         "monthly_payment_day": resident.monthly_payment_day,
         "status": resident.status,
         "is_in_debt": resident.is_in_debt,
+        "debt_urgency": resident.debt_urgency,
         "overdue_days": resident.overdue_days,
         "days_until_due": resident.days_until_due,
         "unpaid_months": resident.unpaid_months_display,
         "total_debt_tomans": resident.total_debt_amount_tomans,
         "financial_summary": resident.financial_status_summary,
+        "unpaid_periods": [
+            {
+                "name": p["name"],
+                "start_date": str(p["start_date"]),
+                "end_date": str(p["end_date"]),
+                "overdue_days": p["overdue_days"],
+                "amount_tomans": p["amount_tomans"],
+            }
+            for p in resident.unpaid_periods
+        ],
         "last_paid": resident.last_paid_period_display,
         "settled_until": str(resident.settled_until) if resident.settled_until else "ثبت نشده",
         "settled_until_display": resident.settled_until_display,
@@ -267,7 +298,27 @@ def get_student_dashboard_data(user):
     }
 
 
-class AdminDashboardView(LoginRequiredMixin, TemplateView):
+from django.contrib.auth.views import redirect_to_login
+
+
+class AdminRequiredMixin(UserPassesTestMixin):
+    """Ensure only staff, superusers, or supervisors can access admin dashboard"""
+    def test_func(self):
+        user = self.request.user
+        return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            # If logged in as student, redirect to student dashboard
+            return redirect("dashboard:student")
+        return redirect_to_login(
+            self.request.get_full_path(),
+            self.get_login_url(),
+            self.get_redirect_field_name(),
+        )
+
+
+class AdminDashboardView(AdminRequiredMixin, TemplateView):
     template_name = "dashboard/admin_dashboard.html"
 
     def get_context_data(self, **kwargs):
@@ -277,7 +328,7 @@ class AdminDashboardView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class AdminDashboardDataApiView(LoginRequiredMixin, View):
+class AdminDashboardDataApiView(AdminRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         data = get_admin_dashboard_data()
         return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})

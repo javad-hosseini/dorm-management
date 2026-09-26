@@ -10,6 +10,12 @@ const Students = (() => {
     return { STUDENT: 'دانشجو', EMPLOYED: 'شاغل', OTHER: 'سایر' }[o] || o || 'سایر';
   }
 
+  function toEngDigits(str) {
+    if (!str) return '';
+    const p2e = {'۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+    return String(str).replace(/[۰-۹٠-٩]/g, d => p2e[d] || d);
+  }
+
   function populateDormFilter() {
     const select = document.getElementById('filter-dorm');
     if (!select || !DB.dorms) return;
@@ -17,6 +23,33 @@ const Students = (() => {
     select.innerHTML = '<option value="">همه خوابگاه‌ها</option>' +
       DB.dorms.map(d => `<option value="${d}">${d}</option>`).join('');
     if (currentVal) select.value = currentVal;
+  }
+
+  function populateRoomSelectFilter() {
+    const select = document.getElementById('filter-room-select');
+    if (!select || !DB.rooms) return;
+    const currentVal = select.value;
+
+    const dormEl = document.getElementById('filter-dorm');
+    const selectedDorm = dormEl ? dormEl.value : '';
+
+    let rooms = [...(DB.rooms || [])];
+    if (selectedDorm) {
+      rooms = rooms.filter(r => r.dormitory === selectedDorm);
+    }
+
+    rooms.sort((a, b) => (a.room_number || 0) - (b.room_number || 0));
+
+    let html = '<option value="">همه اتاق‌ها</option>';
+    rooms.forEach(rm => {
+      const dormTag = (!selectedDorm && rm.dormitory) ? ` (${rm.dormitory})` : '';
+      html += `<option value="${rm.room_number}">اتاق ${rm.room_number}${dormTag}</option>`;
+    });
+
+    select.innerHTML = html;
+    if (currentVal && rooms.some(r => String(r.room_number) === String(currentVal))) {
+      select.value = currentVal;
+    }
   }
 
   // --- Profile Text Formatter (Strictly Non-Financial / No Transaction History) ---
@@ -81,6 +114,7 @@ const Students = (() => {
 
   function render(list = DB.residents) {
     populateDormFilter();
+    populateRoomSelectFilter();
     currentFiltered = list || [];
     const grid = document.getElementById('students-grid');
     const countEl = document.getElementById('students-count');
@@ -127,18 +161,32 @@ const Students = (() => {
             <div class="grid grid-cols-3 gap-2 mt-4 text-[11px]">
               <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">تاریخ ورود</p><p class="truncate">${r.entry_date || '-'}</p></div>
               <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">تسویه تا تاریخ</p><p class="truncate font-bold ${r.settled_until ? 'text-blue-400' : 'text-amber-400'}">${r.settled_until || 'فاقد پرداخت'}</p></div>
-              <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">موعد سررسید</p><p class="truncate font-bold ${r.is_in_debt ? 'text-rose-400' : 'text-emerald-400'}">${r.next_due_date_display || r.settled_until || '-'}</p></div>
+              <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">موعد سررسید</p><p class="truncate font-bold ${
+                r.is_in_debt
+                  ? (r.overdue_days > 7 ? 'text-rose-400' : 'text-amber-400')
+                  : 'text-emerald-400'
+              }">${r.next_due_date_display || r.settled_until || '-'}</p></div>
             </div>
             <!-- وضعیت سررسید و مهلت پرداخت به صورت برجسته -->
             <div class="mt-2.5 p-2 rounded-xl text-[11px] flex items-center justify-between gap-2 ${
               isLeft ? 'bg-slate-500/10 border border-slate-500/20 text-slate-300' :
               (r.is_in_debt
-                ? 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
+                ? (r.overdue_days > 7
+                    ? 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
+                    : 'bg-amber-500/10 border border-amber-500/25 text-amber-300')
                 : 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300')
             }">
               <div class="flex items-center gap-1.5 truncate">
-                <span>${isLeft ? '⚪' : (r.is_in_debt ? (r.overdue_days === 0 ? '🟡' : '🔴') : '🟢')}</span>
-                <span class="font-medium truncate">${r.due_status_display || (r.is_in_debt ? 'بدهکار' : 'تسویه به روز')}</span>
+                <span>${isLeft ? '⚪' : (r.is_in_debt ? (r.overdue_days > 7 ? '🔴' : '🟡') : '🟢')}</span>
+                <span class="font-medium truncate">${
+                  isLeft ? 'خارج شده' : (
+                    r.due_status_display || (
+                      r.is_in_debt
+                        ? (r.overdue_days > 7 ? `${r.overdue_days} روز تاخیر (بدهکار)` : `${r.overdue_days} روز تاخیر (هشدار)`)
+                        : 'تسویه به روز'
+                    )
+                  )
+                }</span>
               </div>
               <span class="text-[10px] font-semibold whitespace-nowrap">
                 ${isLeft ? 'خارج شده' : (r.is_in_debt ? (Utils.toToman(r.total_debt_tomans * 10) + ' بدهی') : 'تسویه')}
@@ -183,41 +231,54 @@ const Students = (() => {
   function runFilter() {
     const qEl = document.getElementById('search-student');
     const dormEl = document.getElementById('filter-dorm');
+    const roomSelectEl = document.getElementById('filter-room-select');
     const statusEl = document.getElementById('filter-status');
     const occEl = document.getElementById('filter-occupation');
 
-    const q = qEl ? qEl.value.trim().toLowerCase() : '';
+    const rawQ = qEl ? qEl.value.trim() : '';
+    const qNorm = toEngDigits(rawQ).toLowerCase();
+    const qDigits = qNorm.replace(/\D/g, '');
     const dorm = dormEl ? dormEl.value : '';
+    const selectedRoom = roomSelectEl ? roomSelectEl.value : '';
     const status = statusEl ? statusEl.value : '';
     const occ = occEl ? occEl.value : '';
 
     const filtered = (DB.residents || []).filter(r => {
-      const roomStr = r.room ? String(r.room.room_number) : '';
+      const roomNumStr = r.room ? String(r.room.room_number) : '';
       const fullName = (r.full_name || '').toLowerCase();
-      const natCode = r.national_code || '';
-      const phone = r.phone_number || '';
+      const father = (r.father_name || '').toLowerCase();
+      const natCode = toEngDigits(r.national_code || '');
+      const phone = toEngDigits(r.phone_number || '');
 
-      const matchQ = !q ||
-        fullName.includes(q) ||
-        natCode.includes(q) ||
-        phone.includes(q) ||
-        roomStr.includes(q);
+      const matchQ = !rawQ ||
+        fullName.includes(rawQ.toLowerCase()) ||
+        father.includes(rawQ.toLowerCase()) ||
+        natCode.includes(qNorm) ||
+        phone.includes(qNorm) ||
+        roomNumStr.includes(qNorm) ||
+        (qDigits && roomNumStr.includes(qDigits)) ||
+        (`اتاق ${roomNumStr}`).toLowerCase().includes(rawQ.toLowerCase()) ||
+        (`اتاق${roomNumStr}`).toLowerCase().includes(rawQ.toLowerCase());
 
       const matchDorm = !dorm || r.dormitory === dorm;
+      const matchRoom = !selectedRoom || roomNumStr === String(selectedRoom);
       const matchOcc = !occ || r.occupation === occ;
 
       let matchStat = true;
       if (status === "debt") matchStat = r.is_in_debt && r.status === 'ACTIVE';
+      else if (status === "debt_warning") matchStat = r.is_in_debt && r.overdue_days <= 7 && r.status === 'ACTIVE';
+      else if (status === "debt_critical") matchStat = r.is_in_debt && r.overdue_days > 7 && r.status === 'ACTIVE';
       else if (status === "paid") matchStat = !r.is_in_debt && r.status === 'ACTIVE';
       else if (status === "incomplete") matchStat = r.has_incomplete_profile && r.status === 'ACTIVE';
       else if (status === "ACTIVE") matchStat = r.status === "ACTIVE";
       else if (status === "LEFT") matchStat = r.status === "LEFT";
 
-      return matchQ && matchDorm && matchOcc && matchStat;
+      return matchQ && matchDorm && matchRoom && matchOcc && matchStat;
     });
 
     render(filtered);
   }
+
 
   // --- Single Resident Copy ---
   function copyProfile(id, btn) {
@@ -546,6 +607,7 @@ const Students = (() => {
     render,
     filter: debouncedFilter,
     populateDormFilter,
+    populateRoomSelectFilter,
     formatResidentText,
     copyProfile,
     downloadSingleTxt,

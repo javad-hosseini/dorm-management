@@ -9,13 +9,13 @@ from django.db import models
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import render
-from django.urls import reverse
+from django.urls import reverse, path
 from django.utils.html import format_html
 import jdatetime
 from django_jalali.db import models as jmodels
 from django_jalali import forms as jforms
 from apps.archive.models import ArchivedResident, ArchivedTransaction
-from .models import Dormitory, Room, Resident, Transaction, DailyNote
+from .models import Dormitory, Room, RoomPriceHistory, Resident, Transaction, DailyNote, get_default_dormitory
 
 
 class AdminPersianDateWidget(jforms.jDateInput):
@@ -142,12 +142,24 @@ class DormitoryAdmin(admin.ModelAdmin):
 # ROOM ADMIN
 # ============================================
 class RoomForm(forms.ModelForm):
-    """Custom form to convert Tomans to Rials"""
+    """Custom form to convert Tomans to Rials and support effective date for price changes"""
     monthly_rent_tomans = forms.DecimalField(
         max_digits=12,
         decimal_places=3,
         label="اجاره ماهانه (میلیون تومان)",
-        help_text="مبلغ را به میلیون تومان وارد کنید (مثال: 4 برای 4 میلیون تومان، 2.5 برای 2.5 میلیون تومان)"
+        help_text="مبلغ را به میلیون تومان وارد کنید (مثال: 3.8 برای 3,800,000 تومان، 3.5 برای 3.5 میلیون تومان)"
+    )
+    effective_date = jforms.jDateField(
+        widget=AdminPersianDateWidget,
+        required=False,
+        label="تاریخ شروع اعمال نرخ",
+        help_text="در صورت تغییر مبلغ، این نرخ از تاریخ مشخص‌شده محاسبه می‌شود و ماه‌های قبل با نرخ قبلی حفظ می‌شوند."
+    )
+    price_change_note = forms.CharField(
+        max_length=255,
+        required=False,
+        label="علت / شرح تغییر نرخ",
+        help_text="اختیاری (مثال: افزایش قیمت پاییز ۱۴۰۵ یا مصوبه جدید)"
     )
 
     class Meta:
@@ -156,26 +168,105 @@ class RoomForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if not self.instance.pk and 'dormitory' in self.fields:
+            if not self.initial.get('dormitory'):
+                default_dorm_id = get_default_dormitory()
+                if default_dorm_id:
+                    self.fields['dormitory'].initial = default_dorm_id
+
         if self.instance and self.instance.pk:
             # تبدیل ریال به میلیون تومان
             self.fields['monthly_rent_tomans'].initial = self.instance.monthly_rent / 10000000
+            latest = self.instance.latest_price_history
+            if latest:
+                self.fields['effective_date'].initial = latest.effective_date
+                self.fields['price_change_note'].initial = latest.note
+            else:
+                self.fields['effective_date'].initial = jdatetime.date.today()
+        else:
+            self.fields['effective_date'].initial = jdatetime.date.today()
 
     def save(self, commit=True):
-        # تبدیل میلیون تومان به ریال
-        self.instance.monthly_rent = int(self.cleaned_data['monthly_rent_tomans'] * 10000000)
+        new_rent_rials = int(self.cleaned_data['monthly_rent_tomans'] * 10000000)
+        eff_date = self.cleaned_data.get('effective_date') or jdatetime.date.today()
+        note = self.cleaned_data.get('price_change_note') or ''
+
+        self.instance._price_change_effective_date = eff_date
+        self.instance._price_change_note = note
+
+        if self.instance.pk:
+            old_room = Room.objects.filter(pk=self.instance.pk).first()
+            if old_room and old_room.monthly_rent != new_rent_rials:
+                self.instance.set_rent(
+                    new_rent_rials=new_rent_rials,
+                    effective_date=eff_date,
+                    note=note
+                )
+            else:
+                self.instance.monthly_rent = new_rent_rials
+        else:
+            self.instance.monthly_rent = new_rent_rials
+
         return super().save(commit)
+
+
+class RoomPriceHistoryInline(admin.TabularInline):
+    model = RoomPriceHistory
+    extra = 0
+    fields = ['monthly_rent_tomans_display', 'effective_date', 'note', 'created_by', 'created_at']
+    readonly_fields = ['monthly_rent_tomans_display', 'created_at']
+    ordering = ['-effective_date', '-id']
+    formfield_overrides = {
+        jmodels.jDateField: {'widget': AdminPersianDateWidget},
+    }
+
+    def monthly_rent_tomans_display(self, obj):
+        if obj.monthly_rent:
+            t = f"{obj.monthly_rent // 10:,.0f}"
+            m = f"{obj.monthly_rent / 10000000:,.2f}".rstrip('0').rstrip('.')
+            return format_html('<b>{} تومان</b> <small style="color:#666;">({} م.تومان)</small>', t, m)
+        return "-"
+    monthly_rent_tomans_display.short_description = "مبلغ اجاره (تومان)"
 
 
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
     form = RoomForm
+    inlines = [RoomPriceHistoryInline]
     list_display = [
         '__str__', 'dormitory', 'room_number', 'capacity',
-        'current_occupants', 'available_capacity', 'vacancy_status', 'monthly_rent_display'
+        'current_occupants', 'available_capacity', 'vacancy_status', 'monthly_rent_display', 'price_effective_date_display'
     ]
+    actions = ['bulk_change_price']
     list_filter = ['dormitory', 'capacity', VacancyFilter]
     search_fields = ['room_number', 'dormitory__name']
     list_select_related = ['dormitory']
+
+    def price_effective_date_display(self, obj):
+        latest = obj.latest_price_history
+        if latest:
+            return format_html(
+                '<span style="font-size:12px; color:#2c3e50; font-weight:bold;">{}</span><br><small style="color:#7f8c8d;">{}</small>',
+                latest.effective_date.strftime('%Y/%m/%d'),
+                latest.note or 'فعال'
+            )
+        return "-"
+    price_effective_date_display.short_description = "تاریخ اعمال نرخ"
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "dormitory":
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                kwargs["initial"] = default_dorm_id
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        if 'dormitory' not in initial:
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                initial['dormitory'] = default_dorm_id
+        return initial
 
     def monthly_rent_display(self, obj):
         """Show rent in Million Tomans and formatted Tomans"""
@@ -183,7 +274,7 @@ class RoomAdmin(admin.ModelAdmin):
         amount_t = f"{obj.monthly_rent // 10:,.0f}"
         return format_html('<b>{}</b> م.تومان <small style="color:#666;">({} تومان)</small>', amount_m, amount_t)
 
-    monthly_rent_display.short_description = "اجاره ماهانه"
+    monthly_rent_display.short_description = "اجاره ماهانه فعلی"
     monthly_rent_display.admin_order_field = 'monthly_rent'
 
     def vacancy_status(self, obj):
@@ -210,6 +301,52 @@ class RoomAdmin(admin.ModelAdmin):
         if 'monthly_rent' in form.base_fields:
             form.base_fields['monthly_rent'].widget = forms.HiddenInput()
         return form
+
+    @admin.action(description="📈 افزایش / تغییر نرخ دسته‌جمعی اتاق‌های انتخاب‌شده")
+    def bulk_change_price(self, request, queryset):
+        from apps.dormitory.jalali_utils import parse_jalali_date
+        if 'apply' in request.POST:
+            try:
+                new_rent_m = float(request.POST.get('new_rent_million_tomans', 0))
+                new_rent_rials = int(new_rent_m * 10_000_000)
+                eff_date_str = request.POST.get('effective_date')
+                eff_date = parse_jalali_date(eff_date_str) or jdatetime.date.today()
+                note = request.POST.get('note', '').strip() or f"افزایش قیمت دسته‌جمعی از {eff_date}"
+
+                Supervisor = apps.get_model('accounts', 'Supervisor')
+                supervisor = (
+                    Supervisor.objects.filter(id=request.user.id).first()
+                    or Supervisor.objects.filter(national_code=getattr(request.user, 'username', '')).first()
+                    or Supervisor.objects.first()
+                )
+
+                count = 0
+                for room in queryset:
+                    room.set_rent(
+                        new_rent_rials=new_rent_rials,
+                        effective_date=eff_date,
+                        note=note,
+                        supervisor=supervisor
+                    )
+                    count += 1
+
+                self.message_user(
+                    request,
+                    f"✅ نرخ اجاره {count} اتاق با موفقیت به {new_rent_m:,.2f} میلیون تومان ({new_rent_rials // 10:,} تومان) از تاریخ {eff_date} تغییر یافت. سوابق محاسباتی گذشته بدون تغییر محفوظ ماندند."
+                )
+                return None
+            except Exception as e:
+                self.message_user(request, f"❌ خطا در ثبت نرخ جدید: {e}", level='error')
+
+        context = {
+            'title': 'افزایش و تغییر نرخ دسته‌جمعی اتاق‌ها',
+            'rooms': queryset,
+            'today': jdatetime.date.today().strftime('%Y/%m/%d'),
+            'queryset': queryset,
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/dormitory/room/bulk_change_price.html', context)
+
 
 
 # ============================================
@@ -271,7 +408,7 @@ class ResidentAdmin(admin.ModelAdmin):
         'copy_profile_action',
         'view_transactions_link',
     ]
-    actions = ['archive_left_residents', 'export_selected_to_clipboard', 'export_selected_to_csv']
+    actions = ['archive_left_residents', 'export_selected_to_clipboard', 'export_selected_to_csv', 'sync_settled_until_from_transactions', 'export_debtors_to_excel_action']
 
     fieldsets = (
         ('اطلاعات فردی', {
@@ -342,22 +479,35 @@ class ResidentAdmin(admin.ModelAdmin):
         initial = super().get_changeform_initial_data(request)
         if 'entry_date' not in initial:
             initial['entry_date'] = jdatetime.date.today() - datetime.timedelta(days=1)
+        if 'dormitory' not in initial:
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                initial['dormitory'] = default_dorm_id
         return initial
 
     def national_code_display(self, obj):
         if obj.national_code:
             if obj.is_foreign:
-                return format_html('<span>{}</span> <span style="background:#0284c7; color:#fff; font-size:10px; padding:2px 6px; border-radius:4px; margin-right:4px;">🌐 اتباع</span>', obj.national_code)
-            return obj.national_code
-        return format_html('<span style="color:#e67e22; font-style:italic;">⚠️ ثبت‌نشده</span>')
+                return format_html('<span style="white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">{} <span style="background:#0284c7; color:#fff; font-size:10px; padding:2px 6px; border-radius:4px;">🌐 اتباع</span></span>', obj.national_code)
+            return format_html('<span style="white-space:nowrap;">{}</span>', obj.national_code)
+        return format_html('<span style="white-space:nowrap; display:inline-flex; align-items:center; gap:3px; color:#e67e22; font-style:italic;">⚠️ ثبت‌نشده</span>')
     national_code_display.short_description = "کد ملی / پاسپورت"
     national_code_display.admin_order_field = 'national_code'
 
     def id_documents_badge(self, obj):
         count = obj.uploaded_id_images_count
         if count == 0:
-            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="فاقد عکس مدارک هویتی">📷 بدون عکس</span>')
-        return format_html('<span style="background:#0284c7; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="{} تصویر مدرک بارگذاری شده">📷 {} تصویر</span>', count, count)
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; justify-content:center; gap:4px; background:#e11d48; color:white; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:bold;" title="فاقد عکس مدارک هویتی (کارت ملی، شناسنامه یا پاسپورت)">'
+                '🪪 بدون عکس'
+                '</span>'
+            )
+        return format_html(
+            '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; justify-content:center; gap:4px; background:#0284c7; color:white; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:bold;" title="{} تصویر مدرک بارگذاری شده">'
+            '🪪 {} مدرک'
+            '</span>',
+            count, count
+        )
     id_documents_badge.short_description = "عکس مدارک"
     id_documents_badge.admin_order_field = 'id_card_image'
 
@@ -387,40 +537,110 @@ class ResidentAdmin(admin.ModelAdmin):
 
     def deposit_status_badge(self, obj):
         if obj.has_deposit:
-            return format_html('<span style="color:#27ae60; font-weight:bold; font-size:11px;">✅ دارد</span>')
-        return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-weight:bold; font-size:11px;">❌ فاقد ودیعه</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; justify-content:center; gap:4px; color:#16a34a; font-weight:bold; font-size:11px;" title="ودیعه ثبت شده است">'
+                '✅ دارد'
+                '</span>'
+            )
+        return format_html(
+            '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; justify-content:center; gap:4px; background:#e11d48; color:white; padding:3px 9px; border-radius:6px; font-weight:bold; font-size:11px;" title="ودیعه ثبت یا دریافت نشده است">'
+            '❌ فاقد ودیعه'
+            '</span>'
+        )
     deposit_status_badge.short_description = "ودیعه"
     deposit_status_badge.admin_order_field = 'has_deposit'
 
     def document_status_badge(self, obj):
         st = obj.profile_completion_status
         if st == "COMPLETE":
-            return format_html('<span style="color:#27ae60; font-size:11px; font-weight:bold;">✅ کامل</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; color:#16a34a; font-size:11px; font-weight:bold;" title="تمامی اطلاعات و مدارک کامل است">'
+                '✅ مدارک کامل'
+                '</span>'
+            )
         elif st == "MISSING_ALL":
-            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="فاقد تمام مدارک">⚠️ فاقد مدارک (کل)</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#b91c1c; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="فاقد تمام مدارک: کد ملی، نام پدر، تلفن والدین، اجاره‌نامه، عکس مدرک">'
+                '⚠️ فاقد تمام مدارک (۵ مورد)'
+                '</span>'
+            )
         elif st == "MISSING_BOTH":
             lbl = "فاقد پاسپورت و والدین" if obj.is_foreign else "فاقد کدملی و والدین"
-            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="{}">⚠️ {}</span>', lbl, lbl)
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#e11d48; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="{}">'
+                '⚠️ {}'
+                '</span>',
+                lbl, lbl
+            )
         elif st == "MISSING_LEASE":
-            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;" title="فاقد اجاره‌نامه">⚠️ فاقد اجاره‌نامه</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#e11d48; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="فاقد قرارداد اجاره‌نامه معتبر">'
+                '⚠️ فاقد اجاره‌نامه'
+                '</span>'
+            )
         elif st == "MISSING_NATIONAL_CODE":
-            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد کد ملی</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#d97706; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="کد ملی ثبت نشده است">'
+                '⚠️ فاقد کد ملی'
+                '</span>'
+            )
         elif st == "MISSING_PASSPORT":
-            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد شماره پاسپورت</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#d97706; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="شماره پاسپورت ثبت نشده است">'
+                '⚠️ فاقد پاسپورت'
+                '</span>'
+            )
         elif st == "MISSING_PARENT_PHONE":
-            return format_html('<span style="background:#f39c12; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد تلفن والدین</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#d97706; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="شماره تماس والدین یا بستگان ثبت نشده است">'
+                '⚠️ فاقد تلفن والدین'
+                '</span>'
+            )
         elif st == "MISSING_FATHER_NAME":
-            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد نام پدر</span>')
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#d97706; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="نام پدر ثبت نشده است">'
+                '⚠️ فاقد نام پدر'
+                '</span>'
+            )
         elif st == "MISSING_ID_IMAGE":
-            return format_html('<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد عکس مدارک</span>')
-        
-        missing_text = " و ".join(obj.missing_profile_fields)
-        return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:bold;">⚠️ فاقد {}</span>', missing_text)
+            return format_html(
+                '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#d97706; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold;" title="تصویر مدارک هویتی بارگذاری نشده است">'
+                '⚠️ فاقد عکس مدارک'
+                '</span>'
+            )
+
+        missing_fields = obj.missing_profile_fields
+        short_names_map = {
+            "شماره پاسپورت یا کد فراگیر": "پاسپورت",
+            "کد ملی": "کد ملی",
+            "نام پدر": "نام پدر",
+            "شماره تماس والدین": "تلفن والدین",
+            "اجاره‌نامه": "اجاره‌نامه",
+            "عکس مدرک شناسایی": "عکس مدرک",
+        }
+        short_items = "، ".join([short_names_map.get(f, f) for f in missing_fields])
+        full_details = "کسری‌ها: " + "، ".join(missing_fields)
+
+        return format_html(
+            '<div style="white-space:nowrap; direction:rtl; text-align:right; display:inline-flex; flex-direction:column; align-items:flex-start; gap:2px;" title="{}">'
+            '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; display:inline-flex; align-items:center; gap:4px; background:#e11d48; color:white; padding:2px 7px; border-radius:5px; font-size:11px; font-weight:bold;">⚠️ {} مورد کسری مدارک</span>'
+            '<span style="white-space:nowrap; direction:rtl; unicode-bidi:isolate; font-size:10px; color:#f87171; font-weight:bold; margin-top:1px;">{}</span>'
+            '</div>',
+            full_details,
+            len(missing_fields),
+            short_items
+        )
     document_status_badge.short_description = "وضعیت مدارک"
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name in ('id_card_image', 'id_card_image_2', 'id_card_image_3'):
             kwargs['widget'] = forms.FileInput(attrs={'accept': 'image/*', 'capture': 'environment'})
+        elif db_field.name == 'national_code':
+            kwargs['widget'] = forms.TextInput(attrs={
+                'maxlength': '10',
+                'inputmode': 'numeric',
+                'autocomplete': 'off',
+            })
         return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
@@ -472,6 +692,10 @@ class ResidentAdmin(admin.ModelAdmin):
             )
             if supervisor:
                 kwargs["initial"] = supervisor.id
+        elif db_field.name == "dormitory":
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                kwargs["initial"] = default_dorm_id
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def debt_status(self, obj):
@@ -483,9 +707,9 @@ class ResidentAdmin(admin.ModelAdmin):
             days = summary["days_until_due"]
             due_date = obj.settled_until.strftime('%Y/%m/%d') if obj.settled_until else ''
             return format_html(
-                '<div style="white-space: nowrap;">'
-                '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟢 تسویه به روز</span><br>'
-                '<small style="color: #27ae60; font-size: 11px;">⏳ {} روز تا سررسید ({})</small>'
+                '<div style="white-space: nowrap; direction: rtl; text-align: right;">'
+                '<span style="direction: rtl; unicode-bidi: isolate; display: inline-flex; align-items: center; gap: 4px; background: #27ae60; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟢 تسویه به روز</span><br>'
+                '<small style="direction: rtl; unicode-bidi: isolate; display: block; color: #27ae60; font-size: 11px; margin-top: 2px;">⏳ {} روز تا سررسید ({})</small>'
                 '</div>',
                 days, due_date
             )
@@ -493,9 +717,9 @@ class ResidentAdmin(admin.ModelAdmin):
             debt_t = f"{summary['debt_tomans']:,}"
             unpaid = summary["unpaid_months"]
             return format_html(
-                '<div style="white-space: nowrap;">'
-                '<span style="background: #f39c12; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟡 سررسید امروز</span><br>'
-                '<small style="color: #d35400; font-size: 11px;">{} ({} ت)</small>'
+                '<div style="white-space: nowrap; direction: rtl; text-align: right;">'
+                '<span style="direction: rtl; unicode-bidi: isolate; display: inline-flex; align-items: center; gap: 4px; background: #f39c12; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟡 سررسید امروز</span><br>'
+                '<small style="direction: rtl; unicode-bidi: isolate; display: block; color: #d35400; font-size: 11px; margin-top: 2px;">{} ({} ت)</small>'
                 '</div>',
                 unpaid, debt_t
             )
@@ -503,18 +727,28 @@ class ResidentAdmin(admin.ModelAdmin):
             overdue = summary["overdue_days"]
             debt_t = f"{summary['debt_tomans']:,}"
             unpaid = summary["unpaid_months"]
-            return format_html(
-                '<div style="white-space: nowrap;">'
-                '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🔴 {} روز تاخیر</span><br>'
-                '<small style="color: #c0392b; font-weight: bold; font-size: 11px;">{}</small><br>'
-                '<small style="color: #666; font-size: 11px;">بدهی: {} تومان</small>'
-                '</div>',
-                overdue, unpaid, debt_t
-            )
+            if overdue <= 7:
+                return format_html(
+                    '<div style="white-space: nowrap; direction: rtl; text-align: right;">'
+                    '<span style="direction: rtl; unicode-bidi: isolate; display: inline-flex; align-items: center; gap: 4px; background: #f39c12; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🟡 {} روز تاخیر (هشدار)</span><br>'
+                    '<small style="direction: rtl; unicode-bidi: isolate; display: block; color: #d35400; font-weight: bold; font-size: 11px; margin-top: 2px;">{}</small>'
+                    '<small style="direction: rtl; unicode-bidi: isolate; display: block; color: #888; font-size: 11px; margin-top: 1px;">بدهی: {} تومان</small>'
+                    '</div>',
+                    overdue, unpaid, debt_t
+                )
+            else:
+                return format_html(
+                    '<div style="white-space: nowrap; direction: rtl; text-align: right;">'
+                    '<span style="direction: rtl; unicode-bidi: isolate; display: inline-flex; align-items: center; gap: 4px; background: #e74c3c; color: white; padding: 2px 8px; border-radius: 8px; font-weight: bold; font-size: 11px;">🔴 {} روز تاخیر (بدهکار)</span><br>'
+                    '<small style="direction: rtl; unicode-bidi: isolate; display: block; color: #c0392b; font-weight: bold; font-size: 11px; margin-top: 2px;">{}</small>'
+                    '<small style="direction: rtl; unicode-bidi: isolate; display: block; color: #888; font-size: 11px; margin-top: 1px;">بدهی: {} تومان</small>'
+                    '</div>',
+                    overdue, unpaid, debt_t
+                )
         elif status == "NO_ROOM":
-            return format_html('<span style="color: #7f8c8d; font-size: 11px;">⚪ بدون اتاق</span>')
+            return format_html('<span style="color: #7f8c8d; font-size: 11px; direction: rtl; unicode-bidi: isolate;">⚪ بدون اتاق</span>')
         else:
-            return format_html('<span style="color: #7f8c8d; font-size: 11px;">⚪ {}</span>', obj.get_status_display())
+            return format_html('<span style="color: #7f8c8d; font-size: 11px; direction: rtl; unicode-bidi: isolate;">⚪ {}</span>', obj.get_status_display())
 
     debt_status.short_description = "وضعیت تسویه و بدهی"
 
@@ -531,9 +765,9 @@ class ResidentAdmin(admin.ModelAdmin):
         if unpaid:
             unpaid_rows = "".join([
                 f"<tr style='border-bottom: 1px solid #fee2e2;'>"
-                f"<td style='padding: 8px 12px; font-weight: bold; color: #991b1b;'>{p['name']}</td>"
+                f"<td style='padding: 8px 12px; font-weight: bold; color: {'#b45309' if p['overdue_days'] <= 7 else '#991b1b'};'>{p['name']}</td>"
                 f"<td style='padding: 8px 12px; color: #666;'>{p['start_date']} تا {p['end_date']}</td>"
-                f"<td style='padding: 8px 12px; color: #b91c1c; font-weight: bold;'>{p['overdue_days']} روز تاخیر</td>"
+                f"<td style='padding: 8px 12px; color: {'#d97706' if p['overdue_days'] <= 7 else '#b91c1c'}; font-weight: bold;'>{'🟡' if p['overdue_days'] <= 7 else '🔴'} {p['overdue_days']} روز تاخیر {'(مهلت تا ۱ هفته)' if p['overdue_days'] <= 7 else '(بیش از ۱ هفته)'}</td>"
                 f"<td style='padding: 8px 12px; font-weight: bold;'>{p['amount_tomans']:,} تومان</td>"
                 f"</tr>"
                 for p in unpaid
@@ -542,10 +776,10 @@ class ResidentAdmin(admin.ModelAdmin):
             <table style='width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; text-align: right; background: white; border-radius: 6px; overflow: hidden; border: 1px solid #fee2e2;'>
                 <thead>
                     <tr style='background: #fecaca; color: #991b1b;'>
-                        <th style='padding: 8px 12px;'>نام ماه عقب‌افتاده</th>
+                        <th style='padding: 8px 12px;'>دوره / ماه بدهکار</th>
                         <th style='padding: 8px 12px;'>بازه دوره اجاره</th>
                         <th style='padding: 8px 12px;'>دیرکرد</th>
-                        <th style='padding: 8px 12px;'>مبلغ ماهانه</th>
+                        <th style='padding: 8px 12px;'>مبلغ معوقه</th>
                     </tr>
                 </thead>
                 <tbody>{unpaid_rows}</tbody>
@@ -554,9 +788,22 @@ class ResidentAdmin(admin.ModelAdmin):
         else:
             table_html = "<div style='color: #27ae60; font-weight: bold; margin-top: 8px; font-size: 13px;'>✅ تمامی ماه‌های اقامت تا این لحظه به طور کامل تسویه هستند.</div>"
 
-        counter_color = "#c0392b" if summary["overdue_days"] > 0 else "#27ae60"
-        counter_text = f"{summary['overdue_days']} روز تاخیر" if summary["overdue_days"] > 0 else f"{summary['days_until_due']} روز مانده تا موعد"
-        debt_color = "#c0392b" if summary["debt_tomans"] > 0 else "#27ae60"
+        if summary["overdue_days"] > 7:
+            counter_color = "#c0392b"
+            counter_text = f"🔴 {summary['overdue_days']} روز تاخیر (بیش از یک هفته)"
+            debt_color = "#c0392b"
+        elif summary["overdue_days"] > 0:
+            counter_color = "#d97706"
+            counter_text = f"🟡 {summary['overdue_days']} روز تاخیر (مهلت تا یک هفته)"
+            debt_color = "#d97706"
+        elif summary["status"] == "DUE_TODAY":
+            counter_color = "#d97706"
+            counter_text = "🟡 سررسید امروز"
+            debt_color = "#d97706"
+        else:
+            counter_color = "#27ae60"
+            counter_text = f"🟢 {summary['days_until_due']} روز مانده تا موعد"
+            debt_color = "#27ae60"
 
         return format_html(
             '''
@@ -591,7 +838,7 @@ class ResidentAdmin(admin.ModelAdmin):
                 </div>
 
                 <div>
-                    <span style="font-size: 13px; font-weight: bold; color: #334155;">ریزجزئیات ماه‌های معوقه:</span>
+                    <span style="font-size: 13px; font-weight: bold; color: #334155;">ریزجزئیات دوره‌ها و مبالغ معوقه (روزشمار):</span>
                     {table}
                 </div>
             </div>
@@ -616,7 +863,7 @@ class ResidentAdmin(admin.ModelAdmin):
         colors = {'STUDENT': '#3498db', 'EMPLOYED': '#2ecc71', 'OTHER': '#95a5a6'}
         color = colors.get(obj.occupation, '#95a5a6')
         return format_html(
-            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">{}</span>',
+            '<span style="white-space:nowrap; display:inline-block; background:{}; color:white; padding:2px 8px; border-radius:10px; font-size:12px;">{}</span>',
             color, obj.get_occupation_display()
         )
 
@@ -627,7 +874,7 @@ class ResidentAdmin(admin.ModelAdmin):
         colors = {'ACTIVE': '#27ae60', 'INACTIVE': '#f39c12', 'LEFT': '#e74c3c'}
         color = colors.get(obj.status, '#95a5a6')
         return format_html(
-            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">{}</span>',
+            '<span style="white-space:nowrap; display:inline-block; background:{}; color:white; padding:2px 8px; border-radius:10px; font-size:12px;">{}</span>',
             color, obj.get_status_display()
         )
 
@@ -698,6 +945,14 @@ class ResidentAdmin(admin.ModelAdmin):
         )
 
     payment_history_display.short_description = "Recent Payments"
+
+    @admin.action(description="🔄 همگام‌سازی تاریخ تسویه ساکنان بر اساس تراکنش‌ها")
+    def sync_settled_until_from_transactions(self, request, queryset):
+        count = 0
+        for resident in queryset:
+            resident.recalculate_settled_until()
+            count += 1
+        self.message_user(request, f"🔄 تاریخ تسویه {count} ساکن بر اساس تراکنش‌های تاییدشده همگام‌سازی شد.")
 
     @admin.action(description="📦 Archive selected LEFT residents and their transactions")
     def archive_left_residents(self, request, queryset):
@@ -877,6 +1132,26 @@ class ResidentAdmin(admin.ModelAdmin):
 
         return response
 
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'export-debtors-excel/',
+                self.admin_site.admin_view(self.export_debtors_excel_view),
+                name='dormitory_resident_export_debtors_excel',
+            ),
+        ]
+        return custom_urls + urls
+
+    def export_debtors_excel_view(self, request):
+        from apps.dormitory.services.excel_export import export_debtors_to_excel_response
+        return export_debtors_to_excel_response()
+
+    @admin.action(description="📊 خروجی فایل اکسل بدهکاران (RTL)")
+    def export_debtors_to_excel_action(self, request, queryset):
+        from apps.dormitory.services.excel_export import export_debtors_to_excel_response
+        return export_debtors_to_excel_response(queryset=queryset)
+
 
 # ============================================
 # TRANSACTION FORM & ADMIN
@@ -886,7 +1161,22 @@ class TransactionForm(forms.ModelForm):
         max_digits=12,
         decimal_places=3,
         label="مبلغ پرداختی (میلیون تومان)",
-        help_text="مبلغ را به میلیون تومان وارد کنید (مثال: 2.5 برای ۲,۵۰۰,۰۰۰ تومان)"
+        help_text="مبلغ واریزی ساکن را به میلیون تومان وارد کنید (مثال: 2.5 برای ۲,۵۰۰,۰۰۰ تومان)"
+    )
+    discount_tomans = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        required=False,
+        initial=0,
+        label="کسورات / تخفیف استثنایی (میلیون تومان)",
+        help_text="در صورت سم‌پاشی، تخلیه موقت یا توافق خاص، مبلغ کسر شده را وارد کنید (مثال: 0.5 برای ۵۰۰,۰۰۰ تومان)"
+    )
+    discount_reason = forms.CharField(
+        max_length=255,
+        required=False,
+        label="علت و جزئیات کسورات",
+        widget=forms.TextInput(attrs={'placeholder': 'مثال: سم‌پاشی خوابگاه و ۵ روز تخلیه موقت، تعمیرات و...'}),
+        help_text="در صورت ثبت کسورات استثنایی، ذکر علت الزامی است."
     )
 
     class Meta:
@@ -895,6 +1185,22 @@ class TransactionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if not self.instance.pk and 'dormitory' in self.fields:
+            if not self.initial.get('dormitory'):
+                default_dorm_id = get_default_dormitory()
+                if default_dorm_id:
+                    self.fields['dormitory'].initial = default_dorm_id
+
+        if not self.instance.pk and 'payment_date' in self.fields:
+            if not self.initial.get('payment_date'):
+                self.fields['payment_date'].initial = jdatetime.datetime.now()
+
+        if 'amount' in self.fields:
+            self.fields['amount'].required = False
+            self.fields['amount'].widget = forms.HiddenInput()
+        if 'discount_amount' in self.fields:
+            self.fields['discount_amount'].required = False
+            self.fields['discount_amount'].widget = forms.HiddenInput()
         if 'applicable_rent' in self.fields:
             self.fields['applicable_rent'].widget = forms.HiddenInput()
         if 'created_by' in self.fields:
@@ -905,6 +1211,10 @@ class TransactionForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             # تبدیل ریال به میلیون تومان
             self.fields['amount_tomans'].initial = self.instance.amount / 10000000
+            if self.instance.discount_amount:
+                self.fields['discount_tomans'].initial = self.instance.discount_amount / 10000000
+            if self.instance.discount_reason:
+                self.fields['discount_reason'].initial = self.instance.discount_reason
 
         if 'is_approved' in self.fields:
             self.fields['is_approved'].help_text = "برای پرداخت‌های نقدی و کارت‌به‌کارت نیاز به تایید است (کارت‌خوان و درگاه خودکار تایید می‌شوند)."
@@ -914,12 +1224,23 @@ class TransactionForm(forms.ModelForm):
         payment_method = cleaned_data.get('payment_method')
         transaction_type = cleaned_data.get('transaction_type')
         resident = cleaned_data.get('resident')
+        discount_tomans = cleaned_data.get('discount_tomans') or 0
+        discount_reason = (cleaned_data.get('discount_reason') or '').strip()
+
+        # پر کردن مقدار ریالی amount و discount_amount
+        if cleaned_data.get('amount_tomans') is not None:
+            cleaned_data['amount'] = int(cleaned_data['amount_tomans'] * 10000000)
+        cleaned_data['discount_amount'] = int(discount_tomans * 10000000)
+
+        # بررسی الزام ذکر دلیل در صورت ثبت تخفیف
+        if discount_tomans > 0 and not discount_reason:
+            self.add_error('discount_reason', 'هنگامی که مبلغ کسورات استثنایی وارد می‌شود، ذکر علت و جزئیات کسر اجاره الزامی است.')
 
         # CARD (دستگاه کارتخوان) و ONLINE_GATEWAY خودکار تایید میشن
         if payment_method in ['CARD', 'ONLINE_GATEWAY']:
             cleaned_data['is_approved'] = True
 
-        # اگه اجاره هست، قیمت اتاق رو کپی کن
+        # اگه اجاره هست، قیمت مصوب اتاق رو کپی کن
         if transaction_type == 'RENT' and resident and resident.room:
             cleaned_data['applicable_rent'] = resident.room.monthly_rent
 
@@ -928,6 +1249,9 @@ class TransactionForm(forms.ModelForm):
     def save(self, commit=True):
         # تبدیل میلیون تومان به ریال
         self.instance.amount = int(self.cleaned_data['amount_tomans'] * 10000000)
+        disc_tomans = self.cleaned_data.get('discount_tomans') or 0
+        self.instance.discount_amount = int(disc_tomans * 10000000)
+        self.instance.discount_reason = (self.cleaned_data.get('discount_reason') or '').strip()
         return super().save(commit)
 
 
@@ -935,7 +1259,8 @@ class TransactionForm(forms.ModelForm):
 class TransactionAdmin(admin.ModelAdmin):
     form = TransactionForm
     list_display = [
-        'receipt_number', 'resident_link', 'period_display', 'amount_display', 'applicable_rent_display',
+        'receipt_number', 'resident_link', 'period_display', 'amount_display',
+        'discount_display', 'applicable_rent_display',
         'transaction_type_badge', 'payment_method', 'approval_status',
         'payment_date', 'dormitory', 'created_by'
     ]
@@ -945,7 +1270,7 @@ class TransactionAdmin(admin.ModelAdmin):
         'payment_date', 'created_by'
     ]
 
-    search_fields = ['resident__first_name', 'resident__last_name', 'reference_number', 'id', 'period_name']
+    search_fields = ['resident__first_name', 'resident__last_name', 'reference_number', 'id', 'period_name', 'discount_reason']
     date_hierarchy = 'payment_date'
     readonly_fields = ['created_at', 'period_name', 'period_start', 'period_end', 'receipt_display']
     list_select_related = ['resident', 'dormitory', 'created_by']
@@ -963,9 +1288,38 @@ class TransactionAdmin(admin.ModelAdmin):
             'dormitory/js/admin_jalali_datepicker.js',
         )
 
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if 'amount' in form.base_fields:
+            form.base_fields['amount'].required = False
+            form.base_fields['amount'].widget = forms.HiddenInput()
+        if 'discount_amount' in form.base_fields:
+            form.base_fields['discount_amount'].required = False
+            form.base_fields['discount_amount'].widget = forms.HiddenInput()
+        return form
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "dormitory":
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                kwargs["initial"] = default_dorm_id
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        if 'dormitory' not in initial:
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                initial['dormitory'] = default_dorm_id
+        return initial
+
     fieldsets = (
         ('اطلاعات پرداخت', {
             'fields': ('resident', 'dormitory', 'amount_tomans', 'transaction_type', 'payment_method')
+        }),
+        ('کسورات و تخفیف‌های استثنایی (اختیاری)', {
+            'fields': ('discount_tomans', 'discount_reason'),
+            'description': 'در صورت وقوع رویدادهای خاص (مانند سم‌پاشی، تخلیه چند روزه، تعمیرات و...) مبلغ کسر شده و علت آن را وارد کنید تا دوره ماهانه به طور کامل تسویه گردد.'
         }),
         ('دوره اجاره و سررسید', {
             'fields': ('period_name', 'period_start', 'period_end'),
@@ -986,6 +1340,21 @@ class TransactionAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
+
+    def discount_display(self, obj):
+        if obj.discount_amount and obj.discount_amount > 0:
+            toman_str = f"{obj.discount_in_tomans:,.0f} تومان"
+            reason = obj.discount_reason or 'کسورات استثنایی'
+            return format_html(
+                '<span style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; '
+                'padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: bold;" title="{}">'
+                '🏷️ کسر {}</span>',
+                reason, toman_str
+            )
+        return format_html('<span style="color: #94a3b8; font-size: 11px;">-</span>')
+
+    discount_display.short_description = "کسورات استثنایی"
+    discount_display.admin_order_field = 'discount_amount'
 
     def period_display(self, obj):
         if obj.period_name:
@@ -1014,13 +1383,36 @@ class TransactionAdmin(admin.ModelAdmin):
             obj.period_name
         ) if obj.period_name else ''
 
+        rate_line = format_html(
+            '<p><b>نرخ مصوب ماهانه:</b> {} تومان</p>',
+            f"{obj.applicable_rent // 10:,.0f}"
+        ) if obj.applicable_rent else ''
+
+        discount_line = ''
+        settlement_status_line = ''
+        if obj.discount_amount and obj.discount_amount > 0:
+            discount_line = format_html(
+                '<p style="color: #b45309; background: #fffbeb; padding: 5px 8px; border-radius: 5px; border: 1px dashed #fde68a;">'
+                '<b>🏷️ کسورات استثنایی:</b> {} تومان کسر<br>'
+                '<small style="color: #78350f;"><b>علت کسر:</b> {}</small></p>',
+                f"{obj.discount_in_tomans:,.0f}",
+                obj.discount_reason or 'استثناء ماهانه'
+            )
+            settlement_status_line = format_html(
+                '<p style="color: #15803d; font-size: 12px; font-weight: bold; margin-top: 6px;">'
+                '✅ تسویه کامل این دوره ماهانه (با احتساب کسورات)</p>'
+            )
+
+        receipt_number_str = f"RCP-{obj.id:06d}" if obj.id else "RCP-PENDING"
+        amount_str = f"{obj.amount // 10:,.0f}"
+
         return format_html(
             '''
-            <div style="border: 2px solid #ddd; padding: 20px; max-width: 420px; font-family: monospace; 
-                        background: #fafafa; border-radius: 5px; direction: rtl; text-align: right;">
+            <div style="border: 2px solid #ddd; padding: 20px; max-width: 440px; font-family: monospace; 
+                        background: #fafafa; border-radius: 8px; direction: rtl; text-align: right;">
                 <h3 style="text-align: center; margin-bottom: 15px;">🧾 رسید پرداخت خوابگاه</h3>
                 <hr>
-                <p><b>شماره رسید:</b> RCP-{id:06d}</p>
+                <p><b>شماره رسید:</b> {receipt_number_str}</p>
                 <p><b>تاریخ:</b> {date}</p>
                 <p><b>نام ساکن:</b> {resident}</p>
                 <p><b>خوابگاه:</b> {dormitory}</p>
@@ -1029,7 +1421,9 @@ class TransactionAdmin(admin.ModelAdmin):
                 <p><b>روش پرداخت:</b> {method}</p>
                 {period_line}
                 {rate_line}
-                <p style="font-size: 16px; font-weight: bold;">مبلغ پرداختی: {amount:,.0f} تومان</p>
+                {discount_line}
+                <p style="font-size: 16px; font-weight: bold; color: #1e293b;">مبلغ خالص واریزی: {amount_str} تومان</p>
+                {settlement_status_line}
                 <p><b>وضعیت تایید:</b> <span style="color: {approval_color}; font-weight: bold;">{approval_text}</span></p>
                 <p><b>شماره پیگیری:</b> {ref}</p>
                 <p><b>توضیحات:</b> {desc}</p>
@@ -1039,7 +1433,7 @@ class TransactionAdmin(admin.ModelAdmin):
                 </p>
             </div>
             ''',
-            id=obj.id,
+            receipt_number_str=receipt_number_str,
             date=obj.payment_date.strftime('%Y/%m/%d - %H:%M'),
             resident=obj.resident.full_name,
             dormitory=obj.dormitory.name,
@@ -1047,11 +1441,10 @@ class TransactionAdmin(admin.ModelAdmin):
             type=obj.get_transaction_type_display(),
             method=obj.get_payment_method_display(),
             period_line=period_line,
-            rate_line=format_html(
-                '<p><b>نرخ اتاق:</b> {} تومان</p>',
-                f"{obj.applicable_rent // 10:,.0f}"
-            ) if obj.applicable_rent else '',
-            amount=obj.amount // 10,
+            rate_line=rate_line,
+            discount_line=discount_line,
+            amount_str=amount_str,
+            settlement_status_line=settlement_status_line,
             approval_text=approval_text,
             approval_color=approval_color,
             ref=obj.reference_number or '-',
@@ -1135,6 +1528,12 @@ class TransactionAdmin(admin.ModelAdmin):
             count += 1
         self.message_user(request, f"❌ {count} تراکنش لغو تایید شدند.")
 
+    def delete_queryset(self, request, queryset):
+        affected_residents = list(Resident.objects.filter(transactions__in=queryset).distinct())
+        super().delete_queryset(request, queryset)
+        for resident in affected_residents:
+            resident.recalculate_settled_until()
+
     def save_model(self, request, obj, form, change):
         if obj.payment_method in ['CARD', 'ONLINE_GATEWAY']:
             obj.is_approved = True
@@ -1202,10 +1601,21 @@ class DailyNoteAdmin(admin.ModelAdmin):
             'dormitory/js/admin_jalali_datepicker.js',
         )
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "dormitory":
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                kwargs["initial"] = default_dorm_id
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
         if 'date' not in initial:
             initial['date'] = jdatetime.date.today() - datetime.timedelta(days=1)
+        if 'dormitory' not in initial:
+            default_dorm_id = get_default_dormitory()
+            if default_dorm_id:
+                initial['dormitory'] = default_dorm_id
         return initial
 
     def note_type_badge(self, obj):

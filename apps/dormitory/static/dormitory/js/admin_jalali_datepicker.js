@@ -176,8 +176,28 @@
         };
     })();
 
+    function isTimeInput(input) {
+        if (!input || !input.tagName) return false;
+        if (input.classList && (
+            input.classList.contains('vTimeField') ||
+            input.classList.contains('vjTimeField') ||
+            input.classList.contains('admin-clock-input')
+        )) {
+            return true;
+        }
+        const name = (input.name || '').toLowerCase();
+        const id = (input.id || '').toLowerCase();
+        if (name.includes('time') || id.includes('time')) return true;
+        if (name.endsWith('_1') || id.endsWith('_1')) return true;
+        if (input.closest && (input.closest('.time') || input.closest('p.time') || input.closest('.admin-clock-wrap'))) {
+            return true;
+        }
+        return false;
+    }
+
     class AdminPersianDatePicker {
         constructor(inputEl, options = {}) {
+            if (!inputEl || isTimeInput(inputEl)) return null;
             if (inputEl._adminPdp) return inputEl._adminPdp;
             this.input = inputEl;
             this.options = Object.assign({
@@ -488,6 +508,411 @@
         }
     }
 
+    /* ===================================================================
+       ADMIN TIME PICKER (انتخاب‌گر ساعت و زمان پنل مدیریت)
+       =================================================================== */
+    class AdminTimePicker {
+        constructor(inputEl, options = {}) {
+            if (!inputEl || inputEl._adminClock) return inputEl ? inputEl._adminClock : null;
+            this.input = inputEl;
+            this.options = Object.assign({
+                autoClose: false
+            }, options);
+
+            const parsed = this.parseTime(this.input.value);
+            if (parsed) {
+                this.currentHour = parsed.hour;
+                this.currentMinute = parsed.minute;
+                this.currentSecond = parsed.second;
+                this.selected = { ...parsed };
+            } else {
+                const now = new Date();
+                this.currentHour = now.getHours();
+                this.currentMinute = now.getMinutes();
+                this.currentSecond = now.getSeconds();
+                this.selected = null;
+            }
+
+            this.isOpen = false;
+            this.popup = null;
+
+            this.initDOM();
+            inputEl._adminClock = this;
+        }
+
+        parseTime(val) {
+            if (!val || typeof val !== 'string') return null;
+            const ascii = PersianDate.toAsciiDigits(val.trim());
+            const parts = ascii.split(':').map(p => parseInt(p, 10));
+            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                const hour = Math.max(0, Math.min(23, parts[0]));
+                const minute = Math.max(0, Math.min(59, parts[1]));
+                const second = parts.length >= 3 && !isNaN(parts[2]) ? Math.max(0, Math.min(59, parts[2])) : 0;
+                return { hour, minute, second };
+            }
+            return null;
+        }
+
+        formatTime(h, m, s) {
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(h)}:${pad(m)}:${pad(s)}`;
+        }
+
+        initDOM() {
+            // Remove Django default shortcuts next to input
+            const nextSib = this.input.nextElementSibling;
+            if (nextSib && (nextSib.classList.contains('datetimeshortcuts') || nextSib.classList.contains('timezonewarning'))) {
+                nextSib.remove();
+            }
+
+            // Remove any erroneously attached Persian Datepicker artifacts
+            if (this.input._adminPdp) {
+                this.input._adminPdp = null;
+            }
+
+            let wrapper = this.input.parentElement;
+            if (wrapper && wrapper.classList.contains('admin-pdp-wrap')) {
+                wrapper.classList.remove('admin-pdp-wrap');
+                wrapper.classList.add('admin-clock-wrap');
+                const oldTrigger = wrapper.querySelector('.admin-pdp-trigger');
+                if (oldTrigger) oldTrigger.remove();
+            } else if (!wrapper || !wrapper.classList.contains('admin-clock-wrap')) {
+                wrapper = document.createElement('div');
+                wrapper.className = 'admin-clock-wrap';
+                this.input.parentNode.insertBefore(wrapper, this.input);
+                wrapper.appendChild(this.input);
+            }
+
+            // Ensure 🕒 trigger button exists
+            let trigger = wrapper.querySelector('.admin-clock-trigger');
+            if (!trigger) {
+                trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.className = 'admin-clock-trigger';
+                trigger.innerHTML = '🕒';
+                trigger.title = 'انتخاب زمان و ساعت';
+                trigger.setAttribute('tabindex', '-1');
+                wrapper.appendChild(trigger);
+            }
+
+            trigger.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggle();
+            };
+
+            this.input.classList.remove('admin-pdp-input');
+            this.input.classList.add('admin-clock-input');
+            this.input.setAttribute('autocomplete', 'off');
+            this.input.setAttribute('placeholder', '۱۲:۳۰:۰۰');
+
+            this.input.onclick = (e) => {
+                e.stopPropagation();
+                this.open();
+            };
+
+            this.input.onfocus = () => {
+                this.open();
+            };
+
+            this.input.onchange = () => {
+                const parsed = this.parseTime(this.input.value);
+                if (parsed) {
+                    this.currentHour = parsed.hour;
+                    this.currentMinute = parsed.minute;
+                    this.currentSecond = parsed.second;
+                    this.selected = { ...parsed };
+                    if (this.isOpen) this.render();
+                }
+            };
+        }
+
+        open() {
+            if (this.isOpen) return;
+            // Close any open popups
+            document.querySelectorAll('.admin-pdp-popup, .admin-clock-popup').forEach(p => p.remove());
+
+            // Refresh current time values from input if available
+            const parsed = this.parseTime(this.input.value);
+            if (parsed) {
+                this.currentHour = parsed.hour;
+                this.currentMinute = parsed.minute;
+                this.currentSecond = parsed.second;
+                this.selected = { ...parsed };
+            } else if (!this.selected) {
+                const now = new Date();
+                this.currentHour = now.getHours();
+                this.currentMinute = now.getMinutes();
+                this.currentSecond = now.getSeconds();
+            }
+
+            this.buildPopup();
+            document.body.appendChild(this.popup);
+            this.positionPopup();
+            this.isOpen = true;
+
+            this._onDocClick = (e) => {
+                if (this.popup && !this.popup.contains(e.target) && !this.input.contains(e.target) && !e.target.closest('.admin-clock-trigger')) {
+                    this.close();
+                }
+            };
+            this._onKeydown = (e) => {
+                if (e.key === 'Escape') this.close();
+            };
+            this._onScroll = () => {
+                if (this.isOpen) this.positionPopup();
+            };
+
+            setTimeout(() => {
+                document.addEventListener('click', this._onDocClick);
+                document.addEventListener('keydown', this._onKeydown);
+                window.addEventListener('scroll', this._onScroll, true);
+                window.addEventListener('resize', this._onScroll);
+            }, 10);
+        }
+
+        close() {
+            if (!this.isOpen) return;
+            if (this.popup) {
+                this.popup.remove();
+                this.popup = null;
+            }
+            this.isOpen = false;
+            document.removeEventListener('click', this._onDocClick);
+            document.removeEventListener('keydown', this._onKeydown);
+            window.removeEventListener('scroll', this._onScroll, true);
+            window.removeEventListener('resize', this._onScroll);
+        }
+
+        toggle() {
+            if (this.isOpen) {
+                this.close();
+            } else {
+                this.open();
+            }
+        }
+
+        positionPopup() {
+            if (!this.popup) return;
+            const rect = this.input.getBoundingClientRect();
+            const popupRect = this.popup.getBoundingClientRect();
+            const viewportH = window.innerHeight;
+            const viewportW = window.innerWidth;
+
+            let top = rect.bottom + 6;
+            let left = rect.right - popupRect.width;
+
+            // If not enough room below, show above
+            if (top + popupRect.height > viewportH && rect.top > popupRect.height + 6) {
+                top = rect.top - popupRect.height - 6;
+            }
+
+            if (left < 10) left = 10;
+            if (left + popupRect.width > viewportW - 10) {
+                left = viewportW - popupRect.width - 10;
+            }
+
+            this.popup.style.top = `${top}px`;
+            this.popup.style.left = `${left}px`;
+        }
+
+        buildPopup() {
+            this.popup = document.createElement('div');
+            this.popup.className = 'admin-clock-popup';
+            this.popup.setAttribute('role', 'dialog');
+            this.popup.setAttribute('aria-label', 'انتخاب ساعت');
+
+            this.render();
+        }
+
+        render() {
+            if (!this.popup) return;
+
+            const pad = n => String(n).padStart(2, '0');
+            const hStr = pad(this.currentHour);
+            const mStr = pad(this.currentMinute);
+            const sStr = pad(this.currentSecond);
+
+            const presets = [
+                { label: '۰۸:۰۰', h: 8, m: 0 },
+                { label: '۱۲:۰۰', h: 12, m: 0 },
+                { label: '۱۴:۰۰', h: 14, m: 0 },
+                { label: '۱۶:۰۰', h: 16, m: 0 },
+                { label: '۱۸:۰۰', h: 18, m: 0 },
+                { label: '۲۰:۰۰', h: 20, m: 0 },
+                { label: '۲۲:۰۰', h: 22, m: 0 },
+                { label: '۲۳:۵۹', h: 23, m: 59 }
+            ];
+
+            const minSteps = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+            let html = `
+                <div class="admin-clock-header">
+                    <div class="admin-clock-title">
+                        <span>🕒</span>
+                        <span>انتخاب ساعت و زمان</span>
+                    </div>
+                    <button type="button" class="admin-clock-close-btn" title="بستن">✕</button>
+                </div>
+
+                <div class="admin-clock-display-card">
+                    <div class="admin-clock-time-val">
+                        <span id="clk-h">${hStr}</span>
+                        <span class="clock-colon">:</span>
+                        <span id="clk-m">${mStr}</span>
+                        <span class="clock-colon">:</span>
+                        <span id="clk-s">${sStr}</span>
+                    </div>
+                    <div class="admin-clock-labels">
+                        <span>ساعت</span>
+                        <span>دقیقه</span>
+                        <span>ثانیه</span>
+                    </div>
+                </div>
+
+                <div class="admin-clock-quick-bar">
+                    <button type="button" class="admin-clock-btn-now">⚡ الان (هم‌اکنون)</button>
+                    <div class="admin-clock-presets">
+                        ${presets.map(p => `
+                            <button type="button" class="admin-clock-preset-btn" data-h="${p.h}" data-m="${p.m}">${p.label}</button>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="admin-clock-grid-container">
+                    <div class="admin-clock-col">
+                        <div class="admin-clock-col-title">ساعت (۰-۲۳)</div>
+                        <div class="admin-clock-hours-grid">
+                            ${Array.from({ length: 24 }, (_, i) => `
+                                <button type="button" class="admin-clock-item clk-hour-btn ${i === this.currentHour ? 'active' : ''}" data-val="${i}">
+                                    ${pad(i)}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="admin-clock-col">
+                        <div class="admin-clock-col-title">دقیقه</div>
+                        <div class="admin-clock-minutes-grid">
+                            ${minSteps.map(m => `
+                                <button type="button" class="admin-clock-item clk-min-btn ${m === this.currentMinute ? 'active' : ''}" data-val="${m}">
+                                    ${pad(m)}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <div class="admin-clock-minute-stepper">
+                            <button type="button" class="admin-clock-step-btn" data-step="-1">−۱ د</button>
+                            <span class="admin-clock-step-val">${mStr}</span>
+                            <button type="button" class="admin-clock-step-btn" data-step="1">+۱ د</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-clock-footer">
+                    <button type="button" class="admin-clock-btn admin-clock-btn-confirm">ثبت و تایید ساعت</button>
+                    <button type="button" class="admin-clock-btn admin-clock-btn-clear">پاک کردن</button>
+                </div>
+            `;
+
+            this.popup.innerHTML = html;
+            this.bindPopupEvents();
+        }
+
+        bindPopupEvents() {
+            // Close
+            const closeBtn = this.popup.querySelector('.admin-clock-close-btn');
+            if (closeBtn) closeBtn.onclick = () => this.close();
+
+            // Now button
+            const nowBtn = this.popup.querySelector('.admin-clock-btn-now');
+            if (nowBtn) {
+                nowBtn.onclick = () => {
+                    const now = new Date();
+                    this.setTime(now.getHours(), now.getMinutes(), now.getSeconds(), true);
+                };
+            }
+
+            // Presets
+            this.popup.querySelectorAll('.admin-clock-preset-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const h = parseInt(btn.dataset.h, 10);
+                    const m = parseInt(btn.dataset.m, 10);
+                    this.setTime(h, m, 0, false);
+                };
+            });
+
+            // Hour buttons
+            this.popup.querySelectorAll('.clk-hour-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const h = parseInt(btn.dataset.val, 10);
+                    this.setTime(h, this.currentMinute, this.currentSecond, false);
+                };
+            });
+
+            // Minute buttons
+            this.popup.querySelectorAll('.clk-min-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const m = parseInt(btn.dataset.val, 10);
+                    this.setTime(this.currentHour, m, this.currentSecond, false);
+                };
+            });
+
+            // Minute stepper
+            this.popup.querySelectorAll('.admin-clock-step-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const delta = parseInt(btn.dataset.step, 10);
+                    let newM = (this.currentMinute + delta + 60) % 60;
+                    this.setTime(this.currentHour, newM, this.currentSecond, false);
+                };
+            });
+
+            // Confirm
+            const confirmBtn = this.popup.querySelector('.admin-clock-btn-confirm');
+            if (confirmBtn) {
+                confirmBtn.onclick = () => {
+                    this.commitValue();
+                    this.close();
+                };
+            }
+
+            // Clear
+            const clearBtn = this.popup.querySelector('.admin-clock-btn-clear');
+            if (clearBtn) {
+                clearBtn.onclick = () => {
+                    this.input.value = '';
+                    this.selected = null;
+                    this.input.dispatchEvent(new Event('change', { bubbles: true }));
+                    this.input.dispatchEvent(new Event('input', { bubbles: true }));
+                    this.close();
+                };
+            }
+        }
+
+        setTime(h, m, s, commitImmediately = false) {
+            this.currentHour = h;
+            this.currentMinute = m;
+            this.currentSecond = s;
+            this.commitValue();
+            if (commitImmediately && this.options.autoClose) {
+                this.close();
+            } else {
+                this.render();
+            }
+        }
+
+        commitValue() {
+            const formatted = this.formatTime(this.currentHour, this.currentMinute, this.currentSecond);
+            this.input.value = formatted;
+            this.selected = {
+                hour: this.currentHour,
+                minute: this.currentMinute,
+                second: this.currentSecond
+            };
+            this.input.dispatchEvent(new Event('change', { bubbles: true }));
+            this.input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
     // Auto-binding function for all date fields in admin
     function bindAllAdminDatepickers() {
         const dateInputSelectors = [
@@ -498,13 +923,14 @@
             '#id_settled_until',
             '#id_date',
             '#id_payment_date',
+            '#id_payment_date_0',
             'input[name*="date"]'
         ];
 
         const inputs = document.querySelectorAll(dateInputSelectors.join(', '));
         inputs.forEach(input => {
-            // Ignore time fields or hidden fields
-            if (input.type === 'hidden' || input.name.includes('time') || input.id.includes('time')) {
+            // Strictly ignore time fields, hidden fields, or anything marked as time
+            if (input.type === 'hidden' || isTimeInput(input)) {
                 return;
             }
             if (!input._adminPdp) {
@@ -513,27 +939,97 @@
         });
     }
 
-    // Initialize on DOM load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bindAllAdminDatepickers);
-    } else {
-        bindAllAdminDatepickers();
+    // Auto-binding function for all time fields in admin
+    function bindAllAdminTimepickers() {
+        const timeInputSelectors = [
+            'input.vTimeField',
+            'input.vjTimeField',
+            '#id_payment_date_1',
+            'input[name="payment_date_1"]',
+            'input[name$="_1"]',
+            'p.time input',
+            '.field-payment_date p.time input',
+            'input[name*="time"]',
+            'input.admin-clock-input'
+        ];
+
+        const inputs = document.querySelectorAll(timeInputSelectors.join(', '));
+        inputs.forEach(input => {
+            if (input.type === 'hidden') return;
+            if (!isTimeInput(input)) return;
+
+            // If it had a pdp attached mistakenly, clean it up
+            if (input._adminPdp) {
+                input._adminPdp = null;
+                const wrap = input.closest('.admin-pdp-wrap');
+                if (wrap) {
+                    const trigger = wrap.querySelector('.admin-pdp-trigger');
+                    if (trigger) trigger.remove();
+                    wrap.classList.remove('admin-pdp-wrap');
+                }
+            }
+
+            if (!input._adminClock) {
+                new AdminTimePicker(input);
+            }
+        });
     }
 
-    // Watch for Jazzmin Bootstrap 4 tab transitions (including #وضعیت-اقامت-و-تاریخها-tab)
+    // Auto-select default dormitory ('خوابگاه نوید' or first available option) if empty
+    function autoSelectDefaultDormitory() {
+        const dormSelects = document.querySelectorAll('select[name="dormitory"], select[name$="-dormitory"], #id_dormitory');
+        dormSelects.forEach(select => {
+            if (!select.value && select.options && select.options.length > 1) {
+                let targetOption = null;
+                for (let i = 0; i < select.options.length; i++) {
+                    if (select.options[i].text && select.options[i].text.includes('نوید')) {
+                        targetOption = select.options[i];
+                        break;
+                    }
+                }
+                if (!targetOption) {
+                    for (let i = 0; i < select.options.length; i++) {
+                        if (select.options[i].value) {
+                            targetOption = select.options[i];
+                            break;
+                        }
+                    }
+                }
+                if (targetOption) {
+                    select.value = targetOption.value;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+        });
+    }
+
+    function initAllAdminEnhancements() {
+        bindAllAdminDatepickers();
+        bindAllAdminTimepickers();
+        autoSelectDefaultDormitory();
+    }
+
+    // Initialize on DOM load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAllAdminEnhancements);
+    } else {
+        initAllAdminEnhancements();
+    }
+
+    // Watch for Jazzmin Bootstrap 4 tab transitions (including #جزئیات-رسید-و-پیگیری-tab)
     if (typeof window.jQuery !== 'undefined') {
         window.jQuery(document).on('shown.bs.tab', 'a[data-toggle="tab"]', function () {
-            bindAllAdminDatepickers();
+            initAllAdminEnhancements();
         });
     }
 
     window.addEventListener('hashchange', function () {
-        setTimeout(bindAllAdminDatepickers, 50);
+        setTimeout(initAllAdminEnhancements, 50);
     });
 
-    // Also watch for DOM changes (such as inline rows added in admin)
+    // Also watch for DOM changes (such as inline rows or modal dialogs added in admin)
     const observer = new MutationObserver(function () {
-        bindAllAdminDatepickers();
+        initAllAdminEnhancements();
     });
 
     if (document.body) {
@@ -546,6 +1042,9 @@
 
     // Expose globally
     window.AdminPersianDatePicker = AdminPersianDatePicker;
+    window.AdminTimePicker = AdminTimePicker;
     window.bindAllAdminDatepickers = bindAllAdminDatepickers;
+    window.bindAllAdminTimepickers = bindAllAdminTimepickers;
+    window.isTimeInput = isTimeInput;
 
 })();

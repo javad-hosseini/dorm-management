@@ -1,0 +1,7 @@
+var client = new RestClient("http://rest.payamak-panel.com/api/SendSMS/SendSMS");
+var request = new RestRequest(Method.POST);
+request.AddHeader("content-type", "application/x-www-form-urlencoded");
+request.AddHeader("postman-token", "fcddb5f4-dc58-c7d5-4bf9-9748710f8789");
+request.AddHeader("cache-control", "no-cache");
+request.AddParameter("application/x-www-form-urlencoded", "username=YourUserName&password=YourPassWord&to=936...&from=1000...&text=TestSMS&isflash=false", ParameterType.RequestBody);
+IRestResponse response = client.Execute(request);

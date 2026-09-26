@@ -52,3 +52,12 @@ class Dormitory(models.Model):
             exit_date__isnull=True,
             status='ACTIVE'
         ).count()
+
+
+def get_default_dormitory():
+    """
+    Returns default dormitory ('خوابگاه نوید' or the first available dormitory in the system).
+    """
+    dorm = Dormitory.objects.filter(name__icontains="نوید").first() or Dormitory.objects.first()
+    return dorm.id if dorm else None
+

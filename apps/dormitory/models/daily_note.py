@@ -2,6 +2,7 @@ from django.db import models
 from django_jalali.db import models as jmodels
 import datetime
 import jdatetime
+from .dormitory import get_default_dormitory
 
 
 def get_yesterday_jalali():
@@ -20,7 +21,8 @@ class DailyNote(models.Model):
     dormitory = models.ForeignKey(
         'dormitory.Dormitory',
         on_delete=models.CASCADE,
-        related_name='daily_notes'
+        related_name='daily_notes',
+        default=get_default_dormitory,
     )
     date = jmodels.jDateField(
         default=get_yesterday_jalali,

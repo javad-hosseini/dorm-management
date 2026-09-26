@@ -84,41 +84,84 @@ const Modal = (() => {
         </div>
 
         <!-- بلوک وضعیت تسویه حساب و سررسید موعد اجاره -->
-        <div class="mb-5 p-4 rounded-2xl glass border ${r.is_in_debt ? 'border-rose-500/30 bg-rose-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}">
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-white/10">
-            <h5 class="text-xs font-bold flex items-center gap-1.5 ${r.is_in_debt ? 'text-rose-300' : 'text-emerald-300'}">
-              <span>🗓️</span>
-              <span>وضعیت تسویه حساب و سررسید موعد پرداخت اجاره</span>
-            </h5>
-            <span class="status-pill text-[11px] ${r.is_in_debt ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'}">
-              ${r.is_in_debt ? (r.overdue_days === 0 ? '🟡 سررسید امروز' : '🔴 ' + r.overdue_days + ' روز تاخیر در پرداخت') : '🟢 تسویه به روز'}
-            </span>
-          </div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-right">
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <p class="text-[10px] text-muted">تسویه تا تاریخ</p>
-              <p class="font-bold text-sm text-blue-300 mt-1">${r.settled_until || 'فاقد پرداخت'}</p>
-              <p class="text-[10px] text-muted mt-0.5">${r.settled_until ? 'پوشش کامل تا این تاریخ' : 'حساب بدون پرداخت'}</p>
+        ${(() => {
+          const isOverdue = Boolean(r.is_in_debt);
+          const overdue = r.overdue_days || 0;
+          const isWarning = isOverdue && overdue <= 7;
+          const isCritical = isOverdue && overdue > 7;
+
+          let containerClass, headerColor, pillClass, pillText, dueDateColor;
+
+          if (isCritical) {
+            containerClass = 'border-rose-500/30 bg-rose-500/10';
+            headerColor = 'text-rose-300';
+            pillClass = 'bg-rose-500 text-white font-bold';
+            pillText = `🔴 ${overdue} روز تاخیر در پرداخت (بدهکار)`;
+            dueDateColor = 'text-rose-400';
+          } else if (isWarning) {
+            containerClass = 'border-amber-500/30 bg-amber-500/10';
+            headerColor = 'text-amber-300';
+            pillClass = 'bg-amber-500 text-slate-900 font-bold';
+            pillText = overdue === 0 ? '🟡 سررسید امروز (مهلت پرداخت)' : `🟡 ${overdue} روز تاخیر (هشدار مهلت یک هفته)`;
+            dueDateColor = 'text-amber-400';
+          } else {
+            containerClass = 'border-emerald-500/30 bg-emerald-500/5';
+            headerColor = 'text-emerald-300';
+            pillClass = 'bg-emerald-500 text-white font-bold';
+            pillText = '🟢 تسویه به روز';
+            dueDateColor = 'text-emerald-400';
+          }
+
+          return `
+            <div class="mb-5 p-4 rounded-2xl glass border ${containerClass}">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-white/10">
+                <h5 class="text-xs font-bold flex items-center gap-1.5 ${headerColor}">
+                  <span>🗓️</span>
+                  <span>وضعیت تسویه حساب و سررسید موعد پرداخت اجاره</span>
+                </h5>
+                <span class="status-pill text-[11px] ${pillClass}">
+                  ${pillText}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-right">
+                <div class="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <p class="text-[10px] text-muted">تسویه تا تاریخ</p>
+                  <p class="font-bold text-sm text-blue-300 mt-1">${r.settled_until || 'فاقد پرداخت'}</p>
+                  <p class="text-[10px] text-muted mt-0.5">${r.settled_until ? 'پوشش کامل تا این تاریخ' : 'حساب بدون پرداخت'}</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <p class="text-[10px] text-muted">تاریخ سررسید موعد بعدی</p>
+                  <p class="font-bold text-sm ${dueDateColor} mt-1">${r.next_due_date_display || r.settled_until || '-'}</p>
+                  <p class="text-[10px] text-muted mt-0.5">موعد پرداخت بعدی</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <p class="text-[10px] text-muted">مهلت تا موعد / تاخیر</p>
+                  <p class="font-bold text-sm mt-1 ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}">
+                    ${isCritical ? `${overdue} روز تاخیر (بیش از یک هفته)` : (isWarning ? (overdue === 0 ? 'امروز سررسید است' : `${overdue} روز تاخیر (تا ۱ هفته)`) : `${r.days_until_due || 0} روز تا سررسید`)}
+                  </p>
+                  <p class="text-[10px] text-muted mt-0.5">${r.is_in_debt && r.unpaid_months ? r.unpaid_months : 'بدون تاخیر'}</p>
+                </div>
+                <div class="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <p class="text-[10px] text-muted">مبلغ بدهی / نرخ ماهانه</p>
+                  <p class="font-bold text-sm mt-1">${r.is_in_debt ? Utils.toToman(r.total_debt_tomans * 10) + ' بدهی' : (r.room ? Utils.toToman(r.room.monthly_rent) : '-')}</p>
+                  <p class="text-[10px] text-muted mt-0.5">روز پرداخت: ${r.monthly_payment_day || 1}ام هر ماه</p>
+                </div>
+              </div>
+              ${(r.is_in_debt && r.unpaid_periods && r.unpaid_periods.length > 0) ? `
+                <div class="mt-3 pt-3 border-t border-white/10 text-xs">
+                  <span class="text-muted block mb-1.5 font-medium">ریز دوره‌های معوقه و نرخ مصوب هر دوره:</span>
+                  <div class="flex flex-wrap gap-2">
+                    ${r.unpaid_periods.map(p => `
+                      <span class="px-2.5 py-1 rounded-lg ${p.overdue_days > 7 ? 'bg-rose-500/10 border border-rose-500/20 text-rose-300' : 'bg-amber-500/10 border border-amber-500/20 text-amber-300'} text-[11px] flex items-center gap-1.5">
+                        <strong>${p.name}:</strong> ${Utils.toToman(p.amount_tomans * 10)} (${p.overdue_days} روز تاخیر ${p.overdue_days <= 7 ? '🟡 مهلت' : '🔴 معوق'})
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
             </div>
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <p class="text-[10px] text-muted">تاریخ سررسید موعد بعدی</p>
-              <p class="font-bold text-sm ${r.is_in_debt ? 'text-rose-400' : 'text-emerald-400'} mt-1">${r.next_due_date_display || r.settled_until || '-'}</p>
-              <p class="text-[10px] text-muted mt-0.5">موعد پرداخت بعدی</p>
-            </div>
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <p class="text-[10px] text-muted">مهلت تا موعد / تاخیر</p>
-              <p class="font-bold text-sm mt-1 ${r.is_in_debt ? 'text-rose-400' : 'text-emerald-400'}">
-                ${r.is_in_debt ? (r.overdue_days === 0 ? 'امروز سررسید است' : r.overdue_days + ' روز تاخیر') : (r.days_until_due + ' روز تا سررسید')}
-              </p>
-              <p class="text-[10px] text-muted mt-0.5">${r.is_in_debt && r.unpaid_months ? r.unpaid_months : 'بدون تاخیر'}</p>
-            </div>
-            <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-              <p class="text-[10px] text-muted">مبلغ بدهی / نرخ ماهانه</p>
-              <p class="font-bold text-sm mt-1">${r.is_in_debt ? Utils.toToman(r.total_debt_tomans * 10) + ' بدهی' : (r.room ? Utils.toToman(r.room.monthly_rent) : '-')}</p>
-              <p class="text-[10px] text-muted mt-0.5">روز پرداخت: ${r.monthly_payment_day || 1}ام هر ماه</p>
-            </div>
-          </div>
-        </div>
+          `;
+        })()}
 
         <div class="mb-5 p-4 rounded-2xl glass border border-slate-700/40">
           <div class="flex justify-between items-center mb-2.5">
@@ -220,7 +263,7 @@ const Modal = (() => {
               <div>
                 <p class="font-bold">${o.full_name}</p>
                 <p class="text-[11px] text-muted">${o.national_code} | ${o.phone_number}</p>
-                <p class="text-[10px] mt-1">${o.is_in_debt ? '🔴 بدهکار' : '🟢 تسویه'} | ورود: ${o.entry_date || '-'}</p>
+                <p class="text-[10px] mt-1">${o.is_in_debt ? (o.overdue_days > 7 ? '🔴 بدهکار (بیش از ۱ هفته)' : '🟡 هشدار تاخیر (تا ۱ هفته)') : '🟢 تسویه'} | ورود: ${o.entry_date || '-'}</p>
               </div>
               <span class="text-blue-400 text-[11px]">مشاهده پرونده ←</span>
             </div>

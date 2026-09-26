@@ -1,0 +1,7 @@
+POST /api/SendSMS/GetMessages HTTP/1.1
+Host: rest.payamak-panel.com
+Content-Type: application/x-www-form-urlencoded
+Cache-Control: no-cache
+Postman-Token: 34f8e04a-0b81-f8cf-9095-4464bb41e4fb
+
+username=YourUserName&password=YourPassWord&location=-1&from=1000...&index=0&count=100

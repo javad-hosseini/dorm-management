@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.contrib.auth.models import User
 from django_jalali.db import models as jmodels
 
 from apps.dormitory.jalali_utils import (
@@ -11,6 +12,7 @@ from apps.dormitory.jalali_utils import (
     format_period_name,
     calculate_unpaid_periods,
 )
+from .dormitory import get_default_dormitory
 
 
 class Resident(models.Model):
@@ -61,6 +63,17 @@ class Resident(models.Model):
         help_text="شماره تماس والدین یا بستگان درجه یک. در صورت عدم دسترسی، خالی یا 'ندارد' بگذارید.",
     )
 
+    # Django User Account link for Student Portal
+    user = models.OneToOneField(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resident_profile",
+        verbose_name="حساب کاربری سامانه",
+        help_text="حساب کاربری متصل به این ساکن برای ورود به پنل دانشجو.",
+    )
+
     # Documents & Deposit status
     has_deposit = models.BooleanField(
         default=False,
@@ -87,6 +100,7 @@ class Resident(models.Model):
         "dormitory.Dormitory",
         on_delete=models.PROTECT,
         related_name="residents",
+        default=get_default_dormitory,
     )
 
     # Dates
@@ -119,7 +133,7 @@ class Resident(models.Model):
     settled_until = jmodels.jDateField(
         null=True,
         blank=True,
-        help_text="Date until which the resident has fully paid (pre-paid coverage end date)"
+        help_text="این فیلد با ثبت تراکنش‌های اجاره به طور خودکار به صورت روزشمار جلو می‌رود. در موارد استثنایی می‌توانید آن را به صورت دستی نیز تغییر دهید."
     )
 
     occupation = models.CharField(
@@ -333,6 +347,7 @@ class Resident(models.Model):
             "next_due_date": str(self.next_due_date) if self.next_due_date else "",
             "next_due_date_display": self.next_due_date_display,
             "due_status_display": self.due_status_display,
+            "debt_urgency": self.debt_urgency,
             "has_deposit": self.has_deposit,
             "has_lease": self.has_lease,
             "deposit_status": "دارد" if self.has_deposit else "ندارد",
@@ -413,6 +428,46 @@ class Resident(models.Model):
         self.clean()
         super().save(*args, **kwargs)
 
+        # Automatically link or provision User account if not yet attached
+        if not self.user and (self.national_code or self.phone_number):
+            try:
+                self.ensure_user_account()
+            except Exception:
+                pass
+
+    def ensure_user_account(self, password: Optional[str] = None) -> Optional[User]:
+        """
+        Ensure this resident has an associated Django User for student portal login.
+        Default username is national_code (if present) or phone_number.
+        Default password is raw national_code or phone_number.
+        """
+        raw_username = (self.national_code or self.phone_number or "").strip()
+        if not raw_username:
+            return None
+
+        # If user is already linked
+        if self.user:
+            return self.user
+
+        # If a User with this username already exists in database
+        existing_user = User.objects.filter(username__iexact=raw_username).first()
+        if existing_user:
+            self.user = existing_user
+            Resident.objects.filter(pk=self.pk).update(user=existing_user)
+            return existing_user
+
+        # Otherwise create a new Django user
+        initial_password = password or self.national_code or self.phone_number
+        new_user = User.objects.create_user(
+            username=raw_username,
+            password=initial_password,
+            first_name=self.first_name,
+            last_name=self.last_name,
+        )
+        self.user = new_user
+        Resident.objects.filter(pk=self.pk).update(user=new_user)
+        return new_user
+
 
     # ========================================================
     # ACCOUNTING & PRE-PAYMENT LOGIC (حسابداری پیش‌پرداخت و دیرکرد)
@@ -488,6 +543,18 @@ class Resident(models.Model):
         return self.settled_until.strftime('%Y/%m/%d') if self.settled_until else "تسویه نشده (فاقد پرداخت)"
 
     @property
+    def debt_urgency(self) -> str:
+        """
+        Urgency level of settlement / debt:
+        - 'settled': no debt
+        - 'warning': in debt, overdue_days <= 7 (yellow alert / 1 week grace)
+        - 'danger': in debt, overdue_days > 7 (red alert / critical overdue)
+        """
+        if not self.is_in_debt:
+            return 'settled'
+        return 'warning' if self.overdue_days <= 7 else 'danger'
+
+    @property
     def due_status_display(self) -> str:
         """
         Human readable Persian summary of settlement date and upcoming due date / overdue days.
@@ -503,12 +570,16 @@ class Resident(models.Model):
             if self.is_in_debt:
                 if self.overdue_days == 0:
                     return f"سررسید موعد ورود امروز ({due_date_str})"
+                elif self.overdue_days <= 7:
+                    return f"{self.overdue_days} روز تاخیر از ورود (مهلت تا ۱ هفته - {due_date_str})"
                 return f"{self.overdue_days} روز تاخیر از ورود ({due_date_str})"
             return f"ورود در آینده ({due_date_str})"
 
         if self.is_in_debt:
             if self.overdue_days == 0:
                 return f"سررسید موعد امروز ({due_date_str})"
+            elif self.overdue_days <= 7:
+                return f"{self.overdue_days} روز تاخیر در پرداخت (مهلت تا ۱ هفته - سررسید: {due_date_str})"
             return f"{self.overdue_days} روز تاخیر در پرداخت (سررسید: {due_date_str})"
         else:
             days = self.days_until_due
@@ -521,16 +592,20 @@ class Resident(models.Model):
         """
         Returns list of unpaid monthly periods up to today.
         Billing is strictly monthly (not daily pro-rated).
+        Each period dynamically calculates its rent based on the room's
+        historical rate in effect for that period.
         """
         start_calc = self.settled_until or self.entry_date
         if not start_calc:
             return []
 
         rent_rials = self.room.monthly_rent if self.room else 0
+        rent_resolver = self.room.get_rent_for_date if self.room else None
         return calculate_unpaid_periods(
             start_date=start_calc,
             as_of_date=jdatetime.date.today(),
-            monthly_rent_rials=rent_rials
+            monthly_rent_rials=rent_rials,
+            rent_resolver=rent_resolver,
         )
 
     @property
@@ -545,20 +620,28 @@ class Resident(models.Model):
     def total_debt_amount_tomans(self) -> int:
         """
         Total unpaid rent amount in Tomans.
-        Strictly monthly: count of unpaid months * monthly rent.
+        Strictly monthly: sum of amounts of all unpaid periods based on their effective historical rates.
         """
-        return len(self.unpaid_periods) * self.current_monthly_rent_tomans
+        return sum(p["amount_tomans"] for p in self.unpaid_periods)
 
     @property
     def total_debt_amount_rials(self) -> int:
         """Total unpaid rent amount in Rials"""
-        return self.total_debt_amount_tomans * 10
+        return sum(p["amount_rials"] for p in self.unpaid_periods)
 
     @property
     def last_paid_period_display(self) -> str:
         """Shows the last period covered by previous payments"""
         if not self.settled_until:
             return "پرداختی ثبت نشده"
+
+        latest_tx = self.transactions.filter(
+            transaction_type='RENT',
+            is_approved=True
+        ).order_by('-period_end', '-payment_date').first()
+        if latest_tx and latest_tx.period_name:
+            return f"{latest_tx.period_name} (تسویه تا {self.settled_until.strftime('%Y/%m/%d')})"
+
         prev_date = add_jalali_months(self.settled_until, -1)
         name = format_period_name(prev_date, self.settled_until)
         return f"{name} (تسویه تا {self.settled_until.strftime('%Y/%m/%d')})"
@@ -596,13 +679,14 @@ class Resident(models.Model):
             }
 
         unpaid = self.unpaid_periods
-        monthly_rent_tomans = self.current_monthly_rent_tomans
+        debt = sum(p["amount_tomans"] for p in unpaid)
 
         if not unpaid:
             days_left = self.days_until_due
             due_str = self.settled_until.strftime('%Y/%m/%d') if self.settled_until else '-'
             return {
                 "status": "SETTLED",
+                "severity": "success",
                 "label": "تسویه به روز",
                 "color": "#27ae60",
                 "overdue_days": 0,
@@ -614,12 +698,13 @@ class Resident(models.Model):
             }
         else:
             overdue = self.overdue_days
-            debt = len(unpaid) * monthly_rent_tomans
             unpaid_names = " و ".join([p["name"] for p in unpaid])
+
 
             if overdue == 0:
                 return {
                     "status": "DUE_TODAY",
+                    "severity": "warning",
                     "label": "سررسید امروز",
                     "color": "#f39c12",
                     "overdue_days": 0,
@@ -629,16 +714,30 @@ class Resident(models.Model):
                     "details": f"موعد {unpaid[0]['name']} فرا رسیده ({debt:,.0f} تومان)",
                     "last_paid": self.last_paid_period_display,
                 }
+            elif overdue <= 7:
+                return {
+                    "status": "OVERDUE",
+                    "severity": "warning",
+                    "label": f"{overdue} روز تاخیر (مهلت)",
+                    "color": "#f39c12",
+                    "overdue_days": overdue,
+                    "days_until_due": 0,
+                    "unpaid_months": unpaid_names,
+                    "debt_tomans": debt,
+                    "details": f"{overdue} روز تاخیر (مهلت تا ۱ هفته) - بدهی: {unpaid_names} ({debt:,.0f} تومان)",
+                    "last_paid": self.last_paid_period_display,
+                }
             else:
                 return {
                     "status": "OVERDUE",
-                    "label": f"{overdue} روز تاخیر",
+                    "severity": "danger",
+                    "label": f"{overdue} روز تاخیر (بدهکار)",
                     "color": "#e74c3c",
                     "overdue_days": overdue,
                     "days_until_due": 0,
                     "unpaid_months": unpaid_names,
                     "debt_tomans": debt,
-                    "details": f"{overdue} روز تاخیر - بدهی: {unpaid_names} ({debt:,.0f} تومان)",
+                    "details": f"{overdue} روز تاخیر (بیش از یک هفته) - بدهی: {unpaid_names} ({debt:,.0f} تومان)",
                     "last_paid": self.last_paid_period_display,
                 }
 
@@ -653,6 +752,33 @@ class Resident(models.Model):
         if save:
             self.save(update_fields=['settled_until'])
         return new_settled
+
+    def recalculate_settled_until(self, save: bool = True) -> Optional[jdatetime.date]:
+        """
+        Recalculates settled_until by taking the maximum period_end from all
+        approved RENT transactions of this resident.
+        """
+        approved_rent_txs = self.transactions.filter(
+            transaction_type='RENT',
+            is_approved=True
+        ).exclude(period_end__isnull=True)
+
+        if not approved_rent_txs.exists():
+            self.settled_until = None
+            if save:
+                self.save(update_fields=['settled_until'])
+            return None
+
+        max_period_end = None
+        for tx in approved_rent_txs:
+            if tx.period_end:
+                if max_period_end is None or tx.period_end > max_period_end:
+                    max_period_end = tx.period_end
+
+        self.settled_until = max_period_end
+        if save:
+            self.save(update_fields=['settled_until'])
+        return self.settled_until
 
     def get_recent_transactions(self, days: int = 30):
         """Return transactions from the last N days"""

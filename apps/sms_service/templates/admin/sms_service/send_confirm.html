@@ -1,0 +1,259 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}تأیید و بازبینی نهایی ارسال پیامک | {{ site_title|default:"مدیریت خوابگاه" }}{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb float-sm-right">
+    <li class="breadcrumb-item"><a href="{% url 'admin:index' %}"><i class="fas fa-home"></i> داشبورد</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'admin:sms_service_smscampaign_changelist' %}">مدیریت پیامک</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'admin:sms_service_send' %}">مرکز ارسال پیامک</a></li>
+    <li class="breadcrumb-item active">تأیید نهایی</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+<style>
+    .confirm-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 24px;
+        overflow: hidden;
+    }
+    .confirm-card-header {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 16px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .confirm-card-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+    .confirm-card-body {
+        padding: 24px;
+    }
+    .stat-badge-box {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .stat-box {
+        flex: 1;
+        min-width: 180px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .stat-box i {
+        font-size: 1.8rem;
+    }
+    .stat-box.success {
+        border-color: #a7f3d0;
+        background: #ecfdf5;
+        color: #065f46;
+    }
+    .stat-box.warning {
+        border-color: #fde68a;
+        background: #fffbeb;
+        color: #92400e;
+    }
+    .stat-box.danger {
+        border-color: #fecaca;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+    .stat-box.info {
+        border-color: #bae6fd;
+        background: #f0f9ff;
+        color: #0369a1;
+    }
+    .stat-val {
+        font-size: 1.5rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .stat-label {
+        font-size: 0.88rem;
+        font-weight: 600;
+        margin-top: 4px;
+    }
+    .btn-confirm-send {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        font-weight: 700;
+        padding: 14px 40px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+    }
+    .btn-confirm-send:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(16, 185, 129, 0.4);
+    }
+    .table-recipients thead th {
+        background: #f1f5f9;
+        border-bottom: 2px solid #cbd5e1;
+        font-weight: 700;
+    }
+    .message-cell {
+        font-size: 0.92rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        background: #f8fafc;
+        border-radius: 6px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<div class="container-fluid">
+
+    <div class="confirm-card">
+        <div class="confirm-card-header">
+            <h3><i class="fas fa-clipboard-check ml-2 text-primary"></i> پیش‌نمایش و بازبینی پیامک‌های شخصی‌سازی شده</h3>
+            <div>
+                {% if is_console_mode %}
+                <span class="badge badge-warning p-2"><i class="fas fa-terminal ml-1"></i> حالت آزمایشی کنسول</span>
+                {% else %}
+                <span class="badge badge-success p-2"><i class="fas fa-signal ml-1"></i> درگاه ملی‌پیامک (زنده)</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="confirm-card-body">
+
+            <!-- Metrics Summary Cards -->
+            <div class="stat-badge-box">
+                <div class="stat-box success">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <div class="stat-val">{{ preview.valid_count }}</div>
+                        <div class="stat-label">پیامک معتبر آماده ارسال</div>
+                    </div>
+                </div>
+
+                <div class="stat-box info">
+                    <i class="fas fa-users"></i>
+                    <div>
+                        <div class="stat-val">{{ preview.total_selected }}</div>
+                        <div class="stat-label">مجموع انتخاب شده</div>
+                    </div>
+                </div>
+
+                {% if preview.duplicate_count > 0 %}
+                <div class="stat-box warning">
+                    <i class="fas fa-clone"></i>
+                    <div>
+                        <div class="stat-val">{{ preview.duplicate_count }}</div>
+                        <div class="stat-label">شماره تکراری (حذف شده)</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if preview.invalid_count > 0 %}
+                <div class="stat-box danger">
+                    <i class="fas fa-times-circle"></i>
+                    <div>
+                        <div class="stat-val">{{ preview.invalid_count }}</div>
+                        <div class="stat-label">شماره نامعتبر (رد شده)</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- List of Valid Recipients with Rendered Messages -->
+            <h5 class="font-weight-bold text-dark mb-3">
+                <i class="fas fa-list-ol ml-2 text-info"></i> فهرست پیامک‌های آماده ارسال به تفکیک ساکن ({{ preview.valid_count }} پیامک):
+            </h5>
+
+            <div class="table-responsive border rounded mb-4" style="max-height: 480px; overflow-y: auto;">
+                <table class="table table-hover table-striped mb-0 table-recipients">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px; text-align: center;">ردیف</th>
+                            <th style="width: 140px;">نوع مخاطب</th>
+                            <th style="width: 200px;">نام و مشخصات</th>
+                            <th style="width: 140px;">شماره موبایل</th>
+                            <th>متن نهایی ارسال‌شده به این شماره</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in preview.valid_recipients %}
+                        <tr>
+                            <td style="text-align: center;" class="text-muted">{{ forloop.counter }}</td>
+                            <td>
+                                {% if r.recipient_type == 'resident' %}
+                                <span class="badge badge-primary"><i class="fas fa-user-graduate ml-1"></i> ساکن خوابگاه</span>
+                                {% elif r.recipient_type == 'contact' %}
+                                <span class="badge badge-info"><i class="fas fa-address-book ml-1"></i> دفترچه تلفن</span>
+                                {% else %}
+                                <span class="badge badge-secondary">کاربر</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ r.name }}</strong>
+                                {% if r.details %}
+                                <div class="text-muted small">{{ r.details }}</div>
+                                {% endif %}
+                            </td>
+                            <td dir="ltr" class="text-left font-weight-bold">{{ r.phone_number }}</td>
+                            <td>
+                                <div class="message-cell">{{ r.message }}</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Execution Action Form -->
+            <form method="post" action="{% url 'admin:sms_service_send' %}" id="executeSendForm">
+                {% csrf_token %}
+                <input type="hidden" name="step" value="execute">
+                <input type="hidden" name="message_body" value="{{ message_body }}">
+                <input type="hidden" name="selected_residents_csv" value="{{ resident_ids|join:',' }}">
+                <input type="hidden" name="selected_contacts_csv" value="{{ contact_ids|join:',' }}">
+
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 pt-3 border-top">
+                    <a href="{% url 'admin:sms_service_send' %}?resident_ids={{ resident_ids|join:',' }}&contact_ids={{ contact_ids|join:',' }}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-arrow-right ml-1"></i> بازگشت و اصلاح متن
+                    </a>
+
+                    <button type="submit" class="btn btn-confirm-send" id="btnExecute">
+                        <i class="fas fa-paper-plane ml-2"></i> تأیید نهایی و ارسال {{ preview.valid_count }} پیامک
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    var form = document.getElementById("executeSendForm");
+    var btn = document.getElementById("btnExecute");
+    form.addEventListener("submit", function() {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin ml-2"></i> در حال ارسال پیامک‌ها... لطفاً شکیبا باشید';
+    });
+});
+</script>
+{% endblock %}

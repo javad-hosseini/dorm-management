@@ -1,0 +1,328 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static %}
+
+{% block content_title %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="font-weight-bold text-dark mb-1">
+            <i class="fas fa-chart-pie text-primary ml-2"></i>گزارش جامع ارسال کمپین پیامک #{{ original.id }}
+        </h4>
+        <small class="text-muted">
+            ارسال شده در: {{ original.created_at|date:"Y/m/d H:i" }} | منبع: {{ original.get_recipient_source_display }}
+        </small>
+    </div>
+    <div class="d-flex" style="gap: 8px;">
+        {% if failed_res_ids_csv or failed_cnt_ids_csv %}
+        <a href="{% url 'admin:sms_service_send' %}?resident_ids={{ failed_res_ids_csv }}&contact_ids={{ failed_cnt_ids_csv }}" class="btn btn-warning font-weight-bold text-dark shadow-sm">
+            <i class="fas fa-redo ml-1"></i> ارسال مجدد به افراد ناموفق ({{ blocked_count|add:failed_count }} نفر)
+        </a>
+        {% endif %}
+        <a href="{% url 'admin:sms_service_send' %}" class="btn btn-outline-primary shadow-sm font-weight-bold">
+            <i class="fas fa-paper-plane ml-1"></i> ارسال پیامک جدید
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block field_sets %}
+<!-- Executive KPI Summary Cards -->
+<div class="row mb-4" dir="rtl">
+    <div class="col-lg-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-right: 4px solid #10b981 !important;">
+            <div class="card-body p-3">
+                <div class="text-muted small font-weight-bold">ارسال موفق (تحویل درگاه)</div>
+                <div class="d-flex align-items-baseline justify-content-between mt-2">
+                    <span class="h3 font-weight-bold text-success mb-0">{{ original.successful_count }}</span>
+                    <i class="fas fa-check-circle fa-2x text-success" style="opacity: 0.3;"></i>
+                </div>
+                <div class="small text-success mt-1">پیامک با موفقیت ثبت شد</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-right: 4px solid #ef4444 !important;">
+            <div class="card-body p-3">
+                <div class="text-muted small font-weight-bold">مسدود (لیست سیاه تبلیغاتی)</div>
+                <div class="d-flex align-items-baseline justify-content-between mt-2">
+                    <span class="h3 font-weight-bold text-danger mb-0">{{ original.blocked_count }}</span>
+                    <i class="fas fa-ban fa-2x text-danger" style="opacity: 0.3;"></i>
+                </div>
+                <div class="small text-danger mt-1">پیامک تبلیغاتی را بسته‌اند</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border-right: 4px solid #f97316 !important;">
+            <div class="card-body p-3">
+                <div class="text-muted small font-weight-bold">سایر خطاهای درگاه</div>
+                <div class="d-flex align-items-baseline justify-content-between mt-2">
+                    <span class="h3 font-weight-bold text-warning mb-0">{{ failed_count }}</span>
+                    <i class="fas fa-exclamation-triangle fa-2x text-warning" style="opacity: 0.3;"></i>
+                </div>
+                <div class="small text-warning mt-1">خطای سرور یا شماره نامعتبر</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-right: 4px solid #3b82f6 !important;">
+            <div class="card-body p-3">
+                <div class="text-muted small font-weight-bold">کل مخاطبان انتخاب‌شده</div>
+                <div class="d-flex align-items-baseline justify-content-between mt-2">
+                    <span class="h3 font-weight-bold text-primary mb-0">{{ original.total_selected }}</span>
+                    <i class="fas fa-users fa-2x text-primary" style="opacity: 0.3;"></i>
+                </div>
+                <div class="small text-primary mt-1">حذف تکراری: {{ original.total_deduplicated }} نفر</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Recipient Breakdown Accordion / Nav Tabs -->
+<div class="card shadow-sm border-0 mb-4" dir="rtl">
+    <div class="card-header bg-white border-bottom p-2">
+        <ul class="nav nav-pills card-header-pills" id="campaignReportTabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active font-weight-bold" id="tab-received-tab" data-toggle="pill" href="#tab-received" role="tab">
+                    <i class="fas fa-check-circle text-success ml-1"></i> پیامک برای کیا ارسال شد؟ ({{ successful_logs|length }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link font-weight-bold {% if blocked_logs or failed_logs %}text-danger{% endif %}" id="tab-failed-tab" data-toggle="pill" href="#tab-failed" role="tab">
+                    <i class="fas fa-times-circle text-danger ml-1"></i> پیامک برای کیا ارسال نشد؟ ({{ blocked_logs|length|add:failed_logs|length }})
+                </a>
+            </li>
+            {% if skipped_logs %}
+            <li class="nav-item">
+                <a class="nav-link text-muted font-weight-bold" id="tab-skipped-tab" data-toggle="pill" href="#tab-skipped" role="tab">
+                    <i class="fas fa-filter text-secondary ml-1"></i> تکراری / نامعتبر ({{ skipped_logs|length }})
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <div class="card-body p-0">
+        <div class="tab-content" id="campaignReportTabContent">
+            <!-- TAB 1: Successful Recipients -->
+            <div class="tab-pane fade show active" id="tab-received" role="tabpanel">
+                {% if successful_logs %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 text-right">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>نام و نام خانوادگی</th>
+                                <th>محل سکونت / منبع</th>
+                                <th>شماره موبایل</th>
+                                <th>شناسه رسید درگاه (recId)</th>
+                                <th>متن نهایی ارسال‌شده</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in successful_logs %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td class="font-weight-bold">
+                                    {% if log.resident %}
+                                        <a href="{% url 'admin:dormitory_resident_change' log.resident.id %}">
+                                            {{ log.resident.full_name }}
+                                        </a>
+                                    {% elif log.contact %}
+                                        {{ log.contact.full_name }}
+                                    {% else %}
+                                        {{ log.phone_number }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.resident %}
+                                        <span class="badge badge-info">اتاق {{ log.resident.room.room_number|default:"-" }}</span>
+                                    {% elif log.contact %}
+                                        <span class="badge badge-secondary">دفترچه تلفن</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td dir="ltr" class="text-right font-weight-bold font-monospace">{{ log.phone_number }}</td>
+                                <td>
+                                    <span class="badge badge-success font-monospace">{{ log.provider_rec_id|default:"OK" }}</span>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-toggle="popover" data-placement="top" title="متن ارسال شده" data-content="{{ log.final_message }}">
+                                        مشاهده متن
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                    <i class="fas fa-info-circle fa-2x mb-2 d-block text-secondary"></i>
+                    هیچ پیامکی در این کمپین با موفقیت تحویل سامانه پیامک نشد.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- TAB 2: Failed & Blocked Recipients -->
+            <div class="tab-pane fade" id="tab-failed" role="tabpanel">
+                {% if blocked_logs or failed_logs %}
+                <!-- Recommendation alert banner -->
+                <div class="p-3 bg-light border-bottom">
+                    <div class="alert alert-warning mb-0 border-0 shadow-sm" style="font-size: 0.9rem;">
+                        <i class="fas fa-lightbulb text-warning ml-1"></i>
+                        <strong>راهنمای پیگیری افراد ناموفق:</strong>
+                        مخاطباتی که وضعیت آن‌ها <strong>«لیست سیاه»</strong> است، دریافت پیامک‌های تبلیغاتی از خطوط ۵۰۰۰ را مسدود کرده‌اند. برای این افراد پیشنهاد می‌شود به صورت تلفنی، از طریق ایتا/بله یا با مراجعه حضوری به اتاق سرپرستی اطلاع‌رسانی فرمایید.
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 text-right">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>نام و نام خانوادگی</th>
+                                <th>محل سکونت / منبع</th>
+                                <th>شماره موبایل</th>
+                                <th>وضعیت خطا</th>
+                                <th>شرح دقیق خطا / راهکار</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Blocked Advertising First -->
+                            {% for log in blocked_logs %}
+                            <tr class="table-danger" style="background-color: #fef2f2;">
+                                <td>{{ forloop.counter }}</td>
+                                <td class="font-weight-bold">
+                                    {% if log.resident %}
+                                        <a href="{% url 'admin:dormitory_resident_change' log.resident.id %}" class="text-danger">
+                                            {{ log.resident.full_name }}
+                                        </a>
+                                    {% elif log.contact %}
+                                        {{ log.contact.full_name }}
+                                    {% else %}
+                                        {{ log.phone_number }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.resident %}
+                                        <span class="badge badge-danger">اتاق {{ log.resident.room.room_number|default:"-" }}</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">دفترچه تلفن</span>
+                                    {% endif %}
+                                </td>
+                                <td dir="ltr" class="text-right font-weight-bold font-monospace">{{ log.phone_number }}</td>
+                                <td>
+                                    <span class="badge badge-danger p-1">
+                                        <i class="fas fa-ban ml-1"></i> لیست سیاه تبلیغاتی
+                                    </span>
+                                </td>
+                                <td class="small text-danger">
+                                    <strong>مخاطب پیامک‌های تبلیغاتی را بسته است.</strong>
+                                    <div>{{ log.error_message }}</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+
+                            <!-- Other Failures -->
+                            {% for log in failed_logs %}
+                            <tr>
+                                <td>{{ forloop.counter|add:blocked_logs|length }}</td>
+                                <td class="font-weight-bold">
+                                    {% if log.resident %}
+                                        <a href="{% url 'admin:dormitory_resident_change' log.resident.id %}">
+                                            {{ log.resident.full_name }}
+                                        </a>
+                                    {% elif log.contact %}
+                                        {{ log.contact.full_name }}
+                                    {% else %}
+                                        {{ log.phone_number }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.resident %}
+                                        <span class="badge badge-info">اتاق {{ log.resident.room.room_number|default:"-" }}</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">دفترچه تلفن</span>
+                                    {% endif %}
+                                </td>
+                                <td dir="ltr" class="text-right font-weight-bold font-monospace">{{ log.phone_number }}</td>
+                                <td>
+                                    <span class="badge badge-warning p-1">
+                                        <i class="fas fa-exclamation-triangle ml-1"></i> خطای درگاه ({{ log.error_code|default:"ERROR" }})
+                                    </span>
+                                </td>
+                                <td class="small text-muted">
+                                    {{ log.error_message|default:"خطا در ارسال از سمت وب‌سرویس پیامک" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-success">
+                    <i class="fas fa-check-double fa-2x mb-2 d-block"></i>
+                    <strong>عالی!</strong> تمامی پیامک‌ها بدون هیچ خطایی به درگاه پیامک تحویل داده شدند.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- TAB 3: Skipped (Duplicates / Invalid) -->
+            {% if skipped_logs %}
+            <div class="tab-pane fade" id="tab-skipped" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 text-right">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>نام مخاطب</th>
+                                <th>شماره موبایل</th>
+                                <th>وضعیت</th>
+                                <th>دلیل عدم ارسال</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in skipped_logs %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td class="font-weight-bold">
+                                    {% if log.resident %}{{ log.resident.full_name }}{% elif log.contact %}{{ log.contact.full_name }}{% else %}-{% endif %}
+                                </td>
+                                <td dir="ltr" class="text-right font-monospace">{{ log.phone_number }}</td>
+                                <td>
+                                    <span class="badge badge-secondary">{{ log.get_status_display }}</span>
+                                </td>
+                                <td class="small text-muted">{{ log.error_message }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Raw Message Template Box -->
+<div class="card shadow-sm border-0 mb-4" dir="rtl">
+    <div class="card-header bg-light font-weight-bold">
+        <i class="fas fa-envelope-open-text ml-1 text-primary"></i> متن اولیه و خام ارسال‌شده در این کمپین
+    </div>
+    <div class="card-body bg-white p-3 font-monospace" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.8;">{{ original.message_body }}</div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        if (typeof $ !== 'undefined' && $.fn.popover) {
+            $('[data-toggle="popover"]').popover({ trigger: 'focus' });
+        }
+    });
+</script>
+
+{{ block.super }}
+{% endblock %}

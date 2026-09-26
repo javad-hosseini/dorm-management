@@ -109,12 +109,15 @@ const Finance = (() => {
             ? '<span class="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-full mr-1">نیاز تایید</span>'
             : '';
 
+          const discountBadge = t.has_discount
+            ? `<span class="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] px-1.5 py-0.5 rounded-md mr-1" title="${t.discount_reason || ''}">🏷️ ${Utils.toToman(t.discount_amount)} کسر (${t.discount_reason || 'استثنایی'})</span>`
+            : '';
+
           return `
             <div class="surface-subtle rounded-xl p-2.5 flex justify-between text-[11px]">
               <div>
-
-                <p class="font-bold">${resName} - ${Utils.toToman(t.amount)} ${approvalBadge}</p>
-                <p class="text-[10px] text-muted">${t.payment_date} | ${Utils.methodLabel(t.payment_method)}</p>
+                <p class="font-bold">${resName} - ${Utils.toToman(t.amount)} ${approvalBadge} ${discountBadge}</p>
+                <p class="text-[10px] text-muted">${t.payment_date} | ${Utils.methodLabel(t.payment_method)} ${t.period_name ? ' | ' + t.period_name : ''}</p>
               </div>
               <span class="text-[9px] px-2 py-1 rounded-full ${typeBadge} h-fit">${Utils.typeLabel(t.transaction_type)}</span>
             </div>

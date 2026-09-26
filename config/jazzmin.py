@@ -47,6 +47,7 @@ JAZZMIN_SETTINGS = {
 
     "order_with_respect_to": [
         "dormitory",
+        "sms_service",
         "archive",
         "accounts",
         "auth",
@@ -78,8 +79,18 @@ JAZZMIN_SETTINGS = {
             "url": "admin:index",
         },
         {
+            "name": "📱 ارسال پیامک گروهی",
+            "url": "admin:sms_service_send",
+            "new_window": False,
+        },
+        {
             "name": "🤖 ثبت هوشمند با هوش مصنوعی",
             "url": "/admin/ai-loader/",
+            "new_window": False,
+        },
+        {
+            "name": "📊 خروجی اکسل بدهکاران",
+            "url": "/admin/export-debtors-excel/",
             "new_window": False,
         },
         {
@@ -108,10 +119,16 @@ JAZZMIN_SETTINGS = {
         "dormitory.transaction": "fas fa-receipt",
         "dormitory.dailynote": "fas fa-clipboard-list",
 
+        "sms_service": "fas fa-sms",
+        "sms_service.smscampaign": "fas fa-paper-plane",
+        "sms_service.smsrecipientlog": "fas fa-envelope-open-text",
+        "sms_service.contact": "fas fa-address-book",
+
         "archive": "fas fa-archive",
         "archive.archivedresident": "fas fa-user-slash",
         "archive.archivedtransaction": "fas fa-file-invoice-dollar",
     },
+
 
     "default_icon_parents": "fas fa-folder",
     "default_icon_children": "fas fa-circle",

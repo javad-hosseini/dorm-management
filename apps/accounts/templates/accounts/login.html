@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود به سامانه مدیریت خوابگاه</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'dashboard/css/animations.css' %}?v=3">
+
+  <style>
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-main, #0b1120);
+      color: var(--text-main, #f8fafc);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    .login-aurora {
+      position: fixed;
+      top: -20%;
+      left: -10%;
+      width: 120%;
+      height: 140%;
+      background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), transparent 45%),
+                  radial-gradient(circle at 70% 65%, rgba(168, 85, 247, 0.15), transparent 45%),
+                  radial-gradient(circle at 50% 85%, rgba(14, 165, 233, 0.12), transparent 40%);
+      filter: blur(70px);
+      z-index: 0;
+      pointer-events: none;
+      animation: auroraFloat 16s ease-in-out infinite alternate;
+    }
+
+    @keyframes auroraFloat {
+      0% { transform: scale(1) translate(0, 0); }
+      100% { transform: scale(1.08) translate(20px, -15px); }
+    }
+
+    .auth-card {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 440px;
+      padding: 2.25rem 2rem;
+      border-radius: 1.75rem;
+      background: var(--glass-bg, rgba(17, 24, 39, 0.72));
+      border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45),
+                  0 0 0 1px rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
+    }
+
+    .auth-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .auth-input-icon {
+      position: absolute;
+      right: 1rem;
+      color: var(--text-muted, #94a3b8);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .auth-input {
+      width: 100%;
+      padding: 0.85rem 3rem 0.85rem 1rem;
+      background: var(--input-bg, rgba(15, 23, 42, 0.65));
+      border: 1.5px solid var(--input-border, rgba(255, 255, 255, 0.14));
+      border-radius: 1rem;
+      color: var(--text-main, #f8fafc);
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .auth-input:focus {
+      outline: none;
+      border-color: #6366f1;
+      background: var(--input-bg-focus, rgba(15, 23, 42, 0.85));
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+    }
+
+    .auth-btn-primary {
+      width: 100%;
+      padding: 0.9rem 1.5rem;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 1rem;
+      border-radius: 1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.45);
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .auth-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.6);
+      filter: brightness(1.08);
+    }
+
+    .auth-btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .auth-toggle-pass {
+      position: absolute;
+      left: 1rem;
+      background: none;
+      border: none;
+      color: var(--text-muted, #94a3b8);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem;
+      border-radius: 0.5rem;
+      transition: color 0.2s ease;
+    }
+
+    .auth-toggle-pass:hover {
+      color: var(--text-main, #f8fafc);
+    }
+
+    .theme-toggle-floating {
+      position: fixed;
+      top: 1.5rem;
+      left: 1.5rem;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body class="p-4">
+
+  <div class="login-aurora"></div>
+
+  <!-- THEME TOGGLE BUTTON -->
+  <div class="theme-toggle-floating">
+    <div class="theme-toggle classic-theme-switch" role="group" aria-label="حالت نمایش سیستم">
+      <button data-mode="light" class="theme-btn" title="حالت روز (روشن)">
+        <i data-lucide="sun" class="w-4 h-4"></i>
+        <span class="theme-label text-xs">روشن</span>
+      </button>
+      <button data-mode="dark" class="theme-btn" title="حالت شب (تیره)">
+        <i data-lucide="moon" class="w-4 h-4"></i>
+        <span class="theme-label text-xs">تیره</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="auth-card animate-fadeIn">
+    <!-- LOGO / BRANDING -->
+    <div class="text-center mb-6">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/30 mb-3">
+        <i data-lucide="building-2" class="w-8 h-8 text-white"></i>
+      </div>
+      <h1 class="text-2xl font-black tracking-tight mb-1">ورود به سامانه خوابگاه</h1>
+      <p class="text-xs text-muted">پرتال اختصاصی ساکنین و سرپرستان</p>
+    </div>
+
+    <!-- MESSAGES / ALERTS -->
+    {% if messages %}
+      <div class="mb-4 space-y-2">
+        {% for message in messages %}
+          <div class="p-3 rounded-xl text-xs font-semibold flex items-center gap-2 {% if message.tags == 'error' %}bg-rose-500/15 border border-rose-500/30 text-rose-300{% elif message.tags == 'success' %}bg-emerald-500/15 border border-emerald-500/30 text-emerald-300{% else %}bg-indigo-500/15 border border-indigo-500/30 text-indigo-300{% endif %}">
+            <i data-lucide="{% if message.tags == 'error' %}alert-circle{% elif message.tags == 'success' %}check-circle-2{% else %}info{% endif %}" class="w-4 h-4 shrink-0"></i>
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- FORM ERRORS -->
+    {% if form.non_field_errors %}
+      <div class="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+        <div>
+          {% for error in form.non_field_errors %}
+            <p>{{ error }}</p>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" class="space-y-4">
+      {% csrf_token %}
+
+      <!-- USERNAME / NATIONAL CODE -->
+      <div class="space-y-1.5">
+        <label for="username_field" class="block text-xs font-bold text-muted">کد ملی یا شماره همراه</label>
+        <div class="auth-input-wrapper">
+          <div class="auth-input-icon">
+            <i data-lucide="user" class="w-5 h-5"></i>
+          </div>
+          <input type="text" name="username" id="username_field" required autofocus
+                 class="auth-input"
+                 placeholder="0012345678 یا 0912..."
+                 value="{{ form.username.value|default:'' }}"
+                 autocomplete="username" dir="ltr">
+        </div>
+        {% if form.username.errors %}
+          <p class="text-[11px] text-rose-400 font-medium mt-1">{{ form.username.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <!-- PASSWORD -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <label for="password_field" class="block text-xs font-bold text-muted">کلمه عبور</label>
+          <span class="text-[10px] text-indigo-400">پیش‌فرض: کد ملی ساکن</span>
+        </div>
+        <div class="auth-input-wrapper">
+          <div class="auth-input-icon">
+            <i data-lucide="lock" class="w-5 h-5"></i>
+          </div>
+          <input type="password" name="password" id="password_field" required
+                 class="auth-input pl-10"
+                 placeholder="••••••••"
+                 autocomplete="current-password" dir="ltr">
+          <button type="button" id="toggle_password_btn" class="auth-toggle-pass" aria-label="نمایش کلمه عبور">
+            <i data-lucide="eye" id="toggle_password_icon" class="w-4 h-4"></i>
+          </button>
+        </div>
+        {% if form.password.errors %}
+          <p class="text-[11px] text-rose-400 font-medium mt-1">{{ form.password.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <!-- REMEMBER ME -->
+      <div class="flex items-center justify-between pt-1">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" name="remember_me" id="remember_me_field" checked
+                 class="w-4 h-4 rounded border-gray-600 text-indigo-600 focus:ring-indigo-500 bg-gray-800">
+          <span class="text-xs text-muted font-medium">مرا به خاطر بسپار</span>
+        </label>
+      </div>
+
+      <!-- SUBMIT BUTTON -->
+      <button type="submit" class="auth-btn-primary mt-2">
+        <span>ورود به حساب</span>
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+      </button>
+    </form>
+
+    <!-- FOOTER / HELP -->
+    <div class="mt-6 pt-5 border-t border-white/10 text-center text-xs text-muted space-y-2">
+      <p class="flex items-center justify-center gap-1.5 text-[11px]">
+        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span>سامانه احراز هویت متمرکز خوابگاه دانشجویی</span>
+      </p>
+      <p class="text-[10px] opacity-75">در صورت بروز مشکل در ورود، با دفتر سرپرستی خوابگاه تماس بگیرید.</p>
+    </div>
+  </div>
+
+  <script>
+    // Lucide icons init
+    lucide.createIcons();
+
+    // Toggle password visibility
+    const toggleBtn = document.getElementById('toggle_password_btn');
+    const passwordInput = document.getElementById('password_field');
+    const toggleIcon = document.getElementById('toggle_password_icon');
+
+    if (toggleBtn && passwordInput) {
+      toggleBtn.addEventListener('click', () => {
+        const isPassword = passwordInput.getAttribute('type') === 'password';
+        passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+        toggleIcon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+        lucide.createIcons();
+      });
+    }
+
+    // Theme toggler (Light/Dark mode)
+    const themeButtons = document.querySelectorAll('.theme-btn');
+    const savedTheme = localStorage.getItem('dorm_theme') || 'dark';
+
+    function applyTheme(mode) {
+      if (mode === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.body.classList.add('light-mode');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.body.classList.remove('light-mode');
+      }
+      themeButtons.forEach(btn => {
+        if (btn.dataset.mode === mode) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      localStorage.setItem('dorm_theme', mode);
+    }
+
+    applyTheme(savedTheme);
+
+    themeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        applyTheme(btn.dataset.mode);
+      });
+    });
+  </script>
+</body>
+</html>

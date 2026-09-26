@@ -31,7 +31,11 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['*']
+raw_hosts = config('ALLOWED_HOSTS', default='*')
+ALLOWED_HOSTS = [h.strip() for h in raw_hosts.split(',') if h.strip()]
+
+raw_csrf = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:8000,http://127.0.0.1:8000,http://localhost,http://127.0.0.1')
+CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()]
 
 # Application definition
 
@@ -52,6 +56,7 @@ INSTALLED_APPS = [
     'django_jalali',
     'apps.archive.apps.ArchiveConfig',
     'apps.dashboard.apps.DashboardConfig',
+    'apps.sms_service.apps.SmsServiceConfig',
 
 ]
 
@@ -85,6 +90,7 @@ USE_L10N = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -164,7 +170,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -174,5 +185,28 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# print(SECRET_KEY)
-# print(DEBUG)
+# Authentication & Redirect Settings
+AUTHENTICATION_BACKENDS = [
+    'apps.accounts.backends.NationalCodeOrPhoneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+LOGIN_URL = 'accounts:login'
+LOGIN_REDIRECT_URL = 'dashboard:student'
+LOGOUT_REDIRECT_URL = 'accounts:login'
+
+# Production Security Hardening
+if not DEBUG:
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+    SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+    CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# MeliPayamak SMS Gateway Credentials
+MELIPAYAMAK_API_TOKEN = config('MELIPAYAMAK_API_TOKEN', default='')
+MELIPAYAMAK_SENDER = config('MELIPAYAMAK_SENDER', default='')
+MELIPAYAMAK_API_BASE_URL = config('MELIPAYAMAK_API_BASE_URL', default='https://console.melipayamak.com/api/send/simple')
+SMS_CONSOLE_MODE = config('SMS_CONSOLE_MODE', default=False, cast=bool)
+

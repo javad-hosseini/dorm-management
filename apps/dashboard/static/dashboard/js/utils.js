@@ -30,5 +30,16 @@ const Utils = (() => {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
-  return { toToman, methodLabel, typeLabel, debounce, animateCounter, prefersReducedMotion };
+  function escapeHtml(str){
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  return { toToman, methodLabel, typeLabel, debounce, animateCounter, prefersReducedMotion, escapeHtml };
 })();
+

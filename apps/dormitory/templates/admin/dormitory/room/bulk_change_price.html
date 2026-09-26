@@ -1,0 +1,268 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}افزایش و تغییر نرخ دسته‌جمعی اتاق‌ها | پنل مدیریت{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'dormitory/css/admin_jalali_datepicker.css' %}">
+<style>
+  .bulk-price-container {
+    padding: 24px;
+    direction: rtl;
+    max-width: 950px;
+    margin: 0 auto;
+    font-family: inherit;
+  }
+  .bulk-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .bulk-header {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: white;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bulk-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .bulk-badge {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .bulk-body {
+    padding: 24px;
+  }
+  .info-alert {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-right: 4px solid #3b82f6;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    color: #1e3a8a;
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+  .form-group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+    border-radius: 10px;
+  }
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-field label {
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #334155;
+  }
+  .form-field input {
+    padding: 10px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-field input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  .help-text {
+    font-size: 11.5px;
+    color: #64748b;
+  }
+  .table-responsive {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 24px;
+  }
+  .rooms-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: right;
+  }
+  .rooms-table th {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 10px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid #cbd5e1;
+  }
+  .rooms-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .rooms-table tr:hover td {
+    background: #f8fafc;
+  }
+  .actions-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 20px;
+  }
+  .btn-submit {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-submit:hover {
+    background: #1d4ed8;
+  }
+  .btn-cancel {
+    background: #e2e8f0;
+    color: #334155;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn-cancel:hover {
+    background: #cbd5e1;
+    color: #0f172a;
+  }
+</style>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'dormitory/js/admin_jalali_datepicker.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="bulk-price-container">
+  <div class="bulk-card">
+    <div class="bulk-header">
+      <h2>📈 افزایش و تغییر نرخ دسته‌جمعی اتاق‌ها</h2>
+      <span class="bulk-badge">{{ rooms|length }} اتاق انتخاب‌شده</span>
+    </div>
+
+    <div class="bulk-body">
+      <div class="info-alert">
+        <strong>💡 محافظت از محاسبات و سوابق گذشته:</strong><br>
+        با تغییر نرخ اتاق، محاسبات گذشته (تراکنش‌های قبلی، رسیدها و بدهی ماه‌های قبل از تاریخ شروع) به هیچ وجه دست‌نخورده باقی می‌مانند. نرخ جدید صرفاً از <b>تاریخ شروع اعمال</b> برای دوره‌های بعد لحاظ خواهد شد.
+      </div>
+
+      <form method="post" action="">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="bulk_change_price" />
+        <input type="hidden" name="apply" value="1" />
+        {% for room in rooms %}
+          <input type="hidden" name="_selected_action" value="{{ room.pk }}" />
+        {% endfor %}
+
+        <div class="form-group-grid">
+          <div class="form-field">
+            <label for="new_rent_million_tomans">نرخ جدید اجاره (میلیون تومان) *</label>
+            <input 
+              type="number" 
+              step="0.05" 
+              min="0" 
+              name="new_rent_million_tomans" 
+              id="new_rent_million_tomans" 
+              placeholder="مثلاً 3.8" 
+              required 
+            />
+            <span class="help-text">مثال: ۳.۸ برای ۳ میلیون و ۸۰۰ هزار تومان</span>
+          </div>
+
+          <div class="form-field">
+            <label for="effective_date">تاریخ شروع اعمال نرخ جدید *</label>
+            <input 
+              type="text" 
+              name="effective_date" 
+              id="effective_date" 
+              class="vjDateField form-control" 
+              value="{{ today }}" 
+              required 
+            />
+            <span class="help-text">نرخ جدید از این تاریخ به بعد محاسبه می‌شود.</span>
+          </div>
+
+          <div class="form-field" style="grid-column: 1 / -1;">
+            <label for="note">علت یا شرح تغییر نرخ (اختیاری)</label>
+            <input 
+              type="text" 
+              name="note" 
+              id="note" 
+              placeholder="مثلاً: افزایش قیمت پاییز ۱۴۰۵ یا تصمیم هیئت مدیره" 
+            />
+            <span class="help-text">در تاریخچه نرخ اتاق‌ها ذخیره خواهد شد.</span>
+          </div>
+        </div>
+
+        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #1e293b;">
+          لیست اتاق‌های مشمول تغییر نرخ:
+        </h4>
+        <div class="table-responsive">
+          <table class="rooms-table">
+            <thead>
+              <tr>
+                <th>خوابگاه</th>
+                <th>شماره اتاق</th>
+                <th>ظرفیت</th>
+                <th>ساکنین فعلی</th>
+                <th>اجاره فعلی</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for room in rooms %}
+              <tr>
+                <td>{{ room.dormitory.name }}</td>
+                <td><b>اتاق {{ room.room_number }}</b></td>
+                <td>{{ room.capacity }} نفر</td>
+                <td>{{ room.current_occupants }} نفر</td>
+                <td><b>{{ room.monthly_rent_tomans|floatformat:0 }} تومان</b> ({{ room.monthly_rent|divisibleby:10000000|yesno:"|," }} {{ room.monthly_rent_tomans|divisibleby:1000000|yesno:"|," }} {{ room.monthly_rent_display }})</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-row">
+          <a href="../" class="btn-cancel">انصراف و بازگشت</a>
+          <button type="submit" class="btn-submit">
+            ✅ ثبت نرخ جدید و اعمال از تاریخ مشخص‌شده
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

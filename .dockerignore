@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Python virtual environment & cache
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Local database and env secrets
+.env
+db.sqlite3
+*.log
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary and local reports
+reports/
+*.xlsx
+
+# Local media (keep schema, exclude local test uploads)
+media/id_cards/*
+media/contracts/*
+!media/id_cards/.gitkeep

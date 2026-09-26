@@ -20,6 +20,7 @@ const StudentDB = (() => {
     next_due_date: "-",
     next_due_date_display: "-",
     due_status_display: "-",
+    debt_urgency: "settled",
     days_until_due: 0,
     overdue_days: 0,
     room: { room_number: "-", dormitory: "-", capacity: 0, current_occupants: 0, monthly_rent: 0 },

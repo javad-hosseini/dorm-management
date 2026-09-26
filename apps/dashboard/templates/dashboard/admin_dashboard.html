@@ -103,6 +103,14 @@
             <span class="theme-label">خودکار</span>
           </button>
         </div>
+
+        <!-- Quick Links: Admin & Logout -->
+        <a href="/admin/" class="px-3.5 py-2 rounded-xl glass hover:bg-white/10 text-xs font-bold text-muted hover:text-white transition flex items-center gap-1.5" title="ورود به پنل ادمین جنگو">
+          ⚙️ پنل ادمین
+        </a>
+        <a href="{% url 'accounts:logout' %}" class="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-bold text-rose-300 hover:text-rose-200 transition flex items-center gap-1.5" title="خروج از حساب">
+          🚪 خروج
+        </a>
       </div>
     </div>
 
@@ -120,7 +128,7 @@
       <div class="glass rounded-[1.8rem] p-5 mb-5">
         <div class="flex flex-col md:flex-row gap-3">
           <div class="field flex-1">
-            <input id="search-student" oninput="filterStudents()" placeholder="جستجو: نام، کد ملی، موبایل، اتاق...">
+            <input id="search-student" oninput="filterStudents()" placeholder="جستجو: نام، کد ملی، شماره اتاق (مثال: ۱۰۲)...">
           </div>
           <div class="field">
             <select id="filter-dorm" onchange="filterStudents()">
@@ -128,9 +136,16 @@
             </select>
           </div>
           <div class="field">
+            <select id="filter-room-select" onchange="filterStudents()">
+              <option value="">همه اتاق‌ها</option>
+            </select>
+          </div>
+          <div class="field">
             <select id="filter-status" onchange="filterStudents()">
               <option value="">همه وضعیت‌ها</option>
-              <option value="debt">بدهکار</option>
+              <option value="debt">همه بدهکاران</option>
+              <option value="debt_warning">🟡 تاخیر تا ۱ هفته (مهلت پرداخت)</option>
+              <option value="debt_critical">🔴 تاخیر بیش از ۱ هفته (بحرانی)</option>
               <option value="paid">تسویه</option>
               <option value="incomplete">⚠️ کسری مدارک / ناقص</option>
               <option value="ACTIVE">فعال</option>
@@ -173,30 +188,42 @@
 
     <!-- ROOMS TAB -->
     <div id="section-rooms" class="tab-section hidden">
-      <div class="glass rounded-[1.8rem] p-5 mb-5 flex flex-col md:flex-row justify-between gap-4">
-        <div>
-          <h3 class="font-bold">نمایش اتاق‌ها بر اساس ظرفیت - هرچه ظرفیت بیشتر، باکس بزرگتر</h3>
-          <p class="text-[11px] text-muted mt-1">⚪ خالی: dashed | 🟡 نیمه پر: زرد | 🔵 پر: آبی | حلقه = درصد پر بودن</p>
-        </div>
-        <div class="flex gap-2">
-          <div class="field">
-            <select id="filter-room-dorm" onchange="renderRooms()">
-              <option value="">همه خوابگاه‌ها</option>
-            </select>
+      <div class="glass rounded-[1.8rem] p-5 mb-5">
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div class="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div class="field flex-1 relative">
+              <input id="search-room" oninput="renderRooms()" placeholder="🔍 جستجوی اتاق: شماره اتاق (مثال: ۱۰۲)، نام ساکن..." class="w-full">
+            </div>
+            <div class="field">
+              <select id="filter-room-dorm" onchange="renderRooms()">
+                <option value="">همه خوابگاه‌ها</option>
+              </select>
+            </div>
+            <div class="field">
+              <select id="filter-room-status" onchange="renderRooms()">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="empty">⚪ دارای جای خالی</option>
+                <option value="half">🟡 نیمه‌پر</option>
+                <option value="full">🔵 پر (تکمیل)</option>
+              </select>
+            </div>
           </div>
-          <div class="field">
-            <select id="filter-room-status" onchange="renderRooms()">
-              <option value="">همه</option>
-              <option value="empty">خالی</option>
-              <option value="half">نیمه پر</option>
-              <option value="full">پر</option>
-            </select>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10 text-xs">
+          <div class="flex items-center gap-2 text-muted">
+            <span>اتاق‌های منطبق: <strong id="rooms-count" class="text-white">0</strong> از <span id="rooms-total">0</span> اتاق</span>
+          </div>
+          <div class="flex items-center gap-3 text-[11px] text-muted">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border border-dashed border-white/60"></span> دارای جای خالی</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> نیمه پر</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> پر (تکمیل)</span>
           </div>
         </div>
       </div>
       <div id="rooms-grid" class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
       </div>
     </div>
+
 
     <!-- FINANCE TAB -->
     <div id="section-finance" class="tab-section hidden">

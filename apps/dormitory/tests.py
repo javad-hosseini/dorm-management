@@ -4,9 +4,9 @@ from datetime import timedelta
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
 from apps.accounts.models import Supervisor
-from apps.dormitory.models import Dormitory, Room, Resident, Transaction, DailyNote
+from apps.dormitory.models import Dormitory, Room, Resident, Transaction, DailyNote, get_default_dormitory
 from apps.dormitory.queries import ReportQueries
-from apps.dormitory.admin import RoomForm, TransactionForm, ResidentAdmin, DailyNoteAdmin
+from apps.dormitory.admin import RoomForm, TransactionForm, ResidentAdmin, DailyNoteAdmin, RoomAdmin, TransactionAdmin
 from django.contrib.admin.sites import AdminSite
 
 
@@ -243,9 +243,10 @@ class DormitoryCoreTests(TestCase):
         self.assertTrue(res_overdue.is_in_debt)
         self.assertEqual(res_overdue.overdue_days, 5)
         self.assertEqual(res_overdue.days_until_due, 0)
-        # Total debt is exactly 1 month room rent = 3,500,000 Tomans (not daily penalized)
-        self.assertEqual(res_overdue.total_debt_amount_tomans, 3_500_000)
-        self.assertEqual(len(res_overdue.unpaid_periods), 1)
+        # Total debt is sum of unpaid periods (prorated for partial periods or full month)
+        self.assertEqual(res_overdue.total_debt_amount_tomans, sum(p["amount_tomans"] for p in res_overdue.unpaid_periods))
+        self.assertGreater(res_overdue.total_debt_amount_tomans, 0)
+        self.assertGreaterEqual(len(res_overdue.unpaid_periods), 1)
         self.assertIn("اجاره", res_overdue.unpaid_months_display)
         self.assertEqual(res_overdue.financial_status_summary["status"], "OVERDUE")
         self.assertEqual(res_overdue.financial_status_summary["overdue_days"], 5)
@@ -1256,12 +1257,54 @@ class DepositAndLeaseTests(TestCase):
         self.assertTrue(res_overdue.is_in_debt)
         self.assertEqual(res_overdue.overdue_days, 5)
         self.assertIn("5 روز تاخیر", res_overdue.due_status_display)
+        self.assertEqual(res_overdue.debt_urgency, "warning")
+        self.assertEqual(res_overdue.financial_status_summary["color"], "#f39c12")
+        self.assertEqual(res_overdue.financial_status_summary["severity"], "warning")
 
-        # 3. Export dict & text include settlement & due date
+        # 3. Critical Overdue resident (settled_until 12 days in past > 7 days)
+        res_critical = Resident.objects.create(
+            first_name="بهرام",
+            last_name="صادقی",
+            father_name="پدر",
+            national_code="0099876546",
+            phone_number="09121110020",
+            parent_phone_number="09121110021",
+            has_deposit=True,
+            has_lease=True,
+            status=Resident.Status.ACTIVE,
+            dormitory=self.dormitory,
+            room=self.room,
+            entry_date=today - jdatetime.timedelta(days=45),
+            settled_until=today - jdatetime.timedelta(days=12),
+            registered_by=self.supervisor
+        )
+        self.assertEqual(res_critical.overdue_days, 12)
+        self.assertEqual(res_critical.debt_urgency, "danger")
+        self.assertEqual(res_critical.financial_status_summary["color"], "#e74c3c")
+        self.assertEqual(res_critical.financial_status_summary["severity"], "danger")
+        self.assertIn("12 روز تاخیر", res_critical.due_status_display)
+
+        # 4. Check admin debt_status badge formatting
+        from apps.dormitory.admin import ResidentAdmin
+        from django.contrib.admin.sites import AdminSite
+        admin_instance = ResidentAdmin(Resident, AdminSite())
+        settled_badge = admin_instance.debt_status(res_settled)
+        warning_badge = admin_instance.debt_status(res_overdue)
+        critical_badge = admin_instance.debt_status(res_critical)
+
+        self.assertIn("#27ae60", str(settled_badge))
+        self.assertIn("🟢", str(settled_badge))
+        self.assertIn("#f39c12", str(warning_badge))
+        self.assertIn("🟡", str(warning_badge))
+        self.assertIn("#e74c3c", str(critical_badge))
+        self.assertIn("🔴", str(critical_badge))
+
+        # 5. Export dict & text include settlement & due date
         exp = res_settled.get_export_dict()
         self.assertIn("next_due_date_display", exp)
         self.assertIn("due_status_display", exp)
         self.assertIn("settled_until_display", exp)
+        self.assertIn("debt_urgency", exp)
         txt = res_settled.get_export_text()
         self.assertIn("سررسید موعد", txt)
         self.assertIn("تسویه تا", txt)
@@ -1630,6 +1673,824 @@ class PersianJalaliDatepickerAndDefaultDateTests(TestCase):
         formatted_date = f"{self.yesterday.year:04d}-{self.yesterday.month:02d}-{self.yesterday.day:02d}"
         cleaned = field.clean(formatted_date)
         self.assertEqual(cleaned, self.yesterday)
+
+
+class DefaultDormitoryTests(TestCase):
+    """
+    Test that dormitory fields across all models and admin forms
+    default to 'خوابگاه نوید' (or first available dormitory).
+    """
+
+    def setUp(self):
+        self.site = AdminSite()
+        self.resident_admin = ResidentAdmin(Resident, self.site)
+        self.room_admin = RoomAdmin(Room, self.site)
+        self.transaction_admin = TransactionAdmin(Transaction, self.site)
+        self.dailynote_admin = DailyNoteAdmin(DailyNote, self.site)
+        self.rf = RequestFactory()
+        self.user = User.objects.create_superuser('dorm_admin_test', 'dorm@example.com', 'pass123')
+
+    def test_get_default_dormitory_empty_db(self):
+        """When no dormitories exist, get_default_dormitory returns None without throwing"""
+        self.assertIsNone(get_default_dormitory())
+
+    def test_get_default_dormitory_prefers_navid(self):
+        """When multiple dormitories exist, prefers one with 'نوید' in its name"""
+        dorm_bostan = Dormitory.objects.create(name="خوابگاه بوستان")
+        dorm_navid = Dormitory.objects.create(name="خوابگاه نوید")
+
+        default_id = get_default_dormitory()
+        self.assertEqual(default_id, dorm_navid.id)
+
+    def test_get_default_dormitory_fallback_first(self):
+        """When 'نوید' is not present, falls back to the first dormitory"""
+        dorm_alborz = Dormitory.objects.create(name="خوابگاه البرز")
+        dorm_zagros = Dormitory.objects.create(name="خوابگاه زاگرس")
+
+        default_id = get_default_dormitory()
+        self.assertEqual(default_id, dorm_alborz.id)
+
+    def test_models_dormitory_default_assignment(self):
+        """Instantiating Resident, Room, Transaction, and DailyNote assigns default dormitory"""
+        dorm_navid = Dormitory.objects.create(name="خوابگاه نوید")
+
+        res = Resident()
+        self.assertEqual(res.dormitory_id, dorm_navid.id)
+
+        room = Room()
+        self.assertEqual(room.dormitory_id, dorm_navid.id)
+
+        tx = Transaction()
+        self.assertEqual(tx.dormitory_id, dorm_navid.id)
+
+        note = DailyNote()
+        self.assertEqual(note.dormitory_id, dorm_navid.id)
+
+    def test_admin_changeform_initial_dormitory(self):
+        """Admin changeform initial data contains default dormitory ID for all models"""
+        dorm_navid = Dormitory.objects.create(name="خوابگاه نوید")
+
+        req = self.rf.get('/')
+        req.user = self.user
+
+        for admin_obj in [self.resident_admin, self.room_admin, self.transaction_admin, self.dailynote_admin]:
+            initial = admin_obj.get_changeform_initial_data(req)
+            self.assertIn('dormitory', initial)
+            self.assertEqual(initial['dormitory'], dorm_navid.id)
+
+    def test_admin_forms_unbound_initial_dormitory(self):
+        """Unbound RoomForm and TransactionForm initialize dormitory field with default dormitory"""
+        dorm_navid = Dormitory.objects.create(name="خوابگاه نوید")
+
+        room_form = RoomForm()
+        self.assertEqual(room_form.fields['dormitory'].initial, dorm_navid.id)
+
+        tx_form = TransactionForm()
+        self.assertEqual(tx_form.fields['dormitory'].initial, dorm_navid.id)
+
+
+from apps.dormitory.models import RoomPriceHistory
+
+
+class RoomPriceHistoryAndCalculationsTests(TestCase):
+    def setUp(self):
+        self.supervisor = Supervisor.objects.create(
+            first_name="جواد",
+            last_name="حسینی",
+            national_code="0201014318"
+        )
+        self.dormitory = Dormitory.objects.create(
+            name="خوابگاه مرکزی",
+            address="خیابان اصلی"
+        )
+        # Create room initially with 3.5 Million Tomans (35,000,000 Rials)
+        self.room = Room.objects.create(
+            dormitory=self.dormitory,
+            room_number=202,
+            capacity=4,
+            monthly_rent=35_000_000
+        )
+
+    def test_room_initial_price_history_recorded(self):
+        """Creating a room records baseline price history"""
+        self.assertTrue(self.room.price_history.exists())
+        history = self.room.price_history.first()
+        self.assertEqual(history.monthly_rent, 35_000_000)
+
+    def test_get_rent_for_date_transitions(self):
+        """get_rent_for_date returns old price before effective date and new price on/after"""
+        change_date = jdatetime.date(1405, 7, 1)
+        # Increase price to 3.8 Million Tomans (38,000,000 Rials) from 1405/07/01
+        self.room.set_rent(
+            new_rent_rials=38_000_000,
+            effective_date=change_date,
+            note="افزایش پاییز ۱۴۰۵"
+        )
+
+        # Before change_date (e.g. Shahrivar 1405): old price 35,000,000 Rials (3.5M Tomans)
+        date_before = jdatetime.date(1405, 6, 15)
+        self.assertEqual(self.room.get_rent_for_date(date_before), 35_000_000)
+        self.assertEqual(self.room.get_rent_tomans_for_date(date_before), 3_500_000)
+
+        # On change_date: new price 38,000,000 Rials (3.8M Tomans)
+        self.assertEqual(self.room.get_rent_for_date(change_date), 38_000_000)
+        self.assertEqual(self.room.get_rent_tomans_for_date(change_date), 3_800_000)
+
+        # After change_date (e.g. Aban 1405): new price 38,000,000 Rials (3.8M Tomans)
+        date_after = jdatetime.date(1405, 8, 1)
+        self.assertEqual(self.room.get_rent_for_date(date_after), 38_000_000)
+        self.assertEqual(self.room.get_rent_tomans_for_date(date_after), 3_800_000)
+
+    def test_past_transactions_remain_frozen_after_price_increase(self):
+        """Past transactions and receipts are completely unaffected by subsequent price increases"""
+        resident = Resident.objects.create(
+            first_name="ساکن",
+            last_name="قدیمی",
+            national_code="1234567890",
+            phone_number="09121111111",
+            dormitory=self.dormitory,
+            room=self.room,
+            entry_date=jdatetime.date(1405, 5, 1),
+            settled_until=jdatetime.date(1405, 6, 1),
+            registered_by=self.supervisor
+        )
+
+        # Record payment for Mordad (3.5M Tomans)
+        tx = Transaction.objects.create(
+            resident=resident,
+            dormitory=self.dormitory,
+            amount=35_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 5, 1, 10, 0),
+            period_start=jdatetime.date(1405, 5, 1),
+            period_end=jdatetime.date(1405, 6, 1),
+            is_approved=True,
+            created_by=self.supervisor
+        )
+        self.assertEqual(tx.applicable_rent, 35_000_000)
+        self.assertEqual(tx.amount_in_tomans, 3_500_000)
+
+        # Now increase room rent from 1405/07/01 to 3.8M Tomans
+        self.room.set_rent(
+            new_rent_rials=38_000_000,
+            effective_date=jdatetime.date(1405, 7, 1),
+            note="افزایش قیمت"
+        )
+
+        # Reload tx from database and verify it is completely unchanged
+        tx.refresh_from_db()
+        self.assertEqual(tx.applicable_rent, 35_000_000)
+        self.assertEqual(tx.amount, 35_000_000)
+        self.assertEqual(tx.amount_in_tomans, 3_500_000)
+
+    def test_unpaid_periods_calculate_exact_historical_rates(self):
+        """
+        Debt calculation accurately applies 3.5M for periods before change date
+        and 3.8M for periods on/after change date, without distorting past periods.
+        """
+        from apps.dormitory.jalali_utils import calculate_unpaid_periods
+        # Room price: 3.5M before 1405/07/01, 3.8M on/after 1405/07/01
+        self.room.set_rent(
+            new_rent_rials=38_000_000,
+            effective_date=jdatetime.date(1405, 7, 1),
+            note="افزایش قیمت از مهر"
+        )
+
+        # Suppose a resident entered on 1405/06/01 and owes 2 months up to 1405/07/15:
+        # Period 1: 1405/06/01 -> 1405/07/01 (Shahrivar) -> Rate was 3.5M
+        # Period 2: 1405/07/01 -> 1405/08/01 (Mehr) -> Rate is 3.8M
+        periods = calculate_unpaid_periods(
+            start_date=jdatetime.date(1405, 6, 1),
+            as_of_date=jdatetime.date(1405, 7, 15),
+            monthly_rent_rials=self.room.monthly_rent,
+            rent_resolver=self.room.get_rent_for_date
+        )
+
+        self.assertEqual(len(periods), 2)
+        # Period 1 (Shahrivar): 3,500,000 Tomans
+        self.assertEqual(periods[0]["amount_tomans"], 3_500_000)
+        self.assertEqual(periods[0]["amount_rials"], 35_000_000)
+        # Period 2 (Mehr): 3,800,000 Tomans
+        self.assertEqual(periods[1]["amount_tomans"], 3_800_000)
+        self.assertEqual(periods[1]["amount_rials"], 38_000_000)
+
+        # Total combined debt is exactly 3.5M + 3.8M = 7.3M Tomans
+        total_debt_tomans = sum(p["amount_tomans"] for p in periods)
+        self.assertEqual(total_debt_tomans, 7_300_000)
+
+    def test_resident_model_mixed_debt_sum(self):
+        """Resident model total_debt_amount_tomans accurately sums periods across price changes"""
+        # Set rent to 3.5M up to 1405/07/01, then 3.8M
+        self.room.set_rent(
+            new_rent_rials=38_000_000,
+            effective_date=jdatetime.date(1405, 7, 1),
+            note="افزایش قیمت"
+        )
+
+        # Resident settled until 1405/06/01
+        res = Resident.objects.create(
+            first_name="ساکن",
+            last_name="معوق",
+            national_code="9876543210",
+            phone_number="09129999999",
+            dormitory=self.dormitory,
+            room=self.room,
+            entry_date=jdatetime.date(1405, 5, 1),
+            settled_until=jdatetime.date(1405, 6, 1),
+            registered_by=self.supervisor
+        )
+
+        # Unpaid periods up to 1405/07/10:
+        # Shahrivar (3.5M) + Mehr (3.8M) = 7.3M Tomans
+        from apps.dormitory.jalali_utils import calculate_unpaid_periods
+        periods = calculate_unpaid_periods(
+            start_date=res.settled_until,
+            as_of_date=jdatetime.date(1405, 7, 10),
+            rent_resolver=self.room.get_rent_for_date
+        )
+        self.assertEqual(len(periods), 2)
+        self.assertEqual(periods[0]["amount_tomans"], 3_500_000)
+        self.assertEqual(periods[1]["amount_tomans"], 3_800_000)
+        self.assertEqual(sum(p["amount_tomans"] for p in periods), 7_300_000)
+
+
+class RentExceptionAndDiscountTests(TestCase):
+    """
+    Test exceptional rent deductions/discounts (e.g. fumigation, temporary evacuation),
+    validation of discount reason, full period settlement advancement, and receipt formatting.
+    """
+
+    def setUp(self):
+        self.site = AdminSite()
+        self.supervisor = Supervisor.objects.create(
+            first_name="جواد",
+            last_name="حسینی",
+            national_code="0201014318"
+        )
+        self.dormitory = Dormitory.objects.create(
+            name="خوابگاه نوید",
+            address="خیابان اصلی"
+        )
+        # Room rent is 3 Million Tomans (30,000,000 Rials)
+        self.room = Room.objects.create(
+            dormitory=self.dormitory,
+            room_number=101,
+            capacity=4,
+            monthly_rent=30_000_000
+        )
+        self.resident = Resident.objects.create(
+            first_name="علی",
+            last_name="حسینی",
+            national_code="0012345678",
+            phone_number="09121112233",
+            dormitory=self.dormitory,
+            room=self.room,
+            entry_date=jdatetime.date(1405, 7, 1),
+            settled_until=jdatetime.date(1405, 7, 1),
+            registered_by=self.supervisor
+        )
+
+    def test_transaction_with_discount_settles_full_month(self):
+        """
+        Paying 2.5M with 500k discount for a 3M room covers the full month (3M effective)
+        and advances resident's settled_until by 1 full month.
+        """
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=25_000_000,  # 2.5M Tomans paid
+            discount_amount=5_000_000,  # 500k Tomans discount
+            discount_reason="سم‌پاشی خوابگاه و ۵ روز تخلیه موقت اتاق",
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 5, 10, 0),
+            is_approved=True,
+            created_by=self.supervisor
+        )
+
+        self.assertTrue(tx.has_discount)
+        self.assertEqual(tx.discount_in_tomans, 500_000)
+        self.assertEqual(tx.amount_in_tomans, 2_500_000)
+        self.assertEqual(tx.total_effective_amount, 30_000_000)
+        self.assertEqual(tx.total_effective_amount_in_tomans, 3_000_000)
+        self.assertEqual(tx.period_start, jdatetime.date(1405, 7, 1))
+        self.assertEqual(tx.period_end, jdatetime.date(1405, 8, 1))
+
+        # Resident settled_until must advance to 1405/08/01
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 8, 1))
+
+    def test_transaction_form_requires_reason_when_discount_entered(self):
+        """TransactionForm requires discount_reason if discount_tomans > 0"""
+        form_data = {
+            'resident': self.resident.id,
+            'dormitory': self.dormitory.id,
+            'amount_tomans': 2.5,
+            'discount_tomans': 0.5,
+            'discount_reason': '',  # Empty reason must raise error
+            'transaction_type': Transaction.TransactionType.RENT,
+            'payment_method': Transaction.PaymentMethod.CARD,
+            'payment_date': '1405-07-05 10:00:00',
+        }
+        form = TransactionForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('discount_reason', form.errors)
+
+    def test_transaction_form_valid_with_discount_and_reason(self):
+        """TransactionForm is valid and correctly saves discount fields when reason is provided"""
+        form_data = {
+            'resident': self.resident.id,
+            'dormitory': self.dormitory.id,
+            'amount_tomans': 2.5,
+            'discount_tomans': 0.5,
+            'discount_reason': 'سم‌پاشی خوابگاه و ۵ روز تخلیه موقت اتاق',
+            'transaction_type': Transaction.TransactionType.RENT,
+            'payment_method': Transaction.PaymentMethod.CARD,
+            'payment_date': '1405-07-05 10:00:00',
+            'created_by': self.supervisor.id,
+        }
+        form = TransactionForm(data=form_data)
+        self.assertTrue(form.is_valid(), form.errors)
+        tx = form.save()
+        self.assertEqual(tx.amount, 25_000_000)
+        self.assertEqual(tx.discount_amount, 5_000_000)
+        self.assertEqual(tx.discount_reason, 'سم‌پاشی خوابگاه و ۵ روز تخلیه موقت اتاق')
+        self.assertEqual(tx.total_effective_amount, 30_000_000)
+
+    def test_admin_receipt_display_shows_discount_and_reason(self):
+        """Admin receipt_display includes room rate, discount, reason, and full settlement notice"""
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=25_000_000,
+            discount_amount=5_000_000,
+            discount_reason="سم‌پاشی خوابگاه و تخلیه موقت",
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 5, 10, 0),
+            is_approved=True,
+            created_by=self.supervisor
+        )
+        admin_obj = TransactionAdmin(Transaction, self.site)
+        receipt_html = admin_obj.receipt_display(tx)
+
+        self.assertIn("3,000,000 تومان", receipt_html)
+        self.assertIn("500,000 تومان کسر", receipt_html)
+        self.assertIn("سم‌پاشی خوابگاه و تخلیه موقت", receipt_html)
+        self.assertIn("2,500,000 تومان", receipt_html)
+        self.assertIn("تسویه کامل این دوره ماهانه (با احتساب کسورات)", receipt_html)
+
+    def test_admin_discount_display_badge(self):
+        """Admin discount_display returns formatted badge when discount exists, or '-' otherwise"""
+        admin_obj = TransactionAdmin(Transaction, self.site)
+
+        # Transaction with discount
+        tx_discount = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=25_000_000,
+            discount_amount=5_000_000,
+            discount_reason="سم‌پاشی",
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 5, 10, 0),
+            created_by=self.supervisor
+        )
+        badge = admin_obj.discount_display(tx_discount)
+        self.assertIn("500,000 تومان", badge)
+        self.assertIn("سم‌پاشی", badge)
+
+        # Transaction without discount
+        tx_normal = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=30_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 5, 10, 0),
+            created_by=self.supervisor
+        )
+        self.assertEqual(admin_obj.discount_display(tx_normal), '<span style="color: #94a3b8; font-size: 11px;">-</span>')
+
+
+class ProratedSettlementTests(TestCase):
+    def setUp(self):
+        self.site = AdminSite()
+        self.supervisor = Supervisor.objects.create(
+            first_name="مدیر",
+            last_name="خوابگاه",
+            national_code="0011223344"
+        )
+        self.dormitory = Dormitory.objects.create(
+            name="خوابگاه نوید",
+            address="تهران، خیابان کارگر"
+        )
+        self.room = Room.objects.create(
+            dormitory=self.dormitory,
+            room_number=201,
+            capacity=4,
+            monthly_rent=30_000_000  # 3 Million Tomans per month (in Rials)
+        )
+        self.resident = Resident.objects.create(
+            first_name="ساکن",
+            last_name="روزشمار",
+            national_code="1234567890",
+            phone_number="09120000000",
+            dormitory=self.dormitory,
+            room=self.room,
+            entry_date=jdatetime.date(1405, 7, 1),
+            settled_until=None,
+            registered_by=self.supervisor
+        )
+
+    def test_full_month_settlement(self):
+        """Paying 3,000,000 Tomans for 30-day month Mehr advances settled_until by 30 days to 1405/08/01"""
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=30_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
+            created_by=self.supervisor
+        )
+        self.assertEqual(tx.period_start, jdatetime.date(1405, 7, 1))
+        self.assertEqual(tx.period_end, jdatetime.date(1405, 8, 1))
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 8, 1))
+
+    def test_partial_installment_payment(self):
+        """Paying 2,000,000 Tomans out of 3,000,000 Tomans advances settled_until by 20 days to 1405/07/21"""
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=20_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
+            created_by=self.supervisor
+        )
+        self.assertEqual(tx.period_start, jdatetime.date(1405, 7, 1))
+        self.assertEqual(tx.period_end, jdatetime.date(1405, 7, 21))
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 7, 21))
+
+    def test_second_installment_completing_month(self):
+        """Paying 2M then 1M completes the entire month of Mehr to 1405/08/01"""
+        # First installment: 2M
+        tx1 = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=20_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
+            created_by=self.supervisor
+        )
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 7, 21))
+
+        # Second installment: 1M
+        tx2 = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=10_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 8, 10, 0),
+            created_by=self.supervisor
+        )
+        self.assertEqual(tx2.period_start, jdatetime.date(1405, 7, 21))
+        self.assertEqual(tx2.period_end, jdatetime.date(1405, 8, 1))
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 8, 1))
+
+    def test_unpaid_periods_prorated_debt_calculation(self):
+        """When settled until 1405/07/21 and today is 1405/07/25, remaining debt is 1,000,000 Tomans for 10 days"""
+        self.resident.settled_until = jdatetime.date(1405, 7, 21)
+        self.resident.save()
+
+        from apps.dormitory.jalali_utils import calculate_unpaid_periods
+        periods = calculate_unpaid_periods(
+            start_date=self.resident.settled_until,
+            as_of_date=jdatetime.date(1405, 7, 25),
+            monthly_rent_rials=self.room.monthly_rent
+        )
+        self.assertEqual(len(periods), 1)
+        self.assertEqual(periods[0]['start_date'], jdatetime.date(1405, 7, 21))
+        self.assertEqual(periods[0]['end_date'], jdatetime.date(1405, 8, 1))
+        self.assertEqual(periods[0]['overdue_days'], 4)
+        self.assertEqual(periods[0]['amount_tomans'], 1_000_000)
+
+    def test_transaction_delete_rollbacks_settled_until(self):
+        """Deleting an approved rent transaction rolls back settled_until to remaining transactions or None"""
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=20_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
+            created_by=self.supervisor
+        )
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 7, 21))
+
+        tx.delete()
+        self.resident.refresh_from_db()
+        self.assertIsNone(self.resident.settled_until)
+
+    def test_transaction_unapprove_rollbacks_settled_until(self):
+        """Unapproving a transaction rolls back settled_until"""
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=20_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CASH,
+            is_approved=True,
+            payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
+            created_by=self.supervisor
+        )
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 7, 21))
+
+        tx.is_approved = False
+        tx.save()
+        self.resident.refresh_from_db()
+        self.assertIsNone(self.resident.settled_until)
+
+    def test_manual_override_settled_until_persists_and_continues(self):
+        """Manual change to settled_until by admin acts as the new baseline for next transaction"""
+        self.resident.settled_until = jdatetime.date(1405, 7, 15)
+        self.resident.save()
+
+        # Next transaction starts from 1405/07/15
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=16_000_000,  # 16 days worth
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 15, 10, 0),
+            created_by=self.supervisor
+        )
+        self.assertEqual(tx.period_start, jdatetime.date(1405, 7, 15))
+        self.assertEqual(tx.period_end, jdatetime.date(1405, 8, 1))  # 16 days from 15th reaches 1st of Aban
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 8, 1))
+
+    def test_admin_sync_settled_until_action(self):
+        """ResidentAdmin action sync_settled_until_from_transactions re-syncs correctly"""
+        tx = Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=20_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
+            created_by=self.supervisor
+        )
+        # Artificially alter settled_until
+        self.resident.settled_until = jdatetime.date(1400, 1, 1)
+        self.resident.save()
+
+        from django.test import RequestFactory
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        rf = RequestFactory()
+        req = rf.get('/admin/dormitory/resident/')
+        middleware = SessionMiddleware(lambda r: None)
+        middleware.process_request(req)
+        req.session.save()
+        messages = FallbackStorage(req)
+        setattr(req, '_messages', messages)
+
+        res_admin = ResidentAdmin(Resident, self.site)
+        res_admin.sync_settled_until_from_transactions(req, Resident.objects.filter(id=self.resident.id))
+
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 7, 21))
+
+
+class DebtorsExcelExportTests(TestCase):
+    def setUp(self):
+        self.dormitory = Dormitory.objects.create(name="خوابگاه تست")
+        self.supervisor = Supervisor.objects.create(
+            first_name="مدیر",
+            last_name="تست",
+            national_code="1112223334"
+        )
+        self.room101 = Room.objects.create(
+            dormitory=self.dormitory,
+            room_number="101",
+            capacity=4,
+            monthly_rent=30_000_000  # 3M Tomans
+        )
+        self.room102 = Room.objects.create(
+            dormitory=self.dormitory,
+            room_number="102",
+            capacity=4,
+            monthly_rent=40_000_000  # 4M Tomans
+        )
+
+        today = jdatetime.date.today()
+
+        # 1. Active Debtor 1 (Room 102 - should be sorted second)
+        self.debtor1 = Resident.objects.create(
+            first_name="بهرام",
+            last_name="رادان",
+            phone_number="09121111111",
+            parent_phone_number="09122222222",
+            dormitory=self.dormitory,
+            room=self.room102,
+            entry_date=today - jdatetime.timedelta(days=20),
+            settled_until=today - jdatetime.timedelta(days=10),
+            status=Resident.Status.ACTIVE,
+            registered_by=self.supervisor
+        )
+
+        # 2. Active Debtor 2 (Room 101 - should be sorted first)
+        self.debtor2 = Resident.objects.create(
+            first_name="امیر",
+            last_name="جعفری",
+            phone_number="09133333333",
+            parent_phone_number=None,
+            dormitory=self.dormitory,
+            room=self.room101,
+            entry_date=today - jdatetime.timedelta(days=5),
+            settled_until=None,  # No payments yet
+            status=Resident.Status.ACTIVE,
+            registered_by=self.supervisor
+        )
+
+        # 3. Settled Resident (should be excluded)
+        self.settled_res = Resident.objects.create(
+            first_name="ساکن",
+            last_name="تسویه",
+            phone_number="09144444444",
+            dormitory=self.dormitory,
+            room=self.room101,
+            entry_date=today - jdatetime.timedelta(days=30),
+            settled_until=today + jdatetime.timedelta(days=20),
+            status=Resident.Status.ACTIVE,
+            registered_by=self.supervisor
+        )
+
+        # 4. Inactive/Left Resident in debt (should be excluded as per requirement: only active)
+        self.left_res = Resident.objects.create(
+            first_name="ساکن",
+            last_name="خارج شده",
+            phone_number="09155555555",
+            dormitory=self.dormitory,
+            room=self.room102,
+            entry_date=today - jdatetime.timedelta(days=60),
+            settled_until=today - jdatetime.timedelta(days=30),
+            status=Resident.Status.LEFT,
+            registered_by=self.supervisor
+        )
+
+        # Admin user for testing requests
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_superuser('test_admin', 'admin@test.com', 'admin_pass')
+        self.client.force_login(self.user)
+
+    def test_get_active_debtor_residents(self):
+        from apps.dormitory.services.excel_export import get_active_debtor_residents
+        debtors = get_active_debtor_residents()
+        self.assertEqual(len(debtors), 2)
+        # Verify sorting: room 101 comes before room 102
+        self.assertEqual(debtors[0].id, self.debtor2.id)
+        self.assertEqual(debtors[1].id, self.debtor1.id)
+
+    def test_generate_debtors_excel_workbook(self):
+        import openpyxl
+        from apps.dormitory.services.excel_export import generate_debtors_excel_workbook
+
+        wb = generate_debtors_excel_workbook()
+        ws = wb.active
+
+        # RTL check
+        self.assertTrue(ws.sheet_view.rightToLeft)
+
+        # 8 columns header check
+        headers = [c.value for c in ws[1]]
+        expected_headers = [
+            "شماره اتاق",
+            "اسامی بدهکارا",
+            "تاریخی که تسویه شدن",
+            "بدهی دوره جاری (تومان)",
+            "کل بدهی معوقه (تومان)",
+            "شماره تلفن همراه",
+            "شماره تلفن ضروری",
+            "توضیحات",
+        ]
+        self.assertEqual(headers, expected_headers)
+
+        # Row 2 (debtor 2 in room 101)
+        row2 = [c.value for c in ws[2]]
+        self.assertEqual(row2[0], "101")
+        self.assertEqual(row2[1], "امیر جعفری")
+        self.assertIn("ورود", row2[2])  # Settled_until was None, fallback to entry date
+        self.assertGreater(row2[3], 0)  # Period Debt
+        self.assertGreater(row2[4], 0)  # Total Debt
+        self.assertEqual(ws.cell(2, 4).number_format, '#,##0 "تومان"')
+        self.assertEqual(ws.cell(2, 5).number_format, '#,##0 "تومان"')
+        self.assertEqual(row2[5], "09133333333")
+        self.assertEqual(row2[6], "-")  # Empty emergency phone
+        self.assertEqual(row2[7], "")  # Empty notes
+
+        # Row 3 (debtor 1 in room 102)
+        row3 = [c.value for c in ws[3]]
+        self.assertEqual(row3[0], "102")
+        self.assertEqual(row3[1], "بهرام رادان")
+        self.assertEqual(row3[2], self.debtor1.settled_until.strftime('%Y/%m/%d'))
+        self.assertGreater(row3[3], 0)
+        self.assertGreater(row3[4], 0)
+        self.assertEqual(row3[5], "09121111111")
+        self.assertEqual(row3[6], "09122222222")
+
+        # Summary Row check (Row 4)
+        total_row = ws.max_row
+        self.assertEqual(total_row, 4)
+        self.assertIn("مجموع کل (2 نفر بدهکار)", ws.cell(total_row, 1).value)
+        self.assertEqual(ws.cell(total_row, 4).value, "=SUM(D2:D3)")
+        self.assertEqual(ws.cell(total_row, 5).value, "=SUM(E2:E3)")
+        self.assertEqual(ws.cell(total_row, 4).number_format, '#,##0 "تومان"')
+        self.assertEqual(ws.cell(total_row, 5).number_format, '#,##0 "تومان"')
+
+    def test_partial_payment_deducted_from_period_debt(self):
+        """
+        Verify that when rent is 3,000,000 Tomans and resident pays 1,000,000 Tomans,
+        the period debt column reflects 2,000,000 Tomans (3M - 1M).
+        """
+        from apps.dormitory.services.excel_export import get_period_debt_tomans
+        today = jdatetime.date.today()
+
+        # Resident with 3M monthly rent
+        res = Resident.objects.create(
+            first_name="مهدی",
+            last_name="پرداختی",
+            phone_number="09199999999",
+            dormitory=self.dormitory,
+            room=self.room101,  # 30,000,000 Rials = 3,000,000 Tomans
+            entry_date=jdatetime.date(today.year, today.month, 1),
+            settled_until=jdatetime.date(today.year, today.month, 1),
+            status=Resident.Status.ACTIVE,
+            registered_by=self.supervisor
+        )
+
+        # Before payment: period debt is 3,000,000 Tomans
+        self.assertEqual(get_period_debt_tomans(res), 3_000_000)
+
+        # Pay 1,000,000 Tomans (10,000,000 Rials) for rent
+        tx = Transaction.objects.create(
+            resident=res,
+            dormitory=self.dormitory,
+            amount=10_000_000,  # 1M Tomans
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=jdatetime.datetime.now(),
+            created_by=self.supervisor
+        )
+        res.refresh_from_db()
+
+        # Period debt should now have the 1,000,000 Tomans deducted: 2,000,000 Tomans remaining!
+        period_debt = get_period_debt_tomans(res)
+        self.assertEqual(period_debt, 2_000_000)
+
+    def test_export_debtors_excel_views(self):
+
+        # 1. Admin model view
+        resp1 = self.client.get('/admin/dormitory/resident/export-debtors-excel/')
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(resp1['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertIn('.xlsx', resp1['Content-Disposition'])
+
+        # 2. Direct top menu view
+        resp2 = self.client.get('/admin/export-debtors-excel/')
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    def test_export_debtors_action(self):
+        # Admin action on changelist
+        resp = self.client.post('/admin/dormitory/resident/', {
+            'action': 'export_debtors_to_excel_action',
+            '_selected_action': [self.debtor1.id, self.settled_res.id]
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    def test_changelist_button_rendered(self):
+        resp = self.client.get('/admin/dormitory/resident/')
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode('utf-8')
+        self.assertIn('خروجی اکسل بدهکاران', content)
+        self.assertIn('/admin/dormitory/resident/export-debtors-excel/', content)
+
+
+
 
 
 

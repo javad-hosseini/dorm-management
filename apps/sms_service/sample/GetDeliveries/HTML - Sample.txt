@@ -1,0 +1,7 @@
+POST /api/SendSMS/GetDeliveries2 HTTP/1.1
+Host: rest.payamak-panel.com
+Cache-Control: no-cache
+Postman-Token: b48f2704-f48f-8c9b-366e-cf786166f5a2
+Content-Type: application/x-www-form-urlencoded
+
+username=YourUserName&password=YourPassWord&recID=YourRecID

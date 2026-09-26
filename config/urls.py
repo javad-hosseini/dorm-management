@@ -18,14 +18,31 @@ from django.contrib import admin
 from django.urls import path, include
 
 
-from apps.dormitory.views import ai_daily_loader_view
+from apps.dormitory.views import ai_daily_loader_view, export_debtors_excel_view
 from django.conf import settings
 from django.conf.urls.static import static
 
+from django.shortcuts import redirect
+from django.http import JsonResponse
+from django.db import connection
+
+
+def health_check_view(request):
+    try:
+        connection.ensure_connection()
+        return JsonResponse({"status": "ok", "database": "connected"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=503)
+
+
 urlpatterns = [
+    path('', lambda request: redirect('accounts:login'), name='root'),
+    path('health/', health_check_view, name='health_check'),
+    path('accounts/', include('apps.accounts.urls', namespace='accounts')),
     path('dashboard/', include('apps.dashboard.urls'), name="dashboard"),
     path('i18n/', include('django.conf.urls.i18n')),
     path('admin/ai-loader/', ai_daily_loader_view, name='ai_daily_loader'),
+    path('admin/export-debtors-excel/', export_debtors_excel_view, name='admin_export_debtors_excel'),
     path('admin/', admin.site.urls),
 ]
 

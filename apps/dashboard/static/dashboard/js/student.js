@@ -128,7 +128,6 @@ const Student = (() => {
           <div class="surface-subtle rounded-2xl p-4 flex justify-between"><span class="text-[11px] text-muted">نام کامل</span><b class="text-sm">${r.full_name}</b></div>
           <div class="surface-subtle rounded-2xl p-4 flex justify-between"><span class="text-[11px] text-muted">شماره تلفن</span><b class="text-sm">${r.phone || '-'}</b></div>
           <div class="surface-subtle rounded-2xl p-4 flex justify-between"><span class="text-[11px] text-muted">تاریخ ورود</span><b class="text-sm">${r.entry || '-'}</b></div>
-          <div class="surface-subtle rounded-2xl p-4 flex justify-between"><span class="text-[11px] text-muted">کد ملی</span><b class="text-sm">${r.national || '-'}</b></div>
         </div>
       `;
     }
@@ -196,6 +195,8 @@ const Student = (() => {
     const isInDebt = Boolean(me.is_in_debt);
     const overdueDays = me.overdue_days || 0;
     const daysUntilDue = me.days_until_due || 0;
+    const isWarning = isInDebt && overdueDays <= 7;
+    const isCritical = isInDebt && overdueDays > 7;
 
     // Sidebar & Profile Header
     const avatarEl = document.getElementById('student-avatar');
@@ -215,10 +216,16 @@ const Student = (() => {
 
     const debtBadgeEl = document.getElementById('debt-badge');
     if (debtBadgeEl) {
-      debtBadgeEl.innerText = isInDebt ? (overdueDays === 0 ? 'سررسید امروز' : `${overdueDays} روز تاخیر`) : 'تسویه به روز';
-      debtBadgeEl.className = isInDebt
-        ? 'text-[10px] bg-rose-500 text-white px-3 py-1 rounded-full font-bold'
-        : 'text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full font-bold';
+      if (isCritical) {
+        debtBadgeEl.innerText = `🔴 ${overdueDays} روز تاخیر (بدهکار)`;
+        debtBadgeEl.className = 'text-[10px] bg-rose-500 text-white px-3 py-1 rounded-full font-bold shadow-sm';
+      } else if (isWarning) {
+        debtBadgeEl.innerText = overdueDays === 0 ? '🟡 سررسید امروز (مهلت پرداخت)' : `🟡 ${overdueDays} روز تاخیر (هشدار مهلت)`;
+        debtBadgeEl.className = 'text-[10px] bg-amber-500 text-slate-900 px-3 py-1 rounded-full font-bold shadow-sm';
+      } else {
+        debtBadgeEl.innerText = '🟢 تسویه به روز';
+        debtBadgeEl.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full font-bold';
+      }
     }
 
     // Quick Finance widget (sidebar)
@@ -226,12 +233,23 @@ const Student = (() => {
     if (qSettled) qSettled.innerText = me.settled_until || 'فاقد پرداخت';
 
     const qDue = document.getElementById('quick-due');
-    if (qDue) qDue.innerText = dueDate;
+    if (qDue) {
+      qDue.innerText = dueDate;
+      qDue.className = `font-bold ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}`;
+    }
 
     const qDueStatus = document.getElementById('quick-due-status');
     if (qDueStatus) {
-      qDueStatus.innerText = isInDebt ? (overdueDays === 0 ? 'سررسید امروز' : `${overdueDays} روز تاخیر`) : (daysUntilDue === 0 ? 'سررسید امروز' : `${daysUntilDue} روز مانده`);
-      qDueStatus.className = isInDebt ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
+      if (isCritical) {
+        qDueStatus.innerText = `🔴 ${overdueDays} روز تاخیر`;
+        qDueStatus.className = 'text-rose-400 font-bold';
+      } else if (isWarning) {
+        qDueStatus.innerText = overdueDays === 0 ? '🟡 سررسید امروز' : `🟡 ${overdueDays} روز تاخیر`;
+        qDueStatus.className = 'text-amber-400 font-bold';
+      } else {
+        qDueStatus.innerText = daysUntilDue === 0 ? '🟢 سررسید امروز' : `🟢 ${daysUntilDue} روز مانده`;
+        qDueStatus.className = 'text-emerald-400 font-bold';
+      }
     }
 
     const qRent = document.getElementById('quick-rent');
@@ -244,9 +262,14 @@ const Student = (() => {
     const dueDesc = document.getElementById('dash-due-desc');
 
     if (dueTitle) {
-      if (isInDebt) {
-        dueTitle.innerText = overdueDays === 0 ? '⚠️ سررسید موعد پرداخت فرا رسیده است (امروز)' : `🔴 دارای ${overdueDays} روز تاخیر در پرداخت اجاره`;
+      if (isCritical) {
+        dueTitle.innerText = `🔴 دارای ${overdueDays} روز تاخیر در پرداخت اجاره (بیش از یک هفته)`;
         dueTitle.className = 'font-bold text-sm md:text-base text-rose-400 mt-0.5';
+      } else if (isWarning) {
+        dueTitle.innerText = overdueDays === 0
+          ? '⚠️ سررسید موعد پرداخت اجاره فرا رسیده است (امروز)'
+          : `⚠️ هشدار مهلت پرداخت: دارای ${overdueDays} روز تاخیر (کمتر از یک هفته)`;
+        dueTitle.className = 'font-bold text-sm md:text-base text-amber-400 mt-0.5';
       } else {
         dueTitle.innerText = daysUntilDue === 0 ? '🟡 موعد پرداخت اجاره امروز است' : `🟢 وضعیت حساب تسویه است (${daysUntilDue} روز تا سررسید بعدی)`;
         dueTitle.className = 'font-bold text-sm md:text-base text-emerald-400 mt-0.5';
@@ -258,16 +281,26 @@ const Student = (() => {
     }
 
     if (dueBanner) {
-      dueBanner.className = isInDebt
-        ? 'mt-4 p-4 rounded-2xl glass border border-rose-500/30 bg-rose-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3'
-        : 'mt-4 p-4 rounded-2xl glass border border-emerald-500/30 bg-emerald-500/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
+      if (isCritical) {
+        dueBanner.className = 'mt-4 p-4 rounded-2xl glass border border-rose-500/30 bg-rose-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
+      } else if (isWarning) {
+        dueBanner.className = 'mt-4 p-4 rounded-2xl glass border border-amber-500/30 bg-amber-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
+      } else {
+        dueBanner.className = 'mt-4 p-4 rounded-2xl glass border border-emerald-500/30 bg-emerald-500/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
+      }
     }
 
     if (dueIcon) {
-      dueIcon.innerHTML = isInDebt ? '⚠️' : '🗓️';
-      dueIcon.className = isInDebt
-        ? 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-rose-500/20 text-rose-400'
-        : 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-emerald-500/20 text-emerald-400';
+      if (isCritical) {
+        dueIcon.innerHTML = '🚨';
+        dueIcon.className = 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-rose-500/20 text-rose-400';
+      } else if (isWarning) {
+        dueIcon.innerHTML = '⚠️';
+        dueIcon.className = 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-amber-500/20 text-amber-400';
+      } else {
+        dueIcon.innerHTML = '🗓️';
+        dueIcon.className = 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-emerald-500/20 text-emerald-400';
+      }
     }
 
     // Dashboard Stat Tiles
@@ -277,24 +310,44 @@ const Student = (() => {
     const dashDormCap = document.getElementById('dash-dorm-capacity');
     if (dashDormCap) dashDormCap.innerText = `${dormName} - ظرفیت ${me.room?.capacity || 0}`;
 
+    const dashPaymentTile = document.getElementById('dash-payment-tile');
+    if (dashPaymentTile) {
+      dashPaymentTile.className = `stat-tile glass border ${isCritical ? 'border-rose-500/30' : (isWarning ? 'border-amber-500/30' : 'border-emerald-500/25')}`;
+    }
+
+    const dashDueTile = document.getElementById('dash-due-tile');
+    if (dashDueTile) {
+      dashDueTile.className = `stat-tile glass border ${isCritical ? 'border-rose-500/30' : (isWarning ? 'border-amber-500/30' : 'border-amber-500/25')}`;
+    }
+
     const dashPayStatus = document.getElementById('dash-pay-status');
     if (dashPayStatus) {
       dashPayStatus.innerText = me.settled_until || 'تسویه نشده';
-      dashPayStatus.className = `font-bold text-lg ${isInDebt ? 'text-rose-400' : 'text-blue-400'}`;
+      dashPayStatus.className = `font-bold text-lg ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-blue-400')}`;
     }
 
     const dashSettledInfo = document.getElementById('dash-settled-info');
-    if (dashSettledInfo) dashSettledInfo.innerText = isInDebt ? `بدهکار (${me.unpaid_months || 'معوقه'})` : `پوشش کامل تا تاریخ فوق`;
+    if (dashSettledInfo) {
+      dashSettledInfo.innerText = isCritical
+        ? `بدهکار (${me.unpaid_months || 'معوقه بیش از ۱ هفته'})`
+        : (isWarning ? `مهلت پرداخت (${me.unpaid_months || 'تا ۱ هفته'})` : 'پوشش کامل تا تاریخ فوق');
+    }
 
     const dashDueDate = document.getElementById('dash-due-date');
     if (dashDueDate) {
       dashDueDate.innerText = dueDate;
-      dashDueDate.className = `font-bold text-lg ${isInDebt ? 'text-rose-400' : 'text-amber-400'}`;
+      dashDueDate.className = `font-bold text-lg ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}`;
     }
 
     const dashDueCountdown = document.getElementById('dash-due-countdown');
     if (dashDueCountdown) {
-      dashDueCountdown.innerText = isInDebt ? `${overdueDays} روز گذشته از موعد` : `${daysUntilDue} روز مانده به سررسید`;
+      if (isCritical) {
+        dashDueCountdown.innerText = `🔴 ${overdueDays} روز گذشته از موعد (بیش از یک هفته)`;
+      } else if (isWarning) {
+        dashDueCountdown.innerText = overdueDays === 0 ? '🟡 امروز روز سررسید است' : `🟡 ${overdueDays} روز گذشته از موعد (مهلت یک هفته)`;
+      } else {
+        dashDueCountdown.innerText = `🟢 ${daysUntilDue} روز مانده به سررسید`;
+      }
     }
 
     const dashContractStatus = document.getElementById('dash-contract-status');
@@ -334,12 +387,15 @@ const Student = (() => {
     if (profSettled) profSettled.innerText = settledUntil;
 
     const profDueDate = document.getElementById('prof-due-date');
-    if (profDueDate) profDueDate.innerText = dueDate;
+    if (profDueDate) {
+      profDueDate.innerText = dueDate;
+      profDueDate.className = `font-bold mt-1 ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}`;
+    }
 
     const profDueStatus = document.getElementById('prof-due-status');
     if (profDueStatus) {
       profDueStatus.innerText = dueStatus;
-      profDueStatus.className = `font-bold mt-1 ${isInDebt ? 'text-rose-400' : 'text-emerald-400'}`;
+      profDueStatus.className = `font-bold mt-1 ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}`;
     }
 
     // Pay Tab elements
@@ -350,12 +406,15 @@ const Student = (() => {
     if (paySettled) paySettled.innerText = settledUntil;
 
     const payDue = document.getElementById('pay-due-date');
-    if (payDue) payDue.innerText = dueDate;
+    if (payDue) {
+      payDue.innerText = dueDate;
+      payDue.className = `font-bold ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}`;
+    }
 
     const payDueStatus = document.getElementById('pay-due-status');
     if (payDueStatus) {
       payDueStatus.innerText = dueStatus;
-      payDueStatus.className = isInDebt ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
+      payDueStatus.className = isCritical ? 'text-rose-400 font-bold' : (isWarning ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold');
     }
 
     const payAmount = document.getElementById('pay-amount-toman');

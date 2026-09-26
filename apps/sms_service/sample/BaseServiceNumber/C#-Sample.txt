@@ -1,0 +1,6 @@
+var client = new RestClient("https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber");
+var request = new RestRequest(Method.POST);
+request.AddHeader("cache-control", "no-cache");
+request.AddHeader("Content-Type", "application/x-www-form-urlencoded");
+request.AddParameter("undefined", "username=YourUserName&password=YourPassword&to=912000&text=msg%3Btest123&bodyId=123", ParameterType.RequestBody);
+IRestResponse response = client.Execute(request);

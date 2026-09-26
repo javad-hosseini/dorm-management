@@ -1,0 +1,26 @@
+<?php
+
+$client = new http\Client;
+$request = new http\Client\Request;
+
+$body = new http\Message\Body;
+$body->append(new http\QueryString(array(
+  'username' => 'YourUserName',
+  'password' => 'YourPassWord',
+  'recID' => 'YourRecID'
+)));
+
+$request->setRequestUrl('http://rest.payamak-panel.com/api/SendSMS/GetDeliveries2');
+$request->setRequestMethod('POST');
+$request->setBody($body);
+
+$request->setHeaders(array(
+  'content-type' => 'application/x-www-form-urlencoded',
+  'postman-token' => '78f8dc6b-8904-753c-e54d-ed2189ef12ef',
+  'cache-control' => 'no-cache'
+));
+
+$client->enqueue($request)->send();
+$response = $client->getResponse();
+
+echo $response->getBody();

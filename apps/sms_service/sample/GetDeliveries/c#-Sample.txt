@@ -1,0 +1,7 @@
+var client = new RestClient("http://rest.payamak-panel.com/api/SendSMS/GetDeliveries2");
+var request = new RestRequest(Method.POST);
+request.AddHeader("content-type", "application/x-www-form-urlencoded");
+request.AddHeader("postman-token", "9c7a05ca-69d4-9df5-0f12-1ce515c27368");
+request.AddHeader("cache-control", "no-cache");
+request.AddParameter("application/x-www-form-urlencoded", "username=YourUserName&password=YourPassWord&recID=YourRecID", ParameterType.RequestBody);
+IRestResponse response = client.Execute(request);

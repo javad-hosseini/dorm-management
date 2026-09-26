@@ -1,0 +1,29 @@
+<?php
+
+$request = new HttpRequest();
+$request->setUrl('http://rest.payamak-panel.com/api/SendSMS/GetMessages');
+$request->setMethod(HTTP_METH_POST);
+
+$request->setHeaders(array(
+  'postman-token' => 'd9d37c80-ad22-3f42-1d98-0bfd4da38bea',
+  'cache-control' => 'no-cache',
+  'content-type' => 'application/x-www-form-urlencoded'
+));
+
+$request->setContentType('application/x-www-form-urlencoded');
+$request->setPostFields(array(
+  'username' => 'YourUserName',
+  'password' => 'YourPassWord',
+  'location' => '-1',
+  'from' => '1000...',
+  'index' => '0',
+  'count' => '100'
+));
+
+try {
+  $response = $request->send();
+
+  echo $response->getBody();
+} catch (HttpException $ex) {
+  echo $ex;
+}

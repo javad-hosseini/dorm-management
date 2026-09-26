@@ -1,0 +1,35 @@
+var qs = require("querystring");
+var http = require("http");
+
+var options = {
+  "method": "POST",
+  "hostname": "rest.payamak-panel.com",
+  "port": null,
+  "path": "/api/SendSMS/GetMessages",
+  "headers": {
+    "content-type": "application/x-www-form-urlencoded",
+    "cache-control": "no-cache",
+    "postman-token": "91730111-40da-cb46-c437-24e4e9e0f501"
+  }
+};
+
+var req = http.request(options, function (res) {
+  var chunks = [];
+
+  res.on("data", function (chunk) {
+    chunks.push(chunk);
+  });
+
+  res.on("end", function () {
+    var body = Buffer.concat(chunks);
+    console.log(body.toString());
+  });
+});
+
+req.write(qs.stringify({ username: 'YourUserName',
+  password: 'YourPassWord',
+  location: '-1',
+  from: '1000...',
+  index: '0',
+  count: '100' }));
+req.end();

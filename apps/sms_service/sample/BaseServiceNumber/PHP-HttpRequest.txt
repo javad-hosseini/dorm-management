@@ -1,0 +1,27 @@
+<?php
+
+$request = new HttpRequest();
+$request->setUrl('http://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber');
+$request->setMethod(HTTP_METH_POST);
+
+$request->setHeaders(array(
+  'content-type' => 'application/x-www-form-urlencoded',
+  'cache-control' => 'no-cache'
+));
+
+$request->setContentType('application/x-www-form-urlencoded');
+$request->setPostFields(array(
+  'username' => 'YourUserName',
+  'password' => 'YourPassWord',
+  'to' => '936...',
+  'bodyId' => '123',
+  'text' => 'TestSMS;123'
+));
+
+try {
+  $response = $request->send();
+
+  echo $response->getBody();
+} catch (HttpException $ex) {
+  echo $ex;
+}

@@ -1,0 +1,6 @@
+HttpResponse<String> response = Unirest.post("http://rest.payamak-panel.com/api/SendSMS/GetDeliveries2")
+  .header("cache-control", "no-cache")
+  .header("postman-token", "27ea3baa-2807-b062-3167-1a14f68fe143")
+  .header("content-type", "application/x-www-form-urlencoded")
+  .body("username=YourUserName&password=YourPassWord&recID=YourRecID")
+  .asString();
