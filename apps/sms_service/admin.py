@@ -295,6 +295,25 @@ class SmsCampaignAdmin(admin.ModelAdmin):
             if csv_contact_ids:
                 raw_contact_ids.extend([x.strip() for x in csv_contact_ids.split(",") if x.strip()])
 
+            custom_contacts_json = request.POST.get("custom_contacts_json", "")
+            if custom_contacts_json:
+                try:
+                    import json
+                    from .utils import normalize_phone_number
+                    new_contacts_data = json.loads(custom_contacts_json)
+                    for item in new_contacts_data:
+                        c_name = str(item.get("name", "")).strip() or "مخاطب دلخواه"
+                        c_phone = str(item.get("phone", "")).strip()
+                        if c_phone:
+                            norm_phone = normalize_phone_number(c_phone)
+                            contact, _ = Contact.objects.get_or_create(
+                                phone_number=norm_phone,
+                                defaults={"full_name": c_name, "notes": "ثبت سریع از مرکز ارسال پیامک"}
+                            )
+                            raw_contact_ids.append(str(contact.id))
+                except Exception:
+                    pass
+
             select_all_debtors = request.POST.get("select_all_debtors") == "1"
             select_all_active = request.POST.get("select_all_active") == "1"
             select_all_contacts = request.POST.get("select_all_contacts") == "1"

@@ -45,6 +45,12 @@
         color: #475569;
         margin-left: 6px;
         transition: all 0.2s ease;
+        cursor: pointer !important;
+        user-select: none;
+    }
+    .nav-pills .nav-link:hover {
+        background-color: #f1f5f9;
+        color: #1e293b;
     }
     .nav-pills .nav-link.active {
         background-color: #1e3a8a !important;
@@ -54,6 +60,22 @@
     .nav-pills .nav-link.active.tab-debtors {
         background-color: #dc2626 !important;
         box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+    .nav-pills .nav-link.active.tab-residents {
+        background-color: #059669 !important;
+        box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+    }
+    .nav-pills .nav-link.active.tab-contacts {
+        background-color: #0284c7 !important;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+    }
+    /* Guarantee active tab pane is always displayed and non-active is hidden */
+    .tab-content > .tab-pane {
+        display: none !important;
+    }
+    .tab-content > .tab-pane.active,
+    .tab-content > .tab-pane.show.active {
+        display: block !important;
     }
     .recipient-counter-bar {
         background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
@@ -187,6 +209,7 @@
         <input type="hidden" name="step" value="preview">
         <input type="hidden" name="selected_residents_csv" id="selected_residents_csv" value="">
         <input type="hidden" name="selected_contacts_csv" id="selected_contacts_csv" value="">
+        <input type="hidden" name="custom_contacts_json" id="custom_contacts_json" value="[]">
 
         <!-- Recipient Selection Card -->
         <div class="sms-card">
@@ -209,17 +232,17 @@
                 <!-- Navigation Tabs -->
                 <ul class="nav nav-pills mb-3" id="recipientTabs" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link active tab-debtors" id="debtors-tab" data-toggle="pill" href="#tab-debtors-content" role="tab">
+                        <a class="nav-link active tab-debtors" id="debtors-tab" data-target="#tab-debtors-content" href="#tab-debtors-content" role="tab" aria-selected="true">
                             <i class="fas fa-hand-holding-usd ml-1"></i> بدهکاران خوابگاه ({{ total_debtors_count }})
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" id="residents-tab" data-toggle="pill" href="#tab-residents-content" role="tab">
+                        <a class="nav-link tab-residents" id="residents-tab" data-target="#tab-residents-content" href="#tab-residents-content" role="tab" aria-selected="false">
                             <i class="fas fa-user-friends ml-1"></i> کلیه ساکنین فعال ({{ total_active_count }})
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" id="contacts-tab" data-toggle="pill" href="#tab-contacts-content" role="tab">
+                        <a class="nav-link tab-contacts" id="contacts-tab" data-target="#tab-contacts-content" href="#tab-contacts-content" role="tab" aria-selected="false">
                             <i class="fas fa-address-book ml-1"></i> دفترچه مخاطبین ({{ total_contacts_count }})
                         </a>
                     </li>
@@ -347,6 +370,33 @@
 
                     <!-- Tab 3: Contact Book -->
                     <div class="tab-pane fade" id="tab-contacts-content" role="tabpanel">
+
+                        <!-- Quick Add Arbitrary / New Contact Card -->
+                        <div class="card mb-3 border shadow-none" style="background: #f8fafc; border-color: #cbd5e1 !important; border-radius: 8px;">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="font-weight-bold text-dark" style="font-size: 0.95rem;">
+                                        <i class="fas fa-user-plus text-info ml-1"></i> افزودن سریع شماره / مخاطب دلخواه به لیست ارسال:
+                                    </span>
+                                    <span class="text-muted small">شماره پس از افزودن، به صورت خودکار انتخاب می‌شود.</span>
+                                </div>
+                                <div class="row align-items-center" style="row-gap: 8px;">
+                                    <div class="col-md-4 col-sm-6">
+                                        <input type="text" id="quickContactName" class="form-control form-control-sm" placeholder="نام و عنوان مخاطب (اختیاری)">
+                                    </div>
+                                    <div class="col-md-5 col-sm-6">
+                                        <input type="text" id="quickContactPhone" class="form-control form-control-sm text-left font-monospace" dir="ltr" placeholder="شماره موبایل (مثلاً 09121234567)">
+                                    </div>
+                                    <div class="col-md-3 col-sm-12">
+                                        <button type="button" class="btn btn-sm btn-info btn-block font-weight-bold shadow-sm" id="btnQuickAddContact">
+                                            <i class="fas fa-plus ml-1"></i> افزودن و انتخاب
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="quickContactError" class="small text-danger font-weight-bold mt-1" style="display: none;"></div>
+                            </div>
+                        </div>
+
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <div>
                                 <button type="button" class="btn btn-sm btn-outline-info font-weight-bold ml-2" id="btnSelectAllContacts">
@@ -495,6 +545,144 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var csvResidentsEl = document.getElementById("selected_residents_csv");
     var csvContactsEl = document.getElementById("selected_contacts_csv");
+    var customContactsJsonEl = document.getElementById("custom_contacts_json");
+
+    // ----------------------------------------------------
+    // 1. Tab Switching (Native Vanilla JS - 100% Reliable)
+    // ----------------------------------------------------
+    var tabLinks = document.querySelectorAll("#recipientTabs .nav-link");
+    var tabPanes = document.querySelectorAll("#recipientTabsContent .tab-pane");
+
+    function activateTab(targetLink) {
+        if (!targetLink) return;
+        var targetSelector = targetLink.getAttribute("data-target") || targetLink.getAttribute("href");
+        var targetPane = document.querySelector(targetSelector);
+        if (!targetPane) return;
+
+        tabLinks.forEach(function(l) {
+            l.classList.remove("active");
+            l.setAttribute("aria-selected", "false");
+        });
+        targetLink.classList.add("active");
+        targetLink.setAttribute("aria-selected", "true");
+
+        tabPanes.forEach(function(p) {
+            p.classList.remove("show", "active");
+            p.style.display = "none";
+        });
+
+        targetPane.style.display = "block";
+        targetPane.classList.add("show", "active");
+    }
+
+    tabLinks.forEach(function(link) {
+        link.addEventListener("click", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            activateTab(this);
+        });
+    });
+
+    // Auto-open requested tab from URL params if present
+    var urlParams = new URLSearchParams(window.location.search);
+    var requestedTab = urlParams.get("tab") || (urlParams.get("contact_ids") ? "contacts" : (urlParams.get("resident_ids") ? "residents" : ""));
+    if (requestedTab === "contacts") {
+        var cTab = document.getElementById("contacts-tab");
+        if (cTab) activateTab(cTab);
+    } else if (requestedTab === "residents") {
+        var rTab = document.getElementById("residents-tab");
+        if (rTab) activateTab(rTab);
+    }
+
+    // ----------------------------------------------------
+    // 2. Quick Add Arbitrary / New Contact
+    // ----------------------------------------------------
+    var quickContactName = document.getElementById("quickContactName");
+    var quickContactPhone = document.getElementById("quickContactPhone");
+    var quickContactError = document.getElementById("quickContactError");
+    var btnQuickAddContact = document.getElementById("btnQuickAddContact");
+    var customContactsList = [];
+
+    if (btnQuickAddContact) {
+        btnQuickAddContact.addEventListener("click", function() {
+            if (quickContactError) {
+                quickContactError.style.display = "none";
+                quickContactError.innerText = "";
+            }
+
+            var name = (quickContactName.value || "").trim() || "مخاطب دلخواه";
+            var rawPhone = (quickContactPhone.value || "").trim();
+
+            // Convert Persian / Arabic digits to English
+            var phone = rawPhone.replace(/[۰-۹]/g, function(d) { return d.charCodeAt(0) - 1776; })
+                                .replace(/[٠-٩]/g, function(d) { return d.charCodeAt(0) - 1632; });
+            var cleanDigits = phone.replace(/\D/g, "");
+            if (cleanDigits.startsWith("98")) {
+                cleanDigits = "0" + cleanDigits.slice(2);
+            } else if (cleanDigits.length === 10 && cleanDigits.startsWith("9")) {
+                cleanDigits = "0" + cleanDigits;
+            }
+
+            if (!/^09\d{9}$/.test(cleanDigits)) {
+                if (quickContactError) {
+                    quickContactError.innerText = "لطفاً یک شماره موبایل معتبر ایران (۱۱ رقم با پیش‌شماره 09) وارد کنید.";
+                    quickContactError.style.display = "block";
+                }
+                quickContactPhone.focus();
+                return;
+            }
+
+            // Check if already in custom list
+            var already = customContactsList.some(function(item) { return item.phone === cleanDigits; });
+            if (already) {
+                if (quickContactError) {
+                    quickContactError.innerText = "این شماره قبلاً در لیست مخاطبین جدید ثبت شده است.";
+                    quickContactError.style.display = "block";
+                }
+                return;
+            }
+
+            // Add to list & update hidden input
+            customContactsList.push({ name: name, phone: cleanDigits });
+            if (customContactsJsonEl) {
+                customContactsJsonEl.value = JSON.stringify(customContactsList);
+            }
+
+            // Insert into table
+            var tbody = document.querySelector("#contactsTable tbody");
+            var emptyRow = tbody.querySelector("tr td[colspan]");
+            if (emptyRow) {
+                emptyRow.closest("tr").remove();
+            }
+
+            var newRow = document.createElement("tr");
+            newRow.className = "contact-row table-info";
+            newRow.setAttribute("data-search", name + " " + cleanDigits);
+            newRow.innerHTML = '<td style="text-align: center;">' +
+                '<input type="checkbox" name="selected_custom_contacts" value="' + cleanDigits + '" class="contact-chk custom-contact-chk" checked data-name="' + name + '" data-phone="' + cleanDigits + '">' +
+                '</td>' +
+                '<td><strong>' + name + '</strong> <span class="badge badge-info mr-1">دلخواه جدید</span></td>' +
+                '<td dir="ltr" class="text-left font-weight-bold">' + cleanDigits + '</td>' +
+                '<td class="text-muted small">ثبت سریع جهت ارسال پیامک</td>';
+
+            tbody.insertBefore(newRow, tbody.firstChild);
+
+            // Bind change event to newly created checkbox
+            var newChk = newRow.querySelector(".custom-contact-chk");
+            if (newChk) {
+                newChk.addEventListener("change", function() {
+                    syncRecipientCounts();
+                });
+            }
+
+            // Reset inputs
+            quickContactName.value = "";
+            quickContactPhone.value = "";
+
+            // Update badge and counts
+            syncRecipientCounts();
+        });
+    }
 
     // Sample data for live simulation
     var sampleData = {
@@ -617,18 +805,22 @@ document.addEventListener("DOMContentLoaded", function() {
         csvContactsEl.value = cntIds.join(",");
     }
 
-    // Checkbox events
-    document.querySelectorAll(".resident-chk, .contact-chk").forEach(function(chk) {
-        chk.addEventListener("change", function() {
-            // If the same resident appears in both debtor and active tab, sync their state
-            var val = this.value;
-            var isChecked = this.checked;
-            document.querySelectorAll('.resident-chk[value="' + val + '"]').forEach(function(other) {
-                other.checked = isChecked;
-            });
-            syncRecipientCounts();
+    // Checkbox events using delegation (works for both static and dynamically added contacts)
+    var tabsContentEl = document.getElementById("recipientTabsContent");
+    if (tabsContentEl) {
+        tabsContentEl.addEventListener("change", function(e) {
+            if (e.target && (e.target.classList.contains("resident-chk") || e.target.classList.contains("contact-chk"))) {
+                var val = e.target.value;
+                var isChecked = e.target.checked;
+                if (e.target.classList.contains("resident-chk")) {
+                    document.querySelectorAll('.resident-chk[value="' + val + '"]').forEach(function(other) {
+                        other.checked = isChecked;
+                    });
+                }
+                syncRecipientCounts();
+            }
         });
-    });
+    }
 
     // Select All / Deselect All Debtors
     document.getElementById("btnSelectAllDebtors").addEventListener("click", function() {

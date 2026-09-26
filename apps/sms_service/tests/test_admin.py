@@ -110,3 +110,22 @@ class SmsAdminSecurityAndWorkflowTest(TestCase):
         self.assertContains(resp, "تأیید و بازبینی نهایی ارسال پیامک")
         self.assertContains(resp, "کامران نجفی")
         self.assertContains(resp, "اتاق 302")
+
+    def test_post_with_custom_contacts_json(self):
+        self.client.login(username="super_admin", password="admin_password")
+        resp = self.client.post(
+            self.send_url,
+            {
+                "step": "preview",
+                "message_body": "سلام به مخاطب دلخواه",
+                "custom_contacts_json": '[{"name": "پدر دانشجو", "phone": "09129998877"}]',
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "پدر دانشجو")
+        self.assertContains(resp, "09129998877")
+
+        # Verify the contact was saved in DB
+        contact = Contact.objects.filter(phone_number="09129998877").first()
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.full_name, "پدر دانشجو")

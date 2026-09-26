@@ -296,14 +296,17 @@ class MeliPayamakRestProvider(BaseSmsProvider):
             if isinstance(data, dict):
                 rec_id = data.get("recId")
                 status = str(data.get("status", "") or "").strip()
+                data_msg = str(data.get("message") or "")
 
+                is_bl = is_blacklist_indication(str(rec_id or ""), status, data_msg, raw_text)
                 is_success = False
                 rec_id_str = ""
-                if rec_id is not None:
+
+                if not is_bl and rec_id is not None:
                     try:
                         rec_id_num = int(rec_id)
-                        # recId > 15 is standard valid message ID in MeliPayamak
-                        if rec_id_num > 15:
+                        # recId > 500 is standard valid message ID in MeliPayamak (error codes are <= 110)
+                        if rec_id_num > 500:
                             is_success = True
                             rec_id_str = str(rec_id_num)
                         elif rec_id_num == 1:
@@ -327,7 +330,6 @@ class MeliPayamakRestProvider(BaseSmsProvider):
                         err_code,
                         str(data.get("message") or status or f"خطا در ارسال پیامک (کد: {err_code})"),
                     )
-                    is_bl = is_blacklist_indication(err_code, status, err_desc, raw_text)
                     if is_bl:
                         err_code = "BLACKLIST"
                         err_desc = "⛔ لیست سیاه مخابرات: دریافت پیامک تبلیغاتی توسط مخاطب مسدود شده است (خط ۵۰۰۰)."
@@ -377,13 +379,14 @@ class MeliPayamakRestProvider(BaseSmsProvider):
         value_str = raw_text.strip().strip('"').strip("'")
         try:
             code_num = int(float(value_str))
-            if code_num > 15:
+            is_bl = is_blacklist_indication(str(code_num), "", "", raw_text)
+            if not is_bl and code_num > 500:
                 return ProviderResult(
                     success=True,
                     rec_id=str(code_num),
                     raw_response=raw_text,
                 )
-            elif code_num == 1:
+            elif not is_bl and code_num == 1:
                 return ProviderResult(
                     success=True,
                     rec_id="OK",
@@ -394,7 +397,8 @@ class MeliPayamakRestProvider(BaseSmsProvider):
                     str(code_num),
                     f"خطای ناشناخته از درگاه پیامک (کد: {code_num})",
                 )
-                is_bl = is_blacklist_indication(str(code_num), "", err_desc, raw_text)
+                if not is_bl:
+                    is_bl = is_blacklist_indication(str(code_num), "", err_desc, raw_text)
                 err_code = "BLACKLIST" if is_bl else str(code_num)
                 if is_bl:
                     err_desc = "⛔ لیست سیاه مخابرات: دریافت پیامک تبلیغاتی توسط مخاطب مسدود شده است (خط ۵۰۰۰)."
