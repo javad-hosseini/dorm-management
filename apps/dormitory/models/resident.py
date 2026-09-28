@@ -11,6 +11,8 @@ from apps.dormitory.jalali_utils import (
     add_jalali_months,
     format_period_name,
     calculate_unpaid_periods,
+    to_persian_digits,
+    get_days_in_jalali_month,
 )
 from .dormitory import get_default_dormitory
 
@@ -582,10 +584,140 @@ class Resident(models.Model):
                 return f"{self.overdue_days} روز تاخیر در پرداخت (مهلت تا ۱ هفته - سررسید: {due_date_str})"
             return f"{self.overdue_days} روز تاخیر در پرداخت (سررسید: {due_date_str})"
         else:
+            if self.is_partial_payment:
+                period_st = self.current_period_payment_status
+                paid_t = to_persian_digits(f"{period_st['paid_tomans']:,}")
+                rem_t = to_persian_digits(f"{period_st['remaining_tomans']:,}")
+                return f"پرداخت مرحله‌ای ({paid_t} تومن پرداخت‌شده • {rem_t} تومن مانده)"
             days = self.days_until_due
             if days == 0:
                 return f"سررسید موعد امروز ({due_date_str})"
             return f"{days} روز مانده تا سررسید ({due_date_str})"
+
+    @property
+    def current_period_payment_status(self) -> Dict[str, Any]:
+        """
+        Calculates accounting status of the active/current period for this resident.
+        Detects two-stage / partial payments (e.g. 2M paid out of 3M, leaving 1M balance).
+        """
+        if not self.room or not self.is_active:
+            return {
+                "has_active_period": False,
+                "is_partial": False,
+                "period_name": "",
+                "period_start": "",
+                "period_end": "",
+                "total_rent_tomans": 0,
+                "paid_tomans": 0,
+                "remaining_tomans": 0,
+                "progress_percent": 0,
+                "status_label": "فاقد اتاق یا غیرفعال"
+            }
+
+        monthly_rent = self.current_monthly_rent_tomans
+        settled = self.settled_until
+        today = jdatetime.date.today()
+
+        # Find latest rent transaction
+        last_rent_tx = self.transactions.filter(
+            transaction_type='RENT'
+        ).order_by('-period_end', '-payment_date').first()
+
+        is_partial = False
+        cycle_start = None
+        cycle_end = None
+        paid_tomans = 0
+        remaining_tomans = 0
+        period_name = ""
+
+        p_day = self.monthly_payment_day or 1
+        if settled:
+            days_in_m = get_days_in_jalali_month(settled.year, settled.month)
+            target_day = min(p_day, days_in_m)
+            is_boundary = (settled.day == target_day)
+
+            if not is_boundary:
+                if settled.day > target_day:
+                    c_start = jdatetime.date(settled.year, settled.month, target_day)
+                else:
+                    pm = 12 if settled.month == 1 else settled.month - 1
+                    py = settled.year - 1 if settled.month == 1 else settled.year
+                    c_start = jdatetime.date(py, pm, min(p_day, get_days_in_jalali_month(py, pm)))
+
+                if self.entry_date and self.entry_date > c_start:
+                    c_start = self.entry_date
+
+                c_end = add_jalali_months(c_start, 1)
+
+                if c_start <= settled < c_end:
+                    cycle_start = c_start
+                    cycle_end = c_end
+                    cycle_txs = self.transactions.filter(
+                        transaction_type='RENT',
+                        period_start__lt=c_end,
+                        period_end__gt=c_start
+                    )
+                    if cycle_txs.exists():
+                        paid_tomans = sum(t.total_effective_amount_in_tomans for t in cycle_txs)
+                        remaining_tomans = max(0, monthly_rent - paid_tomans)
+                        period_name = format_period_name(cycle_start, cycle_end)
+                        if remaining_tomans > 0 and paid_tomans > 0:
+                            is_partial = True
+
+        if not is_partial:
+            if settled and settled >= today:
+                # Settled period
+                cycle_start = settled
+                cycle_end = add_jalali_months(settled, 1)
+                period_name = format_period_name(cycle_start, cycle_end)
+                paid_tomans = monthly_rent
+                remaining_tomans = 0
+            else:
+                # Unpaid cycle
+                cycle_start = settled or self.entry_date or today
+                cycle_end = add_jalali_months(cycle_start, 1) if cycle_start else None
+                period_name = format_period_name(cycle_start, cycle_end) if cycle_start and cycle_end else ""
+                paid_tomans = 0
+                remaining_tomans = monthly_rent
+
+        pct = int(round((paid_tomans / monthly_rent) * 100)) if monthly_rent > 0 else 0
+        pct = max(0, min(100, pct))
+
+        paid_fmt = to_persian_digits(f"{paid_tomans:,}")
+        rem_fmt = to_persian_digits(f"{remaining_tomans:,}")
+
+        return {
+            "has_active_period": True,
+            "is_partial": is_partial,
+            "period_name": period_name,
+            "period_start": str(cycle_start) if cycle_start else "",
+            "period_end": str(cycle_end) if cycle_end else "",
+            "total_rent_tomans": monthly_rent,
+            "paid_tomans": paid_tomans,
+            "remaining_tomans": remaining_tomans,
+            "progress_percent": pct,
+            "status_label": f"پرداخت مرحله‌ای ({paid_fmt} تومن پرداخت‌شده - مانده: {rem_fmt} تومن)" if is_partial else ("تسویه کامل این دوره" if remaining_tomans == 0 else "در انتظار پرداخت")
+        }
+
+    @property
+    def is_partial_payment(self) -> bool:
+        """Return True if resident has a partial/staged payment with a remaining balance for the period"""
+        return bool(self.current_period_payment_status.get("is_partial", False))
+
+    @property
+    def current_period_paid_tomans(self) -> int:
+        """Amount paid so far in Tomans for the active period"""
+        return self.current_period_payment_status.get("paid_tomans", 0)
+
+    @property
+    def current_period_remaining_tomans(self) -> int:
+        """Remaining balance in Tomans for the active period"""
+        return self.current_period_payment_status.get("remaining_tomans", 0)
+
+    @property
+    def current_period_name(self) -> str:
+        """Name of the active rent period (e.g. اجاره مهر ماه ۱۴۰۵)"""
+        return self.current_period_payment_status.get("period_name", "")
 
     @property
     def unpaid_periods(self) -> List[Dict[str, Any]]:
@@ -613,6 +745,8 @@ class Resident(models.Model):
         """Human-readable Persian names of unpaid months"""
         periods = self.unpaid_periods
         if not periods:
+            if self.is_partial_payment:
+                return f"مانده {self.current_period_name}"
             return "تسویه کامل"
         return " و ".join([p["name"] for p in periods])
 
@@ -627,7 +761,7 @@ class Resident(models.Model):
     @property
     def total_debt_amount_rials(self) -> int:
         """Total unpaid rent amount in Rials"""
-        return sum(p["amount_rials"] for p in self.unpaid_periods)
+        return self.total_debt_amount_tomans * 10
 
     @property
     def last_paid_period_display(self) -> str:
@@ -636,8 +770,7 @@ class Resident(models.Model):
             return "پرداختی ثبت نشده"
 
         latest_tx = self.transactions.filter(
-            transaction_type='RENT',
-            is_approved=True
+            transaction_type='RENT'
         ).order_by('-period_end', '-payment_date').first()
         if latest_tx and latest_tx.period_name:
             return f"{latest_tx.period_name} (تسویه تا {self.settled_until.strftime('%Y/%m/%d')})"
@@ -681,7 +814,28 @@ class Resident(models.Model):
         unpaid = self.unpaid_periods
         debt = sum(p["amount_tomans"] for p in unpaid)
 
+        period_st = self.current_period_payment_status
         if not unpaid:
+            if period_st.get("is_partial"):
+                rem = period_st["remaining_tomans"]
+                paid = period_st["paid_tomans"]
+                p_name = period_st["period_name"]
+                days_left = self.days_until_due
+                due_str = self.settled_until.strftime('%Y/%m/%d') if self.settled_until else '-'
+                return {
+                    "status": "PARTIAL",
+                    "severity": "warning",
+                    "label": "پرداخت مرحله‌ای",
+                    "color": "#f59e0b",
+                    "overdue_days": 0,
+                    "days_until_due": days_left,
+                    "unpaid_months": p_name,
+                    "debt_tomans": rem,
+                    "details": f"پرداخت مرحله اول ({paid:,} تومان) - مانده: {rem:,} تومان از {p_name}",
+                    "last_paid": self.last_paid_period_display,
+                    "period_payment": period_st,
+                }
+
             days_left = self.days_until_due
             due_str = self.settled_until.strftime('%Y/%m/%d') if self.settled_until else '-'
             return {
@@ -695,6 +849,7 @@ class Resident(models.Model):
                 "debt_tomans": 0,
                 "details": f"{days_left} روز مانده تا سررسید {due_str}",
                 "last_paid": self.last_paid_period_display,
+                "period_payment": period_st,
             }
         else:
             overdue = self.overdue_days
@@ -758,19 +913,18 @@ class Resident(models.Model):
         Recalculates settled_until by taking the maximum period_end from all
         approved RENT transactions of this resident.
         """
-        approved_rent_txs = self.transactions.filter(
-            transaction_type='RENT',
-            is_approved=True
+        rent_txs = self.transactions.filter(
+            transaction_type='RENT'
         ).exclude(period_end__isnull=True)
 
-        if not approved_rent_txs.exists():
+        if not rent_txs.exists():
             self.settled_until = None
             if save:
                 self.save(update_fields=['settled_until'])
             return None
 
         max_period_end = None
-        for tx in approved_rent_txs:
+        for tx in rent_txs:
             if tx.period_end:
                 if max_period_end is None or tx.period_end > max_period_end:
                     max_period_end = tx.period_end

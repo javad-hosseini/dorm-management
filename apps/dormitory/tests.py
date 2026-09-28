@@ -286,19 +286,42 @@ class DormitoryCoreTests(TestCase):
         )
 
         resident.refresh_from_db()
-        # Still not advanced because not approved yet
-        self.assertEqual(resident.settled_until, jdatetime.date(1405, 7, 1))
+        # Even without approval checkbox, all payment methods take effect immediately upon registration!
+        self.assertEqual(resident.settled_until, jdatetime.date(1405, 8, 1))
         self.assertEqual(t.period_name, "اجاره مهر ماه ۱۴۰۵")
         self.assertEqual(t.period_start, jdatetime.date(1405, 7, 1))
         self.assertEqual(t.period_end, jdatetime.date(1405, 8, 1))
 
-        # Step 2: Approve the payment
-        t.is_approved = True
-        t.save()
+    def test_bank_transfer_unapproved_advances_settled_until(self):
+        """Card to card (BANK_TRANSFER) advances settled_until immediately even if is_approved=False"""
+        resident = Resident.objects.create(
+            first_name="سهراب",
+            last_name="سپهری",
+            national_code="7777777777",
+            phone_number="09127777777",
+            dormitory=self.dormitory,
+            room=self.room,  # 35,000,000 Rials rent
+            entry_date=jdatetime.date(1405, 7, 1),
+            settled_until=jdatetime.date(1405, 7, 1),
+            registered_by=self.supervisor
+        )
+
+        # Resident makes card to card payment, but approval checkbox is not checked
+        t = Transaction.objects.create(
+            resident=resident,
+            dormitory=self.dormitory,
+            amount=35_000_000,
+            transaction_type='RENT',
+            payment_method='BANK_TRANSFER',
+            is_approved=False,
+            payment_date=jdatetime.datetime.now(),
+            created_by=self.supervisor
+        )
 
         resident.refresh_from_db()
-        # Automatically advanced to 1405/08/01!
+        # Settled until must advance from 1405/07/01 to 1405/08/01
         self.assertEqual(resident.settled_until, jdatetime.date(1405, 8, 1))
+        self.assertEqual(resident.last_paid_period_display, "اجاره مهر ماه ۱۴۰۵ (تسویه تا 1405/08/01)")
 
     def test_pos_card_auto_approval_and_settlement(self):
         """CARD (POS) payment is auto-approved and advances settled_until immediately"""
@@ -2201,23 +2224,23 @@ class ProratedSettlementTests(TestCase):
         self.resident.refresh_from_db()
         self.assertIsNone(self.resident.settled_until)
 
-    def test_transaction_unapprove_rollbacks_settled_until(self):
-        """Unapproving a transaction rolls back settled_until"""
+    def test_unapproved_transaction_retains_settled_until_until_deleted(self):
+        """Even with is_approved=False, transaction advances settled_until; deleting it rolls back"""
         tx = Transaction.objects.create(
             resident=self.resident,
             dormitory=self.dormitory,
             amount=20_000_000,
             transaction_type=Transaction.TransactionType.RENT,
             payment_method=Transaction.PaymentMethod.CASH,
-            is_approved=True,
+            is_approved=False,
             payment_date=jdatetime.datetime(1405, 7, 1, 10, 0),
             created_by=self.supervisor
         )
         self.resident.refresh_from_db()
         self.assertEqual(self.resident.settled_until, jdatetime.date(1405, 7, 21))
 
-        tx.is_approved = False
-        tx.save()
+        # Deleting the transaction rolls back settled_until
+        tx.delete()
         self.resident.refresh_from_db()
         self.assertIsNone(self.resident.settled_until)
 
@@ -2374,14 +2397,13 @@ class DebtorsExcelExportTests(TestCase):
         # RTL check
         self.assertTrue(ws.sheet_view.rightToLeft)
 
-        # 8 columns header check
+        # 7 columns header check
         headers = [c.value for c in ws[1]]
         expected_headers = [
             "شماره اتاق",
             "اسامی بدهکارا",
             "تاریخی که تسویه شدن",
-            "بدهی دوره جاری (تومان)",
-            "کل بدهی معوقه (تومان)",
+            "مبلغ بدهی تا اول ماه بعدی (تومان)",
             "شماره تلفن همراه",
             "شماره تلفن ضروری",
             "توضیحات",
@@ -2393,13 +2415,11 @@ class DebtorsExcelExportTests(TestCase):
         self.assertEqual(row2[0], "101")
         self.assertEqual(row2[1], "امیر جعفری")
         self.assertIn("ورود", row2[2])  # Settled_until was None, fallback to entry date
-        self.assertGreater(row2[3], 0)  # Period Debt
-        self.assertGreater(row2[4], 0)  # Total Debt
+        self.assertGreater(row2[3], 0)  # Debt until next month
         self.assertEqual(ws.cell(2, 4).number_format, '#,##0 "تومان"')
-        self.assertEqual(ws.cell(2, 5).number_format, '#,##0 "تومان"')
-        self.assertEqual(row2[5], "09133333333")
-        self.assertEqual(row2[6], "-")  # Empty emergency phone
-        self.assertEqual(row2[7], "")  # Empty notes
+        self.assertEqual(row2[4], "09133333333")  # Phone
+        self.assertEqual(row2[5], "-")  # Empty emergency phone
+        self.assertEqual(row2[6], "")  # Empty notes
 
         # Row 3 (debtor 1 in room 102)
         row3 = [c.value for c in ws[3]]
@@ -2407,18 +2427,16 @@ class DebtorsExcelExportTests(TestCase):
         self.assertEqual(row3[1], "بهرام رادان")
         self.assertEqual(row3[2], self.debtor1.settled_until.strftime('%Y/%m/%d'))
         self.assertGreater(row3[3], 0)
-        self.assertGreater(row3[4], 0)
-        self.assertEqual(row3[5], "09121111111")
-        self.assertEqual(row3[6], "09122222222")
+        self.assertEqual(row3[4], "09121111111")
+        self.assertEqual(row3[5], "09122222222")
+        self.assertEqual(row3[6], "")
 
         # Summary Row check (Row 4)
         total_row = ws.max_row
         self.assertEqual(total_row, 4)
         self.assertIn("مجموع کل (2 نفر بدهکار)", ws.cell(total_row, 1).value)
         self.assertEqual(ws.cell(total_row, 4).value, "=SUM(D2:D3)")
-        self.assertEqual(ws.cell(total_row, 5).value, "=SUM(E2:E3)")
         self.assertEqual(ws.cell(total_row, 4).number_format, '#,##0 "تومان"')
-        self.assertEqual(ws.cell(total_row, 5).number_format, '#,##0 "تومان"')
 
     def test_partial_payment_deducted_from_period_debt(self):
         """
@@ -2459,6 +2477,67 @@ class DebtorsExcelExportTests(TestCase):
         # Period debt should now have the 1,000,000 Tomans deducted: 2,000,000 Tomans remaining!
         period_debt = get_period_debt_tomans(res)
         self.assertEqual(period_debt, 2_000_000)
+
+    def test_get_debt_until_next_month_tomans(self):
+        """
+        Verify debt calculation from last settled date up to 1st of next month:
+        - 1 full month
+        - Prorated mid-month entry
+        - Past accumulated debt + current month
+        - Fully settled up to next month
+        """
+        from apps.dormitory.services.excel_export import get_debt_until_next_month_tomans
+        from apps.dormitory.jalali_utils import get_days_in_jalali_month
+        import datetime
+
+        today = jdatetime.date.today()
+        days_in_cur_month = get_days_in_jalali_month(today.year, today.month)
+        next_month_first = jdatetime.date(today.year, today.month, 1) + datetime.timedelta(days=days_in_cur_month)
+
+        # Case 1: Settled at start of current month -> 1 full month owed (3,000,000 Tomans)
+        res1 = Resident.objects.create(
+            first_name="تست",
+            last_name="کامل",
+            phone_number="09111111111",
+            dormitory=self.dormitory,
+            room=self.room101,  # 3M Tomans
+            entry_date=jdatetime.date(today.year, today.month, 1),
+            settled_until=jdatetime.date(today.year, today.month, 1),
+            status=Resident.Status.ACTIVE,
+            registered_by=self.supervisor
+        )
+        self.assertEqual(get_debt_until_next_month_tomans(res1), 3_000_000)
+
+        # Case 2: Settled at 1st of next month -> 0 Tomans owed
+        res2 = Resident.objects.create(
+            first_name="تست",
+            last_name="تسویه",
+            phone_number="09222222222",
+            dormitory=self.dormitory,
+            room=self.room101,
+            entry_date=jdatetime.date(today.year, today.month, 1),
+            settled_until=next_month_first,
+            status=Resident.Status.ACTIVE,
+            registered_by=self.supervisor
+        )
+        self.assertEqual(get_debt_until_next_month_tomans(res2), 0)
+
+        # Case 3: Mid-month entry e.g. day 4 of current month
+        if days_in_cur_month >= 4:
+            res3 = Resident.objects.create(
+                first_name="تست",
+                last_name="روزشمار",
+                phone_number="09333333333",
+                dormitory=self.dormitory,
+                room=self.room101,  # 3M Tomans
+                entry_date=jdatetime.date(today.year, today.month, 4),
+                settled_until=None,
+                status=Resident.Status.ACTIVE,
+                registered_by=self.supervisor
+            )
+            expected_days = days_in_cur_month - 4 + 1
+            expected_tomans = int(round(expected_days * (3_000_000 / days_in_cur_month)))
+            self.assertEqual(get_debt_until_next_month_tomans(res3), expected_tomans)
 
     def test_export_debtors_excel_views(self):
 

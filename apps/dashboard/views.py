@@ -65,6 +65,8 @@ def get_admin_dashboard_data():
             "unpaid_months": res.unpaid_months_display,
             "total_debt_tomans": res.total_debt_amount_tomans,
             "financial_summary": res.financial_status_summary,
+            "period_payment": res.current_period_payment_status,
+            "is_partial_payment": res.is_partial_payment,
             "unpaid_periods": [
                 {
                     "name": p["name"],
@@ -128,6 +130,7 @@ def get_admin_dashboard_data():
     # 5. Stats
     active_count = sum(1 for r in residents_data if r['status'] == 'ACTIVE')
     debt_count = sum(1 for r in residents_data if r['is_in_debt'] and r['status'] == 'ACTIVE')
+    partial_count = sum(1 for r in residents_data if r.get('is_partial_payment') and r['status'] == 'ACTIVE')
     incomplete_count = sum(1 for r in residents_data if r['has_incomplete_profile'] and r['status'] == 'ACTIVE')
     full_rooms = sum(1 for r in rooms_data if r['current_occupants'] >= r['capacity'])
     # اتاق‌های دارای ظرفیت خالی (اتاق‌هایی که حداقل یک تخت خالی دارند):
@@ -142,6 +145,7 @@ def get_admin_dashboard_data():
     stats = {
         "active_residents": active_count,
         "debt_residents": debt_count,
+        "partial_residents": partial_count,
         "incomplete_residents": incomplete_count,
         "total_rooms": len(rooms_data),
         "full_rooms": full_rooms,
@@ -223,7 +227,13 @@ def get_student_dashboard_data(user):
             "date": d_str,
             "ref": t.reference_number or "",
             "desc": t.description or "",
-            "is_approved": t.is_approved
+            "is_approved": t.is_approved,
+            "period_name": t.period_name or "",
+            "has_discount": t.has_discount,
+            "discount_amount": t.discount_amount or 0,
+            "discount_in_tomans": t.discount_in_tomans,
+            "discount_reason": t.discount_reason or "",
+            "total_effective_amount_toman": t.total_effective_amount_in_tomans,
         })
         m_key = d_str[:7]
         month_totals[m_key] = month_totals.get(m_key, 0) + (t.amount // 10)
@@ -254,6 +264,8 @@ def get_student_dashboard_data(user):
         "unpaid_months": resident.unpaid_months_display,
         "total_debt_tomans": resident.total_debt_amount_tomans,
         "financial_summary": resident.financial_status_summary,
+        "period_payment": resident.current_period_payment_status,
+        "is_partial_payment": resident.is_partial_payment,
         "unpaid_periods": [
             {
                 "name": p["name"],
@@ -349,3 +361,58 @@ class StudentDashboardDataApiView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         data = get_student_dashboard_data(request.user)
         return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
+
+
+from .services.backup_service import BackupService
+
+
+class AdminBackupCreateView(AdminRequiredMixin, View):
+    """API endpoint to trigger a database backup and store it in db-backups directory."""
+    def post(self, request, *args, **kwargs):
+        try:
+            backup_info = BackupService.create_backup()
+            return JsonResponse({
+                "status": "success",
+                "message": f"فایل پشتیبان با موفقیت در پوشه {BackupService.BACKUP_DIR_NAME} ذخیره شد.",
+                "backup": backup_info
+            })
+        except Exception as e:
+            return JsonResponse({
+                "status": "error",
+                "message": f"خطا در ایجاد فایل پشتیبان: {str(e)}"
+            }, status=500)
+
+
+class AdminBackupListView(AdminRequiredMixin, View):
+    """API endpoint to list existing backups in db-backups directory."""
+    def get(self, request, *args, **kwargs):
+        backups = BackupService.list_backups()
+        return JsonResponse({
+            "status": "success",
+            "backups": backups,
+            "count": len(backups),
+            "max_backups": BackupService.MAX_BACKUPS
+        })
+
+
+from .services.financial_service import FinancialService
+
+
+class FinancialDashboardView(AdminRequiredMixin, TemplateView):
+    """Full-featured Financial Management Dashboard View."""
+    template_name = "dashboard/financial_dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        data = FinancialService.get_financial_dashboard_data()
+        ctx["finance_json"] = json.dumps(data, ensure_ascii=False)
+        ctx["finance_data"] = data
+        return ctx
+
+
+class FinancialDashboardDataApiView(AdminRequiredMixin, View):
+    """API endpoint for live refresh of financial dashboard metrics and charts."""
+    def get(self, request, *args, **kwargs):
+        data = FinancialService.get_financial_dashboard_data()
+        return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
+

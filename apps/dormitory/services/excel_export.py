@@ -78,12 +78,11 @@ def get_period_debt_tomans(resident) -> int:
         return 0
     elif settled <= cur_month_start:
         # Settled before current month started -> full current month is owed
-        # minus any approved payments made specifically in this month
+        # minus any registered payments made specifically in this month
         paid_in_month = sum(
             t.amount // 10
             for t in resident.transactions.filter(
                 transaction_type='RENT',
-                is_approved=True,
                 payment_date__year=today.year,
                 payment_date__month=today.month,
             )
@@ -97,13 +96,49 @@ def get_period_debt_tomans(resident) -> int:
         return max(0, min(rent_tomans, remaining_tomans))
 
 
+def get_debt_until_next_month_tomans(resident) -> int:
+    """
+    Calculates prorated debt from resident's last settlement date
+    (settled_until or entry_date) up to the 1st of the next Jalali month.
+    Covers past unpaid periods + current period until the end of the month.
+    """
+    if not resident.room or not resident.room.monthly_rent:
+        return 0
+
+    start_date = resident.settled_until or resident.entry_date
+    if not start_date:
+        return 0
+
+    from apps.dormitory.jalali_utils import get_days_in_jalali_month, calculate_unpaid_periods
+    import datetime
+
+    today = jdatetime.date.today()
+    days_in_cur_month = get_days_in_jalali_month(today.year, today.month)
+    next_month_first = jdatetime.date(today.year, today.month, 1) + datetime.timedelta(days=days_in_cur_month)
+
+    if start_date >= next_month_first:
+        return 0
+
+    last_day_cur_month = next_month_first - datetime.timedelta(days=1)
+    rent_rials = resident.room.monthly_rent
+    rent_resolver = resident.room.get_rent_for_date
+
+    periods = calculate_unpaid_periods(
+        start_date=start_date,
+        as_of_date=last_day_cur_month,
+        monthly_rent_rials=rent_rials,
+        rent_resolver=rent_resolver,
+    )
+    return sum(p["amount_tomans"] for p in periods)
+
+
 def generate_debtors_excel_workbook(queryset=None) -> openpyxl.Workbook:
     """
     Builds an openpyxl Workbook containing all active debtors formatted with:
     - Right-to-Left (RTL) layout
-    - 8 Columns: شماره اتاق, اسامی بدهکارا, تاریخی که تسویه شدن, بدهی دوره جاری (تومان),
-      کل بدهی معوقه (تومان), شماره تلفن همراه, شماره تلفن ضروری, توضیحات
-    - Cells with amounts formatted with 'تومان' unit (#,##0 "تومان")
+    - 7 Columns: شماره اتاق, اسامی بدهکارا, تاریخی که تسویه شدن,
+      مبلغ بدهی تا اول ماه بعدی (تومان), شماره تلفن همراه, شماره تلفن ضروری, توضیحات
+    - Cells with amounts formatted with 'تومان' unit (#,##0 "تومان") and RTL reading order
     - Styled executive headers, number formatting, borders, and total summary row.
     """
     debtors = get_active_debtor_residents(queryset)
@@ -134,8 +169,7 @@ def generate_debtors_excel_workbook(queryset=None) -> openpyxl.Workbook:
         "شماره اتاق",
         "اسامی بدهکارا",
         "تاریخی که تسویه شدن",
-        "بدهی دوره جاری (تومان)",
-        "کل بدهی معوقه (تومان)",
+        "مبلغ بدهی تا اول ماه بعدی (تومان)",
         "شماره تلفن همراه",
         "شماره تلفن ضروری",
         "توضیحات",
@@ -170,26 +204,22 @@ def generate_debtors_excel_workbook(queryset=None) -> openpyxl.Workbook:
         else:
             settled_str = "ثبت نشده"
 
-        # 4. Period Debt (Tomans) - بدهی کل دوره با کسر پرداختی
-        period_debt_tomans = get_period_debt_tomans(r)
+        # 4. Debt until 1st of next month (Tomans) - بدهی روزشمار تا اول ماه بعدی
+        debt_tomans = get_debt_until_next_month_tomans(r)
 
-        # 5. Total Accumulated Overdue Debt (Tomans) - مبلغ بدهی
-        debt_tomans = r.total_debt_amount_tomans
-
-        # 6. Phone Number
+        # 5. Phone Number
         phone_str = str(r.phone_number or "-")
 
-        # 7. Emergency Phone Number
+        # 6. Emergency Phone Number
         emergency_str = str(r.parent_phone_number or "-")
 
-        # 8. Remarks / Notes (blank for manual notes)
+        # 7. Remarks / Notes (blank for manual notes)
         notes_str = ""
 
         row_data = [
             (room_str, Alignment(horizontal="center", vertical="center"), "@"),
             (name_str, Alignment(horizontal="right", vertical="center"), None),
             (settled_str, Alignment(horizontal="center", vertical="center"), None),
-            (period_debt_tomans, Alignment(horizontal="right", vertical="center", readingOrder=2), toman_fmt),
             (debt_tomans, Alignment(horizontal="right", vertical="center", readingOrder=2), toman_fmt),
             (phone_str, Alignment(horizontal="center", vertical="center"), "@"),
             (emergency_str, Alignment(horizontal="center", vertical="center"), "@"),
@@ -235,40 +265,30 @@ def generate_debtors_excel_workbook(queryset=None) -> openpyxl.Workbook:
             cell.font = summary_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    # Column 4: Period Debt SUM formula
-    period_debt_cell = ws.cell(row=total_row, column=4)
-    period_debt_cell.value = f"=SUM(D2:D{total_row - 1})" if len(debtors) > 0 else 0
-    period_debt_cell.font = Font(name=font_family, size=11, bold=True, color="B91C1C")
-    period_debt_cell.fill = summary_fill
-    period_debt_cell.alignment = Alignment(horizontal="right", vertical="center", readingOrder=2)
-    period_debt_cell.border = summary_border
-    period_debt_cell.number_format = toman_fmt
-
-    # Column 5: Total Overdue Debt SUM formula
-    total_debt_cell = ws.cell(row=total_row, column=5)
-    total_debt_cell.value = f"=SUM(E2:E{total_row - 1})" if len(debtors) > 0 else 0
+    # Column 4: Total Overdue & Cycle Debt SUM formula
+    total_debt_cell = ws.cell(row=total_row, column=4)
+    total_debt_cell.value = f"=SUM(D2:D{total_row - 1})" if len(debtors) > 0 else 0
     total_debt_cell.font = Font(name=font_family, size=11, bold=True, color="B91C1C")
     total_debt_cell.fill = summary_fill
     total_debt_cell.alignment = Alignment(horizontal="right", vertical="center", readingOrder=2)
     total_debt_cell.border = summary_border
     total_debt_cell.number_format = toman_fmt
 
-    # Columns 6, 7, 8 in summary row
-    for c in range(6, 9):
+    # Columns 5, 6, 7 in summary row
+    for c in range(5, 8):
         cell = ws.cell(row=total_row, column=c, value="")
         cell.fill = summary_fill
         cell.border = summary_border
 
-    # Set Column Widths
+    # Set Column Widths (7 Columns)
     col_widths = {
         1: 16,  # شماره اتاق
         2: 28,  # اسامی بدهکارا
         3: 24,  # تاریخی که تسویه شدن
-        4: 26,  # بدهی دوره جاری (تومان)
-        5: 26,  # کل بدهی معوقه (تومان)
-        6: 18,  # شماره تلفن همراه
-        7: 18,  # شماره تلفن ضروری
-        8: 35,  # توضیحات
+        4: 30,  # مبلغ بدهی تا اول ماه بعدی (تومان)
+        5: 18,  # شماره تلفن همراه
+        6: 18,  # شماره تلفن ضروری
+        7: 35,  # توضیحات
     }
     for col_idx, width in col_widths.items():
         col_letter = openpyxl.utils.get_column_letter(col_idx)

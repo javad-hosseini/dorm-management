@@ -79,19 +79,39 @@ const Student = (() => {
     if (fTotal) fTotal.innerText = Utils.toToman(total);
     if (fCount) fCount.innerText = t.filter(x => x.type === 'RENT').length;
     if (fList) {
-      fList.innerHTML = t.map(x => `
-        <div class="list-row surface-subtle flex flex-col md:flex-row justify-between gap-3 p-3 rounded-xl mb-2">
-          <div>
-            <p class="font-bold text-sm">${Utils.typeLabel(x.type)} - ${x.toman}
+      fList.innerHTML = t.map(x => {
+        const hasDiscount = Boolean(x.has_discount || (x.discount_in_tomans && x.discount_in_tomans > 0));
+        const discountTomans = x.discount_in_tomans || (x.discount_amount ? x.discount_amount / 10 : 0);
+        return `
+        <div class="list-row surface-subtle flex flex-col md:flex-row justify-between gap-3 p-3 rounded-xl mb-2 ${hasDiscount ? 'border border-amber-500/30' : ''}">
+          <div class="flex-1">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <p class="font-bold text-sm">${Utils.typeLabel(x.type)} - ${x.toman}</p>
               <span class="text-[10px] chip px-2 py-1 rounded-full mr-2">${Utils.methodLabel(x.method)}</span>
+              ${hasDiscount ? `
+                <span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span>🏷️</span>
+                  <span>${Utils.toToman(discountTomans * 10)} کسر/تخفیف</span>
+                </span>
+              ` : ''}
+            </div>
+            <p class="text-[11px] text-muted mt-1">
+              تاریخ: ${x.date} | مرجع: ${x.ref || 'ندارد'} | ${x.desc || 'بدون توضیح'}
+              ${x.period_name ? ` | دوره: ${x.period_name}` : ''}
             </p>
-            <p class="text-[11px] text-muted mt-1">تاریخ: ${x.date} | مرجع: ${x.ref || 'ندارد'} | ${x.desc || 'بدون توضیح'}</p>
+            ${hasDiscount ? `
+              <div class="mt-2 p-2 rounded-lg bg-amber-500/10 text-amber-300 text-[11px] flex flex-wrap items-center justify-between gap-2 border border-amber-500/20">
+                <span>🏷️ <strong>علت کسورات / تخفیف:</strong> ${x.discount_reason || 'کسر مصوب مدیریت'} (${Utils.toToman(discountTomans * 10)})</span>
+                <span class="text-slate-300">پوشش کل: <strong class="text-emerald-400">${Utils.toToman((x.total_effective_amount_toman || 0) * 10)}</strong></span>
+              </div>
+            ` : ''}
           </div>
-          <span class="text-[10px] self-start md:self-center ${x.is_approved ? 'text-emerald-400' : 'text-amber-400'}">
+          <span class="text-[10px] self-start md:self-center shrink-0 ${x.is_approved ? 'text-emerald-400' : 'text-amber-400'}">
             ${x.is_approved ? '✅ تایید شده' : '⏳ در انتظار تایید'}
           </span>
         </div>
-      `).join('') || '<p class="text-muted text-center py-6">هنوز تراکنشی ثبت نشده است.</p>';
+      `;
+      }).join('') || '<p class="text-muted text-center py-6">هنوز تراکنشی ثبت نشده است.</p>';
     }
   }
 
@@ -192,7 +212,9 @@ const Student = (() => {
     const settledUntil = me.settled_until_display || me.settled_until || 'ثبت نشده';
     const dueDate = me.next_due_date_display || me.settled_until || '-';
     const dueStatus = me.due_status_display || (me.is_in_debt ? 'بدهکار' : 'تسویه به روز');
-    const isInDebt = Boolean(me.is_in_debt);
+    const pp = me.period_payment || {};
+    const isPartial = Boolean(me.is_partial_payment || pp.is_partial);
+    const isInDebt = Boolean(me.is_in_debt) && !isPartial;
     const overdueDays = me.overdue_days || 0;
     const daysUntilDue = me.days_until_due || 0;
     const isWarning = isInDebt && overdueDays <= 7;
@@ -216,7 +238,10 @@ const Student = (() => {
 
     const debtBadgeEl = document.getElementById('debt-badge');
     if (debtBadgeEl) {
-      if (isCritical) {
+      if (isPartial) {
+        debtBadgeEl.innerText = `🟡 پرداخت مرحله‌ای (${toToman((pp.remaining_tomans || 0) * 10)} مانده)`;
+        debtBadgeEl.className = 'text-[10px] bg-amber-500 text-slate-900 px-3 py-1 rounded-full font-bold shadow-sm';
+      } else if (isCritical) {
         debtBadgeEl.innerText = `🔴 ${overdueDays} روز تاخیر (بدهکار)`;
         debtBadgeEl.className = 'text-[10px] bg-rose-500 text-white px-3 py-1 rounded-full font-bold shadow-sm';
       } else if (isWarning) {
@@ -240,7 +265,10 @@ const Student = (() => {
 
     const qDueStatus = document.getElementById('quick-due-status');
     if (qDueStatus) {
-      if (isCritical) {
+      if (isPartial) {
+        qDueStatus.innerText = `🟡 ${toToman((pp.remaining_tomans || 0) * 10)} مانده`;
+        qDueStatus.className = 'text-amber-300 font-bold';
+      } else if (isCritical) {
         qDueStatus.innerText = `🔴 ${overdueDays} روز تاخیر`;
         qDueStatus.className = 'text-rose-400 font-bold';
       } else if (isWarning) {
@@ -262,7 +290,10 @@ const Student = (() => {
     const dueDesc = document.getElementById('dash-due-desc');
 
     if (dueTitle) {
-      if (isCritical) {
+      if (isPartial) {
+        dueTitle.innerText = `🟡 پرداخت مرحله اول انجام شده (مانده این دوره: ${toToman((pp.remaining_tomans || 0) * 10)})`;
+        dueTitle.className = 'font-bold text-sm md:text-base text-amber-300 mt-0.5';
+      } else if (isCritical) {
         dueTitle.innerText = `🔴 دارای ${overdueDays} روز تاخیر در پرداخت اجاره (بیش از یک هفته)`;
         dueTitle.className = 'font-bold text-sm md:text-base text-rose-400 mt-0.5';
       } else if (isWarning) {
@@ -277,11 +308,17 @@ const Student = (() => {
     }
 
     if (dueDesc) {
-      dueDesc.innerText = `تسویه تا تاریخ: ${settledUntil} • تاریخ سررسید موعد بعدی: ${dueDate} • روز پرداخت: ${me.monthly_payment_day || 1}ام هر ماه`;
+      if (isPartial) {
+        dueDesc.innerText = `دوره: ${pp.period_name || 'جاری'} • پرداخت‌شده: ${toToman((pp.paid_tomans || 0) * 10)} • مانده بدهی: ${toToman((pp.remaining_tomans || 0) * 10)} (پوشش علی‌الحساب تا: ${settledUntil})`;
+      } else {
+        dueDesc.innerText = `تسویه تا تاریخ: ${settledUntil} • تاریخ سررسید موعد بعدی: ${dueDate} • روز پرداخت: ${me.monthly_payment_day || 1}ام هر ماه`;
+      }
     }
 
     if (dueBanner) {
-      if (isCritical) {
+      if (isPartial) {
+        dueBanner.className = 'mt-4 p-4 rounded-2xl glass border border-amber-500/35 bg-amber-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
+      } else if (isCritical) {
         dueBanner.className = 'mt-4 p-4 rounded-2xl glass border border-rose-500/30 bg-rose-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
       } else if (isWarning) {
         dueBanner.className = 'mt-4 p-4 rounded-2xl glass border border-amber-500/30 bg-amber-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3';
@@ -291,7 +328,10 @@ const Student = (() => {
     }
 
     if (dueIcon) {
-      if (isCritical) {
+      if (isPartial) {
+        dueIcon.innerHTML = '💳';
+        dueIcon.className = 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-amber-500/20 text-amber-400';
+      } else if (isCritical) {
         dueIcon.innerHTML = '🚨';
         dueIcon.className = 'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-rose-500/20 text-rose-400';
       } else if (isWarning) {
@@ -418,7 +458,13 @@ const Student = (() => {
     }
 
     const payAmount = document.getElementById('pay-amount-toman');
-    if (payAmount) payAmount.innerText = rentToman;
+    if (payAmount) {
+      if (isPartial) {
+        payAmount.innerText = `${toToman((pp.remaining_tomans || 0) * 10)} (مانده جهت تسویه دوره)`;
+      } else {
+        payAmount.innerText = rentToman;
+      }
+    }
 
     // Contract Tab elements
     const cNum = document.getElementById('contract-number');

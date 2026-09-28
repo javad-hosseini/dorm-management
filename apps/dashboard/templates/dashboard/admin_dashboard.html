@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>پنل مدیریت خوابگاه</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap"
@@ -104,7 +105,15 @@
           </button>
         </div>
 
-        <!-- Quick Links: Admin & Logout -->
+        <!-- Quick Links: Finance, Backup, Admin & Logout -->
+        <a href="{% url 'dashboard:finance' %}" class="px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-xs font-bold text-emerald-300 hover:text-emerald-100 transition flex items-center gap-1.5 shadow-sm active:scale-95" title="ورود به پنل جامع مدیریت و حسابداری مالی">
+          <span class="text-sm">💰</span>
+          <span>پنل مالی</span>
+        </a>
+        <button type="button" id="btn-backup-db" onclick="Backup.createBackup()" class="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-300 hover:text-blue-100 transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" title="تهیه فایل پشتیبان از پایگاه داده در پوشه db-backups">
+          <span id="btn-backup-icon" class="text-sm">💾</span>
+          <span id="btn-backup-text">پشتیبان‌گیری دیتابیس</span>
+        </button>
         <a href="/admin/" class="px-3.5 py-2 rounded-xl glass hover:bg-white/10 text-xs font-bold text-muted hover:text-white transition flex items-center gap-1.5" title="ورود به پنل ادمین جنگو">
           ⚙️ پنل ادمین
         </a>
@@ -146,7 +155,8 @@
               <option value="debt">همه بدهکاران</option>
               <option value="debt_warning">🟡 تاخیر تا ۱ هفته (مهلت پرداخت)</option>
               <option value="debt_critical">🔴 تاخیر بیش از ۱ هفته (بحرانی)</option>
-              <option value="paid">تسویه</option>
+              <option value="partial">🟡 پرداخت مرحله‌ای (دارای مانده اقساط)</option>
+              <option value="paid">تسویه کامل</option>
               <option value="incomplete">⚠️ کسری مدارک / ناقص</option>
               <option value="ACTIVE">فعال</option>
             </select>
@@ -416,6 +426,7 @@
   <script src="{% static 'dashboard/js/finance.js' %}?v=2"></script>
   <script src="{% static 'dashboard/js/modal.js' %}?v=2"></script>
   <script src="{% static 'dashboard/js/scroll-chrome.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/backup.js' %}?v=1"></script>
   <script src="{% static 'dashboard/js/app.js' %}?v=2"></script>
 </body>
 

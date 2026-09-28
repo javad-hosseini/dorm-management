@@ -181,22 +181,22 @@ def total_debt_amount_tomans(self) -> int:
 - **`payment_method`**:
   - `CARD`: کارتخوان متصل به حساب
   - `ONLINE_GATEWAY`: درگاه پرداخت آنلاین
-  - `CASH`: وجه نقد (نیازمند تایید سرپرست)
-  - `BANK_TRANSFER`: کارت‌به‌کارت / حواله پایا (نیازمند تایید سرپرست با رسید)
+  - `CASH`: وجه نقد
+  - `BANK_TRANSFER`: کارت‌به‌کارت / فیش واریزی بانکی
 
 ### فیلد `applicable_rent`:
 هنگام ثبت یک تراکنش از نوع اجاره، نرخ ماهانه فعال اتاق در لحظه پرداخت یا دوره اجاره در فیلد `applicable_rent` ذخیره می‌شود. این فیلد برای همیشه نرخ آن پرداخت را فریز می‌کند و مانع از آن می‌شود که افزایش قیمت‌های بعدی اتاق، رسیدهای صادره را تغییر دهند.
 
-### تایید خودکار و جلوبردن تاریخ تسویه (`advance_settlement`):
-زمانی که یک پرداخت اجاره ثبت و تایید می‌شود (`is_approved=True`):
+### اعمال بلافاصله و جلوبردن تاریخ تسویه برای تمام روش‌های پرداخت:
+تمام پرداخت‌های ثبت‌شده (نقدی، کارت‌به‌کارت، کارتخوان، درگاه)، **بلافاصله پس از ثبت در سیستم** بر روی تاریخ تسویه (`settled_until`) اثر گذاشته و آن را به اندازه دوره پوشش‌داده‌شده جلو می‌برند (حتی اگر تیک تایید `is_approved` هنوز نخورده باشد):
 ```python
-if self.is_approved and self.transaction_type == self.TransactionType.RENT and self.period_end:
+if self.transaction_type == self.TransactionType.RENT and self.period_end:
     res = self.resident
     if res and (not res.settled_until or self.period_end > res.settled_until):
         res.settled_until = self.period_end
         res.save(update_fields=['settled_until'])
 ```
-این قلاب (Hook) به صورت خودکار سررسید ساکن را به اندازه ماه‌های پرداخت‌شده به جلو هدایت می‌کند.
+این سازوکار تضمین می‌کند که به محض ثبت فیش یا کارت‌به‌کارت ساکن، تاریخ تسویه او به طور خودکار به ماه بعد منتقل شده و از وضعیت بدهکاری خارج می‌شود. تیک `is_approved` صرفاً وضعیت بازبینی نهایی اداری توسط سرپرست را نمایش می‌دهد.
 
 ---
 

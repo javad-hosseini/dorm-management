@@ -1217,7 +1217,9 @@ class TransactionForm(forms.ModelForm):
                 self.fields['discount_reason'].initial = self.instance.discount_reason
 
         if 'is_approved' in self.fields:
-            self.fields['is_approved'].help_text = "برای پرداخت‌های نقدی و کارت‌به‌کارت نیاز به تایید است (کارت‌خوان و درگاه خودکار تایید می‌شوند)."
+            if not self.instance.pk:
+                self.fields['is_approved'].initial = True
+            self.fields['is_approved'].help_text = "تمام تراکنش‌ها (نقدی، کارت‌به‌کارت و...) بلافاصله پس از ثبت در تسویه و بدهی ساکن اعمال می‌شوند."
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1535,11 +1537,8 @@ class TransactionAdmin(admin.ModelAdmin):
             resident.recalculate_settled_until()
 
     def save_model(self, request, obj, form, change):
-        if obj.payment_method in ['CARD', 'ONLINE_GATEWAY']:
+        if not change and form.cleaned_data.get('is_approved') is None:
             obj.is_approved = True
-        elif obj.payment_method in ['CASH', 'BANK_TRANSFER'] and not change:
-            if not form.cleaned_data.get('is_approved'):
-                obj.is_approved = False
 
         if not obj.created_by_id:
             Supervisor = apps.get_model('accounts', 'Supervisor')

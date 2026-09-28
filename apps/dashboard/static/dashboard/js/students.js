@@ -130,9 +130,21 @@ const Students = (() => {
         const rentText = r.room ? Utils.toToman(r.room.monthly_rent) : '-';
         const initial = (r.first_name || r.full_name || 'س')[0];
         const isLeft = r.status === 'LEFT';
-        const statusClass = isLeft ? 'bg-slate-500 text-white' : (r.is_in_debt ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white');
-        const statusText = isLeft ? 'خارج شده' : (r.is_in_debt ? 'بدهکار' : 'تسویه');
-        const cardClass = isLeft ? 'opacity-70' : (r.is_in_debt ? 'debt-card' : '');
+        const pp = r.period_payment || {};
+        const isPartial = Boolean(r.is_partial_payment || pp.is_partial);
+        const statusClass = isLeft
+          ? 'bg-slate-500 text-white'
+          : (isPartial
+              ? 'bg-amber-500 text-slate-950 font-bold'
+              : (r.is_in_debt ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'));
+        const statusText = isLeft
+          ? 'خارج شده'
+          : (isPartial
+              ? 'پرداخت مرحله‌ای'
+              : (r.is_in_debt ? 'بدهکار' : 'تسویه'));
+        const cardClass = isLeft
+          ? 'opacity-70'
+          : (isPartial ? 'border border-amber-500/35 hover:border-amber-400/60 shadow-[0_0_15px_rgba(245,158,11,0.08)]' : (r.is_in_debt ? 'debt-card' : ''));
         const natCodeDisplay = r.national_code
           ? (r.is_foreign ? `${r.national_code} <span class="text-[9px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded">اتباع</span>` : r.national_code)
           : (r.is_foreign ? '<span class="text-amber-400 font-medium">⚠️ بدون پاسپورت</span>' : '<span class="text-amber-400 font-medium">⚠️ بدون کدملی</span>');
@@ -162,39 +174,50 @@ const Students = (() => {
               <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">تاریخ ورود</p><p class="truncate">${r.entry_date || '-'}</p></div>
               <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">تسویه تا تاریخ</p><p class="truncate font-bold ${r.settled_until ? 'text-blue-400' : 'text-amber-400'}">${r.settled_until || 'فاقد پرداخت'}</p></div>
               <div class="card-cell rounded-xl p-2"><p class="text-[9px] text-faint">موعد سررسید</p><p class="truncate font-bold ${
-                r.is_in_debt
-                  ? (r.overdue_days > 7 ? 'text-rose-400' : 'text-amber-400')
-                  : 'text-emerald-400'
+                isPartial
+                  ? 'text-amber-400'
+                  : (r.is_in_debt
+                      ? (r.overdue_days > 7 ? 'text-rose-400' : 'text-amber-400')
+                      : 'text-emerald-400')
               }">${r.next_due_date_display || r.settled_until || '-'}</p></div>
             </div>
             <!-- وضعیت سررسید و مهلت پرداخت به صورت برجسته -->
             <div class="mt-2.5 p-2 rounded-xl text-[11px] flex items-center justify-between gap-2 ${
               isLeft ? 'bg-slate-500/10 border border-slate-500/20 text-slate-300' :
-              (r.is_in_debt
-                ? (r.overdue_days > 7
-                    ? 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
-                    : 'bg-amber-500/10 border border-amber-500/25 text-amber-300')
-                : 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300')
+              (isPartial
+                ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
+                : (r.is_in_debt
+                    ? (r.overdue_days > 7
+                        ? 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
+                        : 'bg-amber-500/10 border border-amber-500/25 text-amber-300')
+                    : 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'))
             }">
               <div class="flex items-center gap-1.5 truncate">
-                <span>${isLeft ? '⚪' : (r.is_in_debt ? (r.overdue_days > 7 ? '🔴' : '🟡') : '🟢')}</span>
+                <span>${isLeft ? '⚪' : (isPartial ? '🟡' : (r.is_in_debt ? (r.overdue_days > 7 ? '🔴' : '🟡') : '🟢'))}</span>
                 <span class="font-medium truncate">${
                   isLeft ? 'خارج شده' : (
-                    r.due_status_display || (
-                      r.is_in_debt
-                        ? (r.overdue_days > 7 ? `${r.overdue_days} روز تاخیر (بدهکار)` : `${r.overdue_days} روز تاخیر (هشدار)`)
-                        : 'تسویه به روز'
+                    isPartial ? `${Utils.toToman((pp.paid_tomans || 0) * 10)} پرداخت‌شده • ${Utils.toToman((pp.remaining_tomans || 0) * 10)} مانده این دوره` : (
+                      r.due_status_display || (
+                        r.is_in_debt
+                          ? (r.overdue_days > 7 ? `${r.overdue_days} روز تاخیر (بدهکار)` : `${r.overdue_days} روز تاخیر (هشدار)`)
+                          : 'تسویه به روز'
+                      )
                     )
                   )
                 }</span>
               </div>
               <span class="text-[10px] font-semibold whitespace-nowrap">
-                ${isLeft ? 'خارج شده' : (r.is_in_debt ? (Utils.toToman(r.total_debt_tomans * 10) + ' بدهی') : 'تسویه')}
+                ${isLeft ? 'خارج شده' : (
+                  isPartial ? `${Utils.toToman((pp.remaining_tomans || 0) * 10)} مانده` : (
+                    r.is_in_debt ? (Utils.toToman(r.total_debt_tomans * 10) + ' بدهی') : 'تسویه'
+                  )
+                )}
               </span>
             </div>
             <div class="mt-3 flex justify-between items-center text-[10px]">
-              <div class="flex gap-2 flex-wrap">
+              <div class="flex gap-2 flex-wrap items-center">
                 <span class="chip px-2 py-1 rounded-full">اجاره: ${rentText}</span>
+                ${isPartial ? `<span class="chip px-2 py-1 rounded-full text-amber-300 border-amber-500/30 bg-amber-500/15 font-bold">مانده: ${Utils.toToman((pp.remaining_tomans || 0) * 10)}</span>` : ''}
                 <span class="chip px-2 py-1 rounded-full">روز پرداخت: ${r.monthly_payment_day || 1}ام</span>
               </div>
               <button onclick="event.stopPropagation(); Students.copyProfile(${r.id}, this)"
@@ -268,7 +291,8 @@ const Students = (() => {
       if (status === "debt") matchStat = r.is_in_debt && r.status === 'ACTIVE';
       else if (status === "debt_warning") matchStat = r.is_in_debt && r.overdue_days <= 7 && r.status === 'ACTIVE';
       else if (status === "debt_critical") matchStat = r.is_in_debt && r.overdue_days > 7 && r.status === 'ACTIVE';
-      else if (status === "paid") matchStat = !r.is_in_debt && r.status === 'ACTIVE';
+      else if (status === "partial") matchStat = Boolean(r.is_partial_payment || (r.period_payment && r.period_payment.is_partial)) && r.status === 'ACTIVE';
+      else if (status === "paid") matchStat = !r.is_in_debt && !Boolean(r.is_partial_payment || (r.period_payment && r.period_payment.is_partial)) && r.status === 'ACTIVE';
       else if (status === "incomplete") matchStat = r.has_incomplete_profile && r.status === 'ACTIVE';
       else if (status === "ACTIVE") matchStat = r.status === "ACTIVE";
       else if (status === "LEFT") matchStat = r.status === "LEFT";

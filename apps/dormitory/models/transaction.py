@@ -90,8 +90,9 @@ class Transaction(models.Model):
     )
 
     is_approved = models.BooleanField(
-        default=False,
-        help_text="Whether the payment has been approved by supervisor (required for CASH and BANK_TRANSFER)"
+        default=True,
+        verbose_name="تایید شده",
+        help_text="وضعیت تایید تراکنش (تمام تراکنش‌های ثبت‌شده بلافاصله در تسویه لحاظ می‌شوند)"
     )
 
     created_by = models.ForeignKey(
@@ -160,7 +161,7 @@ class Transaction(models.Model):
             except Transaction.DoesNotExist:
                 pass
         else:
-            if self.payment_method in [self.PaymentMethod.CARD, self.PaymentMethod.ONLINE_GATEWAY]:
+            if self.is_approved is None:
                 self.is_approved = True
 
         # Auto-fill applicable_rent if empty for RENT type
@@ -201,22 +202,18 @@ class Transaction(models.Model):
 
         super().save(*args, **kwargs)
 
-        # If approved RENT payment, advance resident's settled_until
+        # Advance resident's settled_until for any registered RENT payment
         if self.resident and self.transaction_type == self.TransactionType.RENT:
-            if self.is_approved and self.period_end:
+            if self.period_end:
                 res = self.resident
                 if not res.settled_until or self.period_end > res.settled_until:
                     res.settled_until = self.period_end
                     res.save(update_fields=['settled_until'])
-            elif old_approved and not self.is_approved:
-                # If unapproved, recalculate settled_until from remaining approved transactions
-                self.resident.recalculate_settled_until()
 
     def delete(self, *args, **kwargs):
         res = self.resident
         tx_type = self.transaction_type
-        approved = self.is_approved
-        res_to_recalc = res if (approved and tx_type == self.TransactionType.RENT) else None
+        res_to_recalc = res if (tx_type == self.TransactionType.RENT) else None
 
         super().delete(*args, **kwargs)
 
@@ -230,6 +227,6 @@ from django.dispatch import receiver
 
 @receiver(post_delete, sender=Transaction)
 def on_transaction_deleted(sender, instance, **kwargs):
-    if instance.resident and instance.transaction_type == Transaction.TransactionType.RENT and instance.is_approved:
+    if instance.resident and instance.transaction_type == Transaction.TransactionType.RENT:
         instance.resident.recalculate_settled_until()
 

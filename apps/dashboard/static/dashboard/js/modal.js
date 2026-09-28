@@ -85,14 +85,22 @@ const Modal = (() => {
 
         <!-- بلوک وضعیت تسویه حساب و سررسید موعد اجاره -->
         ${(() => {
-          const isOverdue = Boolean(r.is_in_debt);
+          const pp = r.period_payment || {};
+          const isPartial = Boolean(r.is_partial_payment || pp.is_partial);
+          const isOverdue = Boolean(r.is_in_debt) && !isPartial;
           const overdue = r.overdue_days || 0;
           const isWarning = isOverdue && overdue <= 7;
           const isCritical = isOverdue && overdue > 7;
 
           let containerClass, headerColor, pillClass, pillText, dueDateColor;
 
-          if (isCritical) {
+          if (isPartial) {
+            containerClass = 'border-amber-500/35 bg-amber-500/10';
+            headerColor = 'text-amber-300';
+            pillClass = 'bg-amber-500 text-slate-950 font-bold';
+            pillText = `🟡 پرداخت مرحله‌ای (${Utils.toToman((pp.remaining_tomans || 0) * 10)} مانده)`;
+            dueDateColor = 'text-amber-300';
+          } else if (isCritical) {
             containerClass = 'border-rose-500/30 bg-rose-500/10';
             headerColor = 'text-rose-300';
             pillClass = 'bg-rose-500 text-white font-bold';
@@ -112,6 +120,23 @@ const Modal = (() => {
             dueDateColor = 'text-emerald-400';
           }
 
+          const settleCoverLabel = isPartial
+            ? 'پوشش علی‌الحساب تا این تاریخ'
+            : (r.settled_until ? 'پوشش کامل تا این تاریخ' : 'حساب بدون پرداخت');
+
+          const dueBoxTitle = isPartial ? 'وضعیت پرداخت دوره' : 'مهلت تا موعد / تاخیر';
+          const dueBoxValue = isPartial
+            ? `<span class="text-amber-300">مرحله اول (${pp.progress_percent || 0}٪)</span>`
+            : (isCritical ? `${overdue} روز تاخیر (بیش از یک هفته)` : (isWarning ? (overdue === 0 ? 'امروز سررسید است' : `${overdue} روز تاخیر (تا ۱ هفته)`) : `${r.days_until_due || 0} روز تا سررسید`));
+
+          const debtBoxValue = isPartial
+            ? `<span class="text-amber-300 font-bold">${Utils.toToman((pp.remaining_tomans || 0) * 10)} مانده</span>`
+            : (r.is_in_debt ? Utils.toToman(r.total_debt_tomans * 10) + ' بدهی' : (r.room ? Utils.toToman(r.room.monthly_rent) : '-'));
+
+          const debtBoxSub = isPartial
+            ? `پرداختی: ${Utils.toToman((pp.paid_tomans || 0) * 10)} از ${Utils.toToman((pp.total_rent_tomans || 0) * 10)}`
+            : `روز پرداخت: ${r.monthly_payment_day || 1}ام هر ماه`;
+
           return `
             <div class="mb-5 p-4 rounded-2xl glass border ${containerClass}">
               <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-white/10">
@@ -127,7 +152,7 @@ const Modal = (() => {
                 <div class="p-3 rounded-xl bg-white/5 border border-white/5">
                   <p class="text-[10px] text-muted">تسویه تا تاریخ</p>
                   <p class="font-bold text-sm text-blue-300 mt-1">${r.settled_until || 'فاقد پرداخت'}</p>
-                  <p class="text-[10px] text-muted mt-0.5">${r.settled_until ? 'پوشش کامل تا این تاریخ' : 'حساب بدون پرداخت'}</p>
+                  <p class="text-[10px] text-muted mt-0.5">${settleCoverLabel}</p>
                 </div>
                 <div class="p-3 rounded-xl bg-white/5 border border-white/5">
                   <p class="text-[10px] text-muted">تاریخ سررسید موعد بعدی</p>
@@ -135,18 +160,61 @@ const Modal = (() => {
                   <p class="text-[10px] text-muted mt-0.5">موعد پرداخت بعدی</p>
                 </div>
                 <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <p class="text-[10px] text-muted">مهلت تا موعد / تاخیر</p>
-                  <p class="font-bold text-sm mt-1 ${isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400')}">
-                    ${isCritical ? `${overdue} روز تاخیر (بیش از یک هفته)` : (isWarning ? (overdue === 0 ? 'امروز سررسید است' : `${overdue} روز تاخیر (تا ۱ هفته)`) : `${r.days_until_due || 0} روز تا سررسید`)}
+                  <p class="text-[10px] text-muted">${dueBoxTitle}</p>
+                  <p class="font-bold text-sm mt-1 ${isPartial ? 'text-amber-300' : (isCritical ? 'text-rose-400' : (isWarning ? 'text-amber-400' : 'text-emerald-400'))}">
+                    ${dueBoxValue}
                   </p>
-                  <p class="text-[10px] text-muted mt-0.5">${r.is_in_debt && r.unpaid_months ? r.unpaid_months : 'بدون تاخیر'}</p>
+                  <p class="text-[10px] text-muted mt-0.5">${isPartial ? (pp.period_name || 'دوره جاری') : (r.is_in_debt && r.unpaid_months ? r.unpaid_months : 'بدون تاخیر')}</p>
                 </div>
                 <div class="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <p class="text-[10px] text-muted">مبلغ بدهی / نرخ ماهانه</p>
-                  <p class="font-bold text-sm mt-1">${r.is_in_debt ? Utils.toToman(r.total_debt_tomans * 10) + ' بدهی' : (r.room ? Utils.toToman(r.room.monthly_rent) : '-')}</p>
-                  <p class="text-[10px] text-muted mt-0.5">روز پرداخت: ${r.monthly_payment_day || 1}ام هر ماه</p>
+                  <p class="text-[10px] text-muted">${isPartial ? 'مانده این دوره / نرخ' : 'مبلغ بدهی / نرخ ماهانه'}</p>
+                  <p class="font-bold text-sm mt-1">${debtBoxValue}</p>
+                  <p class="text-[10px] text-muted mt-0.5">${debtBoxSub}</p>
                 </div>
               </div>
+
+              ${isPartial ? `
+                <div class="mt-3.5 p-3.5 rounded-xl bg-slate-900/60 border border-amber-500/30 text-xs">
+                  <div class="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1.5 border-b border-white/10">
+                    <span class="font-bold text-amber-300 flex items-center gap-1.5">
+                      <span>💳</span>
+                      <span>وضعیت پرداخت دوره (${pp.period_name || 'دوره جاری'}):</span>
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[11px]">
+                      ${pp.progress_percent || 0}٪ پرداخت شده
+                    </span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center my-3">
+                    <div class="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                      <p class="text-[10px] text-muted">اجاره مصوب دوره</p>
+                      <p class="font-bold text-sm mt-1 text-slate-200">${Utils.toToman((pp.total_rent_tomans || 0) * 10)}</p>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                      <p class="text-[10px] text-emerald-400 font-semibold">پرداخت‌شده (مرحله اول)</p>
+                      <p class="font-bold text-sm mt-1 text-emerald-300">✅ ${Utils.toToman((pp.paid_tomans || 0) * 10)}</p>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30">
+                      <p class="text-[10px] text-amber-400 font-semibold">مانده بدهی (مرحله دوم)</p>
+                      <p class="font-bold text-sm mt-1 text-amber-300">⏳ ${Utils.toToman((pp.remaining_tomans || 0) * 10)}</p>
+                    </div>
+                  </div>
+                  <!-- نوار پیشرفت درصد پرداخت -->
+                  <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden mb-2.5 shadow-inner">
+                    <div class="bg-gradient-to-r from-emerald-500 to-amber-400 h-2.5 rounded-full transition-all duration-500" style="width: ${pp.progress_percent || 0}%"></div>
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
+                    <p class="text-[11px] text-amber-200/90 leading-relaxed">
+                      ⚠️ این ساکن بخشی از اجاره این دوره را پرداخت نموده و مبلغ <strong class="text-white">${Utils.toToman((pp.remaining_tomans || 0) * 10)}</strong> از اجاره مصوب باقی مانده است.
+                    </p>
+                    <a href="/admin/dormitory/transaction/add/?resident=${r.id}&amount_tomans=${((pp.remaining_tomans || 0) / 1000000).toFixed(3)}" target="_blank"
+                       class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-[11px] transition whitespace-nowrap shadow flex items-center gap-1.5">
+                      <span>➕</span>
+                      <span>ثبت تسویه مرحله دوم (${Utils.toToman((pp.remaining_tomans || 0) * 10)})</span>
+                    </a>
+                  </div>
+                </div>
+              ` : ''}
+
               ${(r.is_in_debt && r.unpaid_periods && r.unpaid_periods.length > 0) ? `
                 <div class="mt-3 pt-3 border-t border-white/10 text-xs">
                   <span class="text-muted block mb-1.5 font-medium">ریز دوره‌های معوقه و نرخ مصوب هر دوره:</span>
@@ -214,21 +282,61 @@ const Modal = (() => {
           <span class="text-[11px] text-muted">خوابگاه: ${r.dormitory || '-'}</span>
         </div>
         <div class="space-y-2 max-h-[50vh] overflow-auto scroll-thin pr-1 stagger">
-          ${trans.map(t => `
-            <div class="glass rounded-2xl p-4 flex flex-col md:flex-row justify-between gap-3">
-              <div>
-                <p class="font-bold text-sm">${Utils.typeLabel(t.transaction_type)} - ${Utils.toToman(t.amount)}
-                  <span class="text-[11px] glass px-2 py-1 rounded-full mr-2">${Utils.methodLabel(t.payment_method)}</span>
-                  ${!t.is_approved ? '<span class="bg-amber-500 text-white text-[9px] px-2 py-1 rounded-full">نیاز تایید</span>' : ''}
+          ${trans.map(t => {
+            const hasDiscount = Boolean(t.has_discount || (t.discount_amount && t.discount_amount > 0) || (t.discount_in_tomans && t.discount_in_tomans > 0));
+            const discountTomans = t.discount_in_tomans || (t.discount_amount ? t.discount_amount / 10 : 0);
+            const paidTomans = t.amount_toman ?? (t.amount ? t.amount / 10 : 0);
+            const effectiveTomans = t.total_effective_amount_toman || (paidTomans + discountTomans);
+
+            return `
+            <div class="glass rounded-2xl p-4 flex flex-col md:flex-row justify-between gap-3 ${hasDiscount ? 'border-amber-500/30 bg-amber-500/[0.04]' : ''}">
+              <div class="flex-1">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <p class="font-bold text-sm text-white">
+                    ${Utils.typeLabel(t.transaction_type)} - ${Utils.toToman(t.amount)}
+                  </p>
+                  <span class="text-[11px] glass px-2 py-0.5 rounded-full mr-1">${Utils.methodLabel(t.payment_method)}</span>
+                  ${hasDiscount ? `
+                    <span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm">
+                      <span>🏷️</span>
+                      <span>${Utils.toToman(discountTomans * 10)} تخفیف/کسورات</span>
+                    </span>
+                  ` : ''}
+                  ${!t.is_approved ? '<span class="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-full">نیاز تایید</span>' : ''}
+                </div>
+                <p class="text-[11px] text-muted mt-1.5 flex flex-wrap items-center gap-x-2">
+                  <span>تاریخ: ${t.payment_date || '-'}</span>
+                  <span>|</span>
+                  <span>${t.reference_number ? 'شماره پیگیری: ' + t.reference_number : 'بدون پیگیری'}</span>
+                  ${t.period_name ? `<span>|</span><span class="text-slate-300 font-medium">دوره: ${t.period_name}</span>` : ''}
                 </p>
-                <p class="text-[11px] text-muted mt-1">تاریخ: ${t.payment_date || '-'} | ${t.reference_number ? 'شماره پیگیری: ' + t.reference_number : 'بدون پیگیری'}</p>
-                <p class="text-[11px] text-faint">${t.description || 'بدون توضیح'}</p>
+                <p class="text-[11px] text-faint mt-0.5">${t.description || 'بدون توضیح'}</p>
+
+                ${hasDiscount ? `
+                  <div class="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                    <div class="flex items-start sm:items-center gap-1.5 text-amber-300">
+                      <span class="text-base shrink-0">🏷️</span>
+                      <div>
+                        <strong class="text-amber-200">علت کسورات / تخفیف:</strong>
+                        <span class="text-amber-100 font-medium mr-1">${t.discount_reason || 'کسر مصوب مدیریت'}</span>
+                      </div>
+                    </div>
+                    <div class="text-[11px] text-slate-300 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-white/5 flex items-center gap-2 shrink-0">
+                      <span>کسورات: <strong class="text-amber-300">${Utils.toToman(discountTomans * 10)}</strong></span>
+                      <span class="text-white/30">•</span>
+                      <span>پوشش کل موثر: <strong class="text-emerald-400">${Utils.toToman(effectiveTomans * 10)}</strong></span>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
-              <div class="text-left md:text-right">
-                <p class="text-[10px] ${t.is_approved ? 'text-emerald-500' : 'text-amber-500'}">${t.is_approved ? '✅ تایید شده' : '⏳ در انتظار تایید'}</p>
+              <div class="text-left md:text-right shrink-0">
+                <p class="text-[10px] font-medium ${t.is_approved ? 'text-emerald-400' : 'text-amber-400'}">
+                  ${t.is_approved ? '✅ تایید شده' : '⏳ در انتظار تایید'}
+                </p>
               </div>
             </div>
-          `).join('') || '<p class="text-center text-muted py-6">تراکنشی برای این ساکن ثبت نشده است.</p>'}
+            `;
+          }).join('') || '<p class="text-center text-muted py-6">تراکنشی برای این ساکن ثبت نشده است.</p>'}
         </div>
       `;
     }
