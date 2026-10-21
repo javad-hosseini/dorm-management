@@ -406,5 +406,66 @@ class PartialRentPaymentTests(TestCase):
         self.assertEqual(tx_data["discount_reason"], "کسر بابت سم‌پاشی و تعمیرات")
         self.assertEqual(tx_data["total_effective_amount_toman"], 1_500_000)
 
+    def test_yesterday_sms_summary_generation(self):
+        from apps.dormitory.models import Transaction
+        from apps.dashboard.services.financial_service import FinancialService
+        import datetime
+        from zoneinfo import ZoneInfo
+
+        today = jdatetime.date.today()
+        yesterday = today - datetime.timedelta(days=1)
+        tz = ZoneInfo("Asia/Tehran")
+        y_dt = jdatetime.datetime(yesterday.year, yesterday.month, yesterday.day, 14, 30, tzinfo=tz)
+
+        # Transaction 1: Card 3,000,000 Tomans
+        Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=30_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.CARD,
+            payment_date=y_dt,
+            created_by=self.supervisor,
+            is_approved=True
+        )
+
+        # Transaction 2: Bank Transfer 2,000,000 Tomans
+        Transaction.objects.create(
+            resident=self.resident,
+            dormitory=self.dormitory,
+            amount=20_000_000,
+            transaction_type=Transaction.TransactionType.RENT,
+            payment_method=Transaction.PaymentMethod.BANK_TRANSFER,
+            payment_date=y_dt,
+            created_by=self.supervisor,
+            is_approved=True
+        )
+
+        # 1. Test FinancialService returns yesterday_stats
+        fin_data = FinancialService.get_financial_dashboard_data()
+        self.assertIn("yesterday_stats", fin_data)
+        y_stats = fin_data["yesterday_stats"]
+        self.assertEqual(y_stats["total_tomans"], 5_000_000)
+        self.assertEqual(y_stats["card_tomans"], 3_000_000)
+        self.assertEqual(y_stats["transfer_tomans"], 2_000_000)
+        self.assertIn("sms_text", y_stats)
+        sms_text = y_stats["sms_text"]
+        self.assertIn("گزارش واریزی دیروز", sms_text)
+        self.assertIn("کارتخوان", sms_text)
+        self.assertIn("کارت به کارت", sms_text)
+
+        # 2. Test api_admin_data includes stats.yesterday
+        self.client.force_login(self.admin_user)
+        res = self.client.get(reverse('dashboard:api_admin_data'))
+        self.assertEqual(res.status_code, 200)
+        admin_data = res.json()
+        self.assertIn("yesterday", admin_data["stats"])
+        y_admin = admin_data["stats"]["yesterday"]
+        self.assertEqual(y_admin["total_tomans"], 5_000_000)
+        self.assertEqual(y_admin["card_tomans"], 3_000_000)
+        self.assertEqual(y_admin["transfer_tomans"], 2_000_000)
+        self.assertIn("گزارش واریزی دیروز", y_admin["sms_text"])
+
+
 
 

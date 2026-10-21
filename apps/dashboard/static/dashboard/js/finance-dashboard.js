@@ -234,16 +234,20 @@ const FinanceApp = (() => {
 
     list.forEach((day, index) => {
       const isToday = index === list.length - 1;
+      const isYesterday = index === list.length - 2;
       const card = document.createElement('div');
       card.className = `glass rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-cyan-400/40 ${
-        isToday ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/10' : ''
+        isToday
+          ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/10'
+          : (isYesterday ? 'border-amber-500/40 bg-amber-500/[0.04]' : '')
       }`;
 
       card.innerHTML = `
         <div class="flex justify-between items-center mb-2 pb-2 border-b border-white/10">
           <div class="flex items-center gap-1.5">
-            <span class="font-bold text-xs ${isToday ? 'text-cyan-300' : 'text-white'}">${day.day_name}</span>
+            <span class="font-bold text-xs ${isToday ? 'text-cyan-300' : (isYesterday ? 'text-amber-300' : 'text-white')}">${day.day_name}</span>
             ${isToday ? '<span class="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/30 text-cyan-200 font-bold">امروز</span>' : ''}
+            ${isYesterday ? '<span class="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/30 text-amber-200 font-bold">دیروز</span>' : ''}
           </div>
           <span class="text-[11px] text-muted">${toPersianDigits(day.date_str)}</span>
         </div>
@@ -269,6 +273,12 @@ const FinanceApp = (() => {
             <span class="font-bold text-white">${toPersianDigits(day.count)}</span>
           </div>
         </div>
+        ${isYesterday ? `
+          <button type="button" onclick="FinanceApp.copyYesterdaySms(this)" class="mt-2.5 w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-amber-500/40 text-[10px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm" title="کپی پیامک خلاصه واریزی‌های دیروز برای ارسال به مدیریت">
+            <span>📋</span>
+            <span>کپی پیامک دیروز</span>
+          </button>
+        ` : ''}
       `;
       container.appendChild(card);
     });
@@ -489,6 +499,81 @@ const FinanceApp = (() => {
     }
   }
 
+  function getYesterdaySmsText() {
+    const y = state.data?.yesterday_stats;
+    if (y && y.sms_text) return y.sms_text;
+
+    // Fallback calculation from seven_days_breakdown
+    const list = state.data?.seven_days_breakdown || [];
+    const yesterday = list.length >= 2 ? list[list.length - 2] : null;
+    if (!yesterday) return 'اطلاعاتی برای دیروز یافت نشد.';
+
+    const total = toPersianDigits((yesterday.total_tomans || 0).toLocaleString());
+    const card = toPersianDigits((yesterday.card_tomans || 0).toLocaleString());
+    const transfer = toPersianDigits((yesterday.transfer_tomans || 0).toLocaleString());
+    const count = toPersianDigits(yesterday.count || 0);
+    const dateStr = toPersianDigits(yesterday.date_str || '');
+    const dayName = yesterday.day_name || '';
+
+    if (!yesterday.count || yesterday.total_tomans === 0) {
+      return `گزارش واریزی دیروز (${dayName} ${dateStr}):\nدریافتی: ۰ تومان (تراکنشی ثبت نشد)`;
+    }
+
+    const lines = [
+      `گزارش واریزی دیروز (${dayName} ${dateStr}):`,
+      `جمع کل دریافتی: ${total} تومان`,
+      `• کارتخوان: ${card} تومان`,
+      `• کارت به کارت: ${transfer} تومان`
+    ];
+    if (yesterday.cash_tomans > 0) {
+      lines.push(`• نقدی: ${toPersianDigits(yesterday.cash_tomans.toLocaleString())} تومان`);
+    }
+    if (yesterday.online_tomans > 0) {
+      lines.push(`• درگاه آنلاین: ${toPersianDigits(yesterday.online_tomans.toLocaleString())} تومان`);
+    }
+    lines.push(`تعداد: ${count} تراکنش`);
+    return lines.join('\n');
+  }
+
+  async function copyYesterdaySms(btnEl) {
+    const text = getYesterdaySmsText();
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      if (typeof Toast !== 'undefined') {
+        Toast.show('خلاصه پیامکی دیروز در کلیپ‌بورد کپی شد (آماده ارسال به مدیریت)', 'success', 4000);
+      }
+
+      const targetBtn = btnEl || document.getElementById('btn-copy-yesterday-sms');
+      if (targetBtn) {
+        const originalHtml = targetBtn.innerHTML;
+        targetBtn.innerHTML = '<span>✅</span><span>کپی شد!</span>';
+        targetBtn.classList.add('bg-emerald-500/25', 'text-emerald-300', 'border-emerald-500/40');
+        setTimeout(() => {
+          targetBtn.innerHTML = originalHtml;
+          targetBtn.classList.remove('bg-emerald-500/25', 'text-emerald-300', 'border-emerald-500/40');
+        }, 2200);
+      }
+    } catch (err) {
+      console.error('Failed to copy yesterday SMS:', err);
+      if (typeof Toast !== 'undefined') {
+        Toast.show('خطا در کپی متن در کلیپ‌بورد', 'danger', 3500);
+      }
+    }
+  }
+
   function bindEvents() {
     const searchInput = document.getElementById('search-tx');
     if (searchInput) searchInput.addEventListener('input', filterTransactions);
@@ -501,9 +586,12 @@ const FinanceApp = (() => {
 
     const refreshBtn = document.getElementById('btn-refresh-finance');
     if (refreshBtn) refreshBtn.addEventListener('click', refreshData);
+
+    const copyBtn = document.getElementById('btn-copy-yesterday-sms');
+    if (copyBtn) copyBtn.addEventListener('click', () => copyYesterdaySms(copyBtn));
   }
 
-  return { init, filterTransactions, refreshData };
+  return { init, filterTransactions, refreshData, copyYesterdaySms, getYesterdaySmsText };
 })();
 
 // Boot on DOM loaded

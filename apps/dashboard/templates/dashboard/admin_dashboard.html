@@ -277,9 +277,15 @@
               </select>
             </div>
           </div>
-          <button onclick="applyFinanceFilter()"
-            class="btn btn-primary px-8 py-3 rounded-2xl font-bold text-sm whitespace-nowrap">اعمال فیلتر + بروزرسانی
-            نمودار</button>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="applyFinanceFilter()"
+              class="btn btn-primary px-6 py-3 rounded-2xl font-bold text-sm whitespace-nowrap">اعمال فیلتر + بروزرسانی نمودار</button>
+            <button type="button" onclick="Finance.copyYesterdaySms(this)"
+              class="px-4 py-3 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-amber-500/40 font-bold text-xs whitespace-nowrap flex items-center gap-1.5 shadow-sm active:scale-95 transition cursor-pointer" title="کپی پیامک خلاصه واریزی‌های دیروز برای ارسال به مدیریت">
+              <span>📋</span>
+              <span>کپی پیامک دیروز به مدیریت</span>
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 stagger">

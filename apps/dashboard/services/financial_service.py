@@ -37,13 +37,51 @@ class FinancialService:
         today_total = today_card + today_transfer + today_cash + today_online
         today_count = today_qs.count()
 
-        # Yesterday Total for comparison
+        # Yesterday's Query and Breakdown
         yesterday_qs = Transaction.objects.filter(payment_date__gte=yesterday_start, payment_date__lte=yesterday_end)
-        yesterday_total = sum(t.amount for t in yesterday_qs) // 10
+        yesterday_card = sum(t.amount for t in yesterday_qs.filter(payment_method="CARD")) // 10
+        yesterday_transfer = sum(t.amount for t in yesterday_qs.filter(payment_method="BANK_TRANSFER")) // 10
+        yesterday_cash = sum(t.amount for t in yesterday_qs.filter(payment_method="CASH")) // 10
+        yesterday_online = sum(t.amount for t in yesterday_qs.filter(payment_method="ONLINE_GATEWAY")) // 10
+        yesterday_total = yesterday_card + yesterday_transfer + yesterday_cash + yesterday_online
+        yesterday_count = yesterday_qs.count()
+
         if yesterday_total > 0:
             diff_vs_yesterday = round(((today_total - yesterday_total) / yesterday_total) * 100, 1)
         else:
             diff_vs_yesterday = 100.0 if today_total > 0 else 0.0
+
+        # Construct compact SMS text for yesterday
+        y_day_name = yesterday.strftime("%A")
+        y_date_p = to_persian_digits(yesterday.strftime("%Y/%m/%d"))
+        if yesterday_count == 0 or yesterday_total == 0:
+            sms_text = f"گزارش واریزی دیروز ({y_day_name} {y_date_p}):\nدریافتی: ۰ تومان (تراکنشی ثبت نشد)"
+        else:
+            sms_lines = [
+                f"گزارش واریزی دیروز ({y_day_name} {y_date_p}):",
+                f"جمع کل دریافتی: {to_persian_digits(f'{yesterday_total:,}')} تومان",
+                f"• کارتخوان: {to_persian_digits(f'{yesterday_card:,}')} تومان",
+                f"• کارت به کارت: {to_persian_digits(f'{yesterday_transfer:,}')} تومان",
+            ]
+            if yesterday_cash > 0:
+                sms_lines.append(f"• نقدی: {to_persian_digits(f'{yesterday_cash:,}')} تومان")
+            if yesterday_online > 0:
+                sms_lines.append(f"• درگاه آنلاین: {to_persian_digits(f'{yesterday_online:,}')} تومان")
+            sms_lines.append(f"تعداد: {to_persian_digits(yesterday_count)} تراکنش")
+            sms_text = "\n".join(sms_lines)
+
+        yesterday_stats = {
+            "date_str": yesterday.strftime("%Y/%m/%d"),
+            "date_display": f"{y_day_name} {yesterday.day} {get_jalali_month_name(yesterday.month)} {yesterday.year}",
+            "day_name": y_day_name,
+            "total_tomans": yesterday_total,
+            "count": yesterday_count,
+            "card_tomans": yesterday_card,
+            "transfer_tomans": yesterday_transfer,
+            "cash_tomans": yesterday_cash,
+            "online_tomans": yesterday_online,
+            "sms_text": sms_text,
+        }
 
         today_stats = {
             "date_str": today.strftime("%Y/%m/%d"),
@@ -202,6 +240,7 @@ class FinancialService:
 
         return {
             "today_stats": today_stats,
+            "yesterday_stats": yesterday_stats,
             "seven_days_breakdown": seven_days_breakdown,
             "debt_stats": debt_stats,
             "month_stats": month_stats,

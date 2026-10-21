@@ -577,6 +577,14 @@ class Resident(models.Model):
                 return f"{self.overdue_days} روز تاخیر از ورود ({due_date_str})"
             return f"ورود در آینده ({due_date_str})"
 
+        if self.is_partial_payment:
+            period_st = self.current_period_payment_status
+            paid_t = to_persian_digits(f"{period_st['paid_tomans']:,}")
+            rem_t = to_persian_digits(f"{period_st['remaining_tomans']:,}")
+            if self.is_in_debt:
+                return f"پرداخت مرحله‌ای ({paid_t} تومن پرداخت‌شده • {rem_t} تومن مانده - {self.overdue_days} روز تاخیر)"
+            return f"پرداخت مرحله‌ای ({paid_t} تومن پرداخت‌شده • {rem_t} تومن مانده)"
+
         if self.is_in_debt:
             if self.overdue_days == 0:
                 return f"سررسید موعد امروز ({due_date_str})"
@@ -584,11 +592,6 @@ class Resident(models.Model):
                 return f"{self.overdue_days} روز تاخیر در پرداخت (مهلت تا ۱ هفته - سررسید: {due_date_str})"
             return f"{self.overdue_days} روز تاخیر در پرداخت (سررسید: {due_date_str})"
         else:
-            if self.is_partial_payment:
-                period_st = self.current_period_payment_status
-                paid_t = to_persian_digits(f"{period_st['paid_tomans']:,}")
-                rem_t = to_persian_digits(f"{period_st['remaining_tomans']:,}")
-                return f"پرداخت مرحله‌ای ({paid_t} تومن پرداخت‌شده • {rem_t} تومن مانده)"
             days = self.days_until_due
             if days == 0:
                 return f"سررسید موعد امروز ({due_date_str})"

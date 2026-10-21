@@ -1,4 +1,5 @@
 import json
+import datetime
 import jdatetime
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -7,6 +8,7 @@ from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
 from apps.dormitory.models import Dormitory, Room, Resident, Transaction
+from apps.dormitory.jalali_utils import to_persian_digits
 
 
 def get_admin_dashboard_data():
@@ -142,6 +144,35 @@ def get_admin_dashboard_data():
         if t['payment_date'].startswith(current_month_prefix)
     )
 
+    # Yesterday's payments breakdown for SMS report to management
+    yesterday = today - datetime.timedelta(days=1)
+    yesterday_prefix = f"{yesterday.year:04d}/{yesterday.month:02d}/{yesterday.day:02d}"
+    yesterday_txs = [t for t in transactions_data if t['payment_date'].startswith(yesterday_prefix)]
+    y_card = sum(t['amount'] for t in yesterday_txs if t['payment_method'] == 'CARD') // 10
+    y_transfer = sum(t['amount'] for t in yesterday_txs if t['payment_method'] == 'BANK_TRANSFER') // 10
+    y_cash = sum(t['amount'] for t in yesterday_txs if t['payment_method'] == 'CASH') // 10
+    y_online = sum(t['amount'] for t in yesterday_txs if t['payment_method'] == 'ONLINE_GATEWAY') // 10
+    y_total = y_card + y_transfer + y_cash + y_online
+    y_count = len(yesterday_txs)
+    y_day_name = yesterday.strftime("%A")
+    y_date_p = to_persian_digits(yesterday.strftime("%Y/%m/%d"))
+
+    if y_count == 0 or y_total == 0:
+        y_sms_text = f"گزارش واریزی دیروز ({y_day_name} {y_date_p}):\nدریافتی: ۰ تومان (تراکنشی ثبت نشد)"
+    else:
+        sms_lines = [
+            f"گزارش واریزی دیروز ({y_day_name} {y_date_p}):",
+            f"جمع کل دریافتی: {to_persian_digits(f'{y_total:,}')} تومان",
+            f"• کارتخوان: {to_persian_digits(f'{y_card:,}')} تومان",
+            f"• کارت به کارت: {to_persian_digits(f'{y_transfer:,}')} تومان",
+        ]
+        if y_cash > 0:
+            sms_lines.append(f"• نقدی: {to_persian_digits(f'{y_cash:,}')} تومان")
+        if y_online > 0:
+            sms_lines.append(f"• درگاه آنلاین: {to_persian_digits(f'{y_online:,}')} تومان")
+        sms_lines.append(f"تعداد: {to_persian_digits(y_count)} تراکنش")
+        y_sms_text = "\n".join(sms_lines)
+
     stats = {
         "active_residents": active_count,
         "debt_residents": debt_count,
@@ -152,6 +183,17 @@ def get_admin_dashboard_data():
         "empty_rooms": empty_rooms,
         "current_month_income": current_month_income,
         "current_month_prefix": current_month_prefix,
+        "yesterday": {
+            "date_str": yesterday.strftime("%Y/%m/%d"),
+            "day_name": y_day_name,
+            "total_tomans": y_total,
+            "count": y_count,
+            "card_tomans": y_card,
+            "transfer_tomans": y_transfer,
+            "cash_tomans": y_cash,
+            "online_tomans": y_online,
+            "sms_text": y_sms_text,
+        }
     }
 
     return {

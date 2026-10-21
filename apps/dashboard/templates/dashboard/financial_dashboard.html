@@ -60,6 +60,12 @@
           <span>داشبورد اصلی</span>
         </a>
 
+        <!-- Copy Yesterday's SMS Summary Button -->
+        <button type="button" id="btn-copy-yesterday-sms" onclick="FinanceApp.copyYesterdaySms(this)" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 hover:text-amber-100 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" title="کپی خلاصه پیامکی واریزی‌های دیروز برای ارسال به مدیریت">
+          <span class="text-sm">📋</span>
+          <span id="btn-copy-text">کپی پیامک دیروز به مدیریت</span>
+        </button>
+
         <!-- Live Refresh Button -->
         <button type="button" id="btn-refresh-finance" class="p-2 rounded-xl glass hover:bg-white/10 text-xs font-bold text-muted hover:text-white transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95" title="به‌روزرسانی آنی داده‌های مالی">
           <svg class="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

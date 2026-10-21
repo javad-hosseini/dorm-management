@@ -141,5 +141,40 @@ const Finance = (() => {
     Toast.show('فیلترهای مالی اعمال شد', 'success');
   }
 
-  return { render, apply, getFiltered };
+  async function copyYesterdaySms(btnEl) {
+    let text = DB.stats?.yesterday?.sms_text;
+    if (!text) {
+      const txs = DB.transactions || [];
+      const yStr = DB.stats?.yesterday?.date_str || '';
+      const yesterdayTxs = txs.filter(t => t.payment_date && t.payment_date.startsWith(yStr));
+      const card = yesterdayTxs.filter(t => t.payment_method === 'CARD').reduce((s, x) => s + (x.amount || 0), 0) / 10;
+      const transfer = yesterdayTxs.filter(t => t.payment_method === 'BANK_TRANSFER').reduce((s, x) => s + (x.amount || 0), 0) / 10;
+      const total = yesterdayTxs.reduce((s, x) => s + (x.amount || 0), 0) / 10;
+      text = `گزارش واریزی دیروز (${yStr}):\nجمع کل دریافتی: ${total.toLocaleString('fa-IR')} تومان\n• کارتخوان: ${card.toLocaleString('fa-IR')} تومان\n• کارت به کارت: ${transfer.toLocaleString('fa-IR')} تومان\nتعداد: ${yesterdayTxs.length} تراکنش`;
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      Toast.show('خلاصه پیامکی دیروز در کلیپ‌بورد کپی شد (آماده ارسال به مدیریت)', 'success', 3500);
+      if (btnEl) {
+        const orig = btnEl.innerHTML;
+        btnEl.innerHTML = '<span>✅</span><span>کپی شد!</span>';
+        setTimeout(() => { btnEl.innerHTML = orig; }, 2200);
+      }
+    } catch (e) {
+      Toast.show('خطا در کپی کلیپ‌بورد', 'danger');
+    }
+  }
+
+  return { render, apply, getFiltered, copyYesterdaySms };
 })();
+
