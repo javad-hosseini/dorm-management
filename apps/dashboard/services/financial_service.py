@@ -7,17 +7,24 @@ from apps.dormitory.models import Transaction, Resident, Room, Dormitory
 from apps.dormitory.jalali_utils import (
     calculate_unpaid_periods,
     get_jalali_month_name,
-    to_persian_digits
+    to_persian_digits,
+    parse_jalali_date,
 )
 
 
 class FinancialService:
     TEHRAN_TZ = ZoneInfo("Asia/Tehran")
+    PERSIAN_WEEKDAYS = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
 
     @classmethod
-    def get_financial_dashboard_data(cls) -> Dict[str, Any]:
+    def get_financial_dashboard_data(cls, anchor_date_str: str = None) -> Dict[str, Any]:
         today = jdatetime.date.today()
         tz = cls.TEHRAN_TZ
+        weekdays = cls.PERSIAN_WEEKDAYS
+
+        # Find latest transaction date in DB
+        latest_tx = Transaction.objects.order_by("-payment_date").first()
+        latest_tx_date = latest_tx.payment_date.date() if (latest_tx and latest_tx.payment_date) else None
 
         # 1. Today's start and end datetimes
         today_start = jdatetime.datetime(today.year, today.month, today.day, 0, 0, 0, tzinfo=tz)
@@ -52,7 +59,7 @@ class FinancialService:
             diff_vs_yesterday = 100.0 if today_total > 0 else 0.0
 
         # Construct compact SMS text for yesterday
-        y_day_name = yesterday.strftime("%A")
+        y_day_name = weekdays[yesterday.weekday()]
         y_date_p = to_persian_digits(yesterday.strftime("%Y/%m/%d"))
         if yesterday_count == 0 or yesterday_total == 0:
             sms_text = f"گزارش واریزی دیروز ({y_day_name} {y_date_p}):\nدریافتی: ۰ تومان (تراکنشی ثبت نشد)"
@@ -83,9 +90,50 @@ class FinancialService:
             "sms_text": sms_text,
         }
 
+        # Latest Active Day Stats (if today has 0 transactions)
+        latest_day_stats = None
+        if latest_tx_date:
+            l_start = jdatetime.datetime(latest_tx_date.year, latest_tx_date.month, latest_tx_date.day, 0, 0, 0, tzinfo=tz)
+            l_end = jdatetime.datetime(latest_tx_date.year, latest_tx_date.month, latest_tx_date.day, 23, 59, 59, tzinfo=tz)
+            l_qs = Transaction.objects.filter(payment_date__gte=l_start, payment_date__lte=l_end)
+            l_card = sum(t.amount for t in l_qs.filter(payment_method="CARD")) // 10
+            l_transfer = sum(t.amount for t in l_qs.filter(payment_method="BANK_TRANSFER")) // 10
+            l_cash = sum(t.amount for t in l_qs.filter(payment_method="CASH")) // 10
+            l_online = sum(t.amount for t in l_qs.filter(payment_method="ONLINE_GATEWAY")) // 10
+            l_total = l_card + l_transfer + l_cash + l_online
+            l_day_name = weekdays[latest_tx_date.weekday()]
+            l_date_p = to_persian_digits(latest_tx_date.strftime("%Y/%m/%d"))
+
+            l_sms_lines = [
+                f"گزارش آخرین واریزی ثبت‌شده ({l_day_name} {l_date_p}):",
+                f"جمع کل دریافتی: {to_persian_digits(f'{l_total:,}')} تومان",
+                f"• کارتخوان: {to_persian_digits(f'{l_card:,}')} تومان",
+                f"• کارت به کارت: {to_persian_digits(f'{l_transfer:,}')} تومان",
+            ]
+            if l_cash > 0:
+                l_sms_lines.append(f"• نقدی: {to_persian_digits(f'{l_cash:,}')} تومان")
+            if l_online > 0:
+                l_sms_lines.append(f"• درگاه آنلاین: {to_persian_digits(f'{l_online:,}')} تومان")
+            l_sms_lines.append(f"تعداد: {to_persian_digits(l_qs.count())} تراکنش")
+
+            latest_day_stats = {
+                "date_str": latest_tx_date.strftime("%Y/%m/%d"),
+                "date_display": f"{l_day_name} {latest_tx_date.day} {get_jalali_month_name(latest_tx_date.month)} {latest_tx_date.year}",
+                "day_name": l_day_name,
+                "total_tomans": l_total,
+                "count": l_qs.count(),
+                "card_tomans": l_card,
+                "transfer_tomans": l_transfer,
+                "cash_tomans": l_cash,
+                "online_tomans": l_online,
+                "sms_text": "\n".join(l_sms_lines),
+            }
+
+        t_day_name = weekdays[today.weekday()]
         today_stats = {
             "date_str": today.strftime("%Y/%m/%d"),
-            "date_display": f"{today.strftime('%A')} {today.day} {get_jalali_month_name(today.month)} {today.year}",
+            "date_display": f"{t_day_name} {today.day} {get_jalali_month_name(today.month)} {today.year}",
+            "day_name": t_day_name,
             "total_tomans": today_total,
             "count": today_count,
             "card_tomans": today_card,
@@ -93,13 +141,33 @@ class FinancialService:
             "cash_tomans": today_cash,
             "online_tomans": today_online,
             "yesterday_total_tomans": yesterday_total,
-            "diff_vs_yesterday_percent": diff_vs_yesterday
+            "diff_vs_yesterday_percent": diff_vs_yesterday,
+            "latest_day_stats": latest_day_stats,
         }
 
-        # 2. 7-Day Inflow Breakdown
+        # 2. 7-Day Inflow Breakdown (With Smart Anchor and Week Navigation)
+        if anchor_date_str == "today":
+            anchor = today
+        elif anchor_date_str == "latest":
+            anchor = latest_tx_date or today
+        elif anchor_date_str:
+            parsed = parse_jalali_date(anchor_date_str)
+            anchor = parsed if parsed else today
+        else:
+            # Check if last 7 calendar days have transactions
+            cur_week_start = today - datetime.timedelta(days=6)
+            cw_s = jdatetime.datetime(cur_week_start.year, cur_week_start.month, cur_week_start.day, 0, 0, 0, tzinfo=tz)
+            has_cur_week = Transaction.objects.filter(payment_date__gte=cw_s, payment_date__lte=today_end).exists()
+            if has_cur_week or not latest_tx_date:
+                anchor = today
+            else:
+                # Default to latest active transaction date so the user sees actual data
+                anchor = latest_tx_date
+
+        start_of_7days = anchor - datetime.timedelta(days=6)
         seven_days_breakdown: List[Dict[str, Any]] = []
         for i in range(6, -1, -1):
-            d = today - datetime.timedelta(days=i)
+            d = anchor - datetime.timedelta(days=i)
             d_start = jdatetime.datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=tz)
             d_end = jdatetime.datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=tz)
             d_qs = Transaction.objects.filter(payment_date__gte=d_start, payment_date__lte=d_end)
@@ -113,14 +181,36 @@ class FinancialService:
             seven_days_breakdown.append({
                 "date_str": d.strftime("%Y/%m/%d"),
                 "short_date": f"{d.month:02d}/{d.day:02d}",
-                "day_name": d.strftime("%A"),
+                "day_name": weekdays[d.weekday()],
                 "total_tomans": d_total,
                 "card_tomans": c_card,
                 "transfer_tomans": c_transfer,
                 "cash_tomans": c_cash,
                 "online_tomans": c_online,
-                "count": d_qs.count()
+                "count": d_qs.count(),
+                "is_today": d == today,
+                "is_yesterday": d == yesterday,
+                "is_anchor": d == anchor,
             })
+
+        prev_week_anchor = (anchor - datetime.timedelta(days=7)).strftime("%Y/%m/%d")
+        next_week_anchor = min(today, anchor + datetime.timedelta(days=7)).strftime("%Y/%m/%d")
+        week_navigation = {
+            "anchor_date": anchor.strftime("%Y/%m/%d"),
+            "anchor_date_display": f"{weekdays[anchor.weekday()]} {anchor.day} {get_jalali_month_name(anchor.month)} {anchor.year}",
+            "range_start_date": start_of_7days.strftime("%Y/%m/%d"),
+            "range_end_date": anchor.strftime("%Y/%m/%d"),
+            "range_display": f"{start_of_7days.day} {get_jalali_month_name(start_of_7days.month)} تا {anchor.day} {get_jalali_month_name(anchor.month)} {anchor.year}",
+            "prev_week_anchor": prev_week_anchor,
+            "next_week_anchor": next_week_anchor,
+            "can_go_next": anchor < today,
+            "today_date": today.strftime("%Y/%m/%d"),
+            "latest_tx_date": latest_tx_date.strftime("%Y/%m/%d") if latest_tx_date else None,
+            "is_anchored_to_latest": (latest_tx_date is not None and anchor == latest_tx_date),
+            "is_anchored_to_today": anchor == today,
+            "week_total_tomans": sum(d["total_tomans"] for d in seven_days_breakdown),
+            "week_tx_count": sum(d["count"] for d in seven_days_breakdown),
+        }
 
         # 3. Debt Calculation (Today's overdue & until 1st of next month)
         if today.month < 12:
@@ -242,6 +332,7 @@ class FinancialService:
             "today_stats": today_stats,
             "yesterday_stats": yesterday_stats,
             "seven_days_breakdown": seven_days_breakdown,
+            "week_navigation": week_navigation,
             "debt_stats": debt_stats,
             "month_stats": month_stats,
             "top_debtors": top_debtors,

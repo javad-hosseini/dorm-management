@@ -1,3 +1,4 @@
+import os
 import json
 import datetime
 import jdatetime
@@ -437,6 +438,27 @@ class AdminBackupListView(AdminRequiredMixin, View):
         })
 
 
+class AdminBackupDownloadView(AdminRequiredMixin, View):
+    """Secure API endpoint to download a backup file."""
+    def get(self, request, filename, *args, **kwargs):
+        safe_filename = os.path.basename(filename)
+        if safe_filename != filename or not safe_filename.startswith("backup_"):
+            return JsonResponse({"status": "error", "message": "نام فایل نامعتبر است."}, status=400)
+
+        backup_dir = BackupService.get_backup_dir()
+        filepath = backup_dir / safe_filename
+
+        if not filepath.exists() or not filepath.is_file():
+            return JsonResponse({"status": "error", "message": "فایل پشتیبان مورد نظر یافت نشد."}, status=404)
+
+        is_sqlite = safe_filename.endswith((".sqlite3", ".db"))
+        content_type = "application/x-sqlite3" if is_sqlite else "application/sql"
+
+        from django.http import FileResponse
+        response = FileResponse(open(filepath, "rb"), as_attachment=True, filename=safe_filename, content_type=content_type)
+        return response
+
+
 from .services.financial_service import FinancialService
 
 
@@ -446,7 +468,8 @@ class FinancialDashboardView(AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        data = FinancialService.get_financial_dashboard_data()
+        anchor = self.request.GET.get("anchor_date")
+        data = FinancialService.get_financial_dashboard_data(anchor_date_str=anchor)
         ctx["finance_json"] = json.dumps(data, ensure_ascii=False)
         ctx["finance_data"] = data
         return ctx
@@ -455,6 +478,7 @@ class FinancialDashboardView(AdminRequiredMixin, TemplateView):
 class FinancialDashboardDataApiView(AdminRequiredMixin, View):
     """API endpoint for live refresh of financial dashboard metrics and charts."""
     def get(self, request, *args, **kwargs):
-        data = FinancialService.get_financial_dashboard_data()
+        anchor = request.GET.get("anchor_date")
+        data = FinancialService.get_financial_dashboard_data(anchor_date_str=anchor)
         return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
 

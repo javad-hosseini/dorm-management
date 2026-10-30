@@ -127,16 +127,24 @@ def calculate_settlement_advance(
     start_date: jdatetime.date,
     amount_rials: int,
     monthly_rent_rials: int,
-    rent_resolver: Optional[Callable[[jdatetime.date], int]] = None
+    rent_resolver: Optional[Callable[[jdatetime.date], int]] = None,
+    anchor_day: Optional[int] = None,
 ) -> Tuple[jdatetime.date, int, str]:
     """
     Calculate advancing settled_until from start_date given an amount in Rials.
-    Supports accurate prorated daily calculation across Jalali calendar months.
+    Accurately respects the variable lengths of all 12 Jalali months:
+    - Months 1-6 (Farvardin - Shahrivar): 31 days
+    - Months 7-11 (Mehr - Bahman): 30 days
+    - Month 12 (Esfand): 29 days (or 30 days in leap years)
+    Prevents any ±1 or ±2 day drift when crossing month boundaries or paying multi-month rent.
     Returns:
         (new_settled_date, total_days_advanced, period_name)
     """
     if not start_date or amount_rials <= 0:
         return start_date, 0, ""
+
+    if anchor_day is None:
+        anchor_day = start_date.day
 
     cursor = start_date
     remaining_amount = amount_rials
@@ -149,23 +157,69 @@ def calculate_settlement_advance(
             total_days_advanced += 30
             break
 
-        days_in_cur_month = get_days_in_jalali_month(cursor.year, cursor.month)
-        daily_rate = effective_monthly_rent / days_in_cur_month
+        days_in_m = get_days_in_jalali_month(cursor.year, cursor.month)
+        cur_target_day = min(anchor_day, days_in_m)
 
-        remaining_days_in_month = days_in_cur_month - cursor.day + 1
-        cost_for_rest_of_month = int(round(remaining_days_in_month * daily_rate))
+        if cursor.day != cur_target_day:
+            # Cursor is not on anchor day (e.g. following previous partial payment).
+            # Determine next anchor boundary to complete the current cycle.
+            if cursor.day < cur_target_day:
+                next_boundary = jdatetime.date(cursor.year, cursor.month, cur_target_day)
+            else:
+                next_m = add_jalali_months(jdatetime.date(cursor.year, cursor.month, 1), 1)
+                nb_days_in_m = get_days_in_jalali_month(next_m.year, next_m.month)
+                next_boundary = jdatetime.date(next_m.year, next_m.month, min(anchor_day, nb_days_in_m))
 
-        if remaining_amount >= cost_for_rest_of_month:
-            cursor = cursor + datetime.timedelta(days=remaining_days_in_month)
-            total_days_advanced += remaining_days_in_month
-            remaining_amount -= cost_for_rest_of_month
+            prev_boundary = add_jalali_months(next_boundary, -1)
+            full_cycle_days = (next_boundary - prev_boundary).days
+            needed_days = (next_boundary - cursor).days
+            cost_to_boundary = int(round(needed_days * (effective_monthly_rent / full_cycle_days)))
+
+            if remaining_amount >= cost_to_boundary:
+                cursor = next_boundary
+                total_days_advanced += needed_days
+                remaining_amount -= cost_to_boundary
+                # If remaining amount is negligible (< 0.5 day's cost of next cycle), consume it cleanly
+                next_cycle_length = get_days_in_jalali_month(cursor.year, cursor.month)
+                next_daily_rate = effective_monthly_rent / next_cycle_length
+                if remaining_amount < next_daily_rate * 0.5:
+                    remaining_amount = 0
+                    break
+            else:
+                days_covered = int(round(remaining_amount * full_cycle_days / effective_monthly_rent))
+                if total_days_advanced == 0:
+                    days_covered = max(1, min(needed_days, days_covered))
+                else:
+                    days_covered = min(needed_days, days_covered)
+                cursor = cursor + datetime.timedelta(days=days_covered)
+                total_days_advanced += days_covered
+                remaining_amount = 0
+                break
         else:
-            days_covered = int(round(remaining_amount / daily_rate))
-            days_covered = max(1, min(remaining_days_in_month, days_covered))
-            cursor = cursor + datetime.timedelta(days=days_covered)
-            total_days_advanced += days_covered
-            remaining_amount = 0
-            break
+            # Cursor is aligned with anchor day: advance full monthly cycle
+            next_m = add_jalali_months(jdatetime.date(cursor.year, cursor.month, 1), 1)
+            days_in_nm = get_days_in_jalali_month(next_m.year, next_m.month)
+            next_cycle_end = jdatetime.date(next_m.year, next_m.month, min(anchor_day, days_in_nm))
+            cycle_days = (next_cycle_end - cursor).days
+
+            if remaining_amount >= effective_monthly_rent:
+                cursor = next_cycle_end
+                total_days_advanced += cycle_days
+                remaining_amount -= effective_monthly_rent
+            else:
+                days_covered = int(round(remaining_amount * cycle_days / effective_monthly_rent))
+                if total_days_advanced == 0:
+                    days_covered = max(1, min(cycle_days, days_covered))
+                else:
+                    days_covered = min(cycle_days, days_covered)
+
+                if days_covered >= cycle_days:
+                    cursor = next_cycle_end
+                elif days_covered > 0:
+                    cursor = cursor + datetime.timedelta(days=days_covered)
+                total_days_advanced += days_covered
+                remaining_amount = 0
+                break
 
     period_name = format_period_name(start_date, cursor)
     if total_days_advanced > 0 and (start_date.day != 1 or cursor.day != 1):

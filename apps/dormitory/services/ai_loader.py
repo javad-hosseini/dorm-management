@@ -17,6 +17,7 @@ from apps.dormitory.jalali_utils import (
     format_period_name,
     get_jalali_month_name,
     to_persian_digits,
+    calculate_settlement_advance,
 )
 
 
@@ -375,10 +376,15 @@ def preview_events(
 
                 # Calculate projected coverage
                 rent_rate = (res.room.monthly_rent if res.room and res.room.monthly_rent else processed_item["amount_rials"])
-                months_paid = max(1, round(processed_item["amount_rials"] / rent_rate)) if rent_rate and rent_rate > 0 else 1
                 base_date = res.settled_until or res.entry_date or event_date
-                proj_end = add_jalali_months(base_date, months_paid)
-                period_name = format_period_name(base_date, proj_end)
+                rent_resolver = res.room.get_rent_for_date if res.room else None
+                proj_end, _, period_name = calculate_settlement_advance(
+                    start_date=base_date,
+                    amount_rials=processed_item["amount_rials"],
+                    monthly_rent_rials=rent_rate,
+                    rent_resolver=rent_resolver,
+                    anchor_day=res.monthly_payment_day,
+                )
 
                 processed_item["details"] = {
                     "current_settled_until": str(res.settled_until) if res.settled_until else "ثبت‌نشده",

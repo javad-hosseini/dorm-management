@@ -38,6 +38,7 @@ const FinanceApp = (() => {
     renderKPIs();
     render7DayChart();
     render7DayCards();
+    updateWeekNavigationUI();
     renderDistributionChart();
     renderTopDebtors();
     renderTransactionsTable();
@@ -58,12 +59,17 @@ const FinanceApp = (() => {
 
     const elTodayDiff = document.getElementById('kpi-today-diff');
     if (elTodayDiff) {
-      const diff = today.diff_vs_yesterday_percent || 0;
-      const isPositive = diff >= 0;
-      elTodayDiff.className = `text-[11px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 ${
-        isPositive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
-      }`;
-      elTodayDiff.innerHTML = `<span>${isPositive ? '▲ +' : '▼ '}${toPersianDigits(Math.abs(diff))}%</span> <span class="text-white/60 font-normal">نسبت به دیروز</span>`;
+      if ((today.total_tomans || 0) === 0 && today.latest_day_stats) {
+        elTodayDiff.className = 'text-[11px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+        elTodayDiff.innerHTML = `<span>🎯 آخرین دریافت: ${toPersianDigits(today.latest_day_stats.date_str)} (${toToman(today.latest_day_stats.total_tomans)})</span>`;
+      } else {
+        const diff = today.diff_vs_yesterday_percent || 0;
+        const isPositive = diff >= 0;
+        elTodayDiff.className = `text-[11px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 ${
+          isPositive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+        }`;
+        elTodayDiff.innerHTML = `<span>${isPositive ? '▲ +' : '▼ '}${toPersianDigits(Math.abs(diff))}%</span> <span class="text-white/60 font-normal">نسبت به دیروز</span>`;
+      }
     }
 
     const elTodayCard = document.getElementById('kpi-today-card');
@@ -113,6 +119,10 @@ const FinanceApp = (() => {
   function render7DayChart() {
     const ctx = document.getElementById('chart-7days');
     if (!ctx) return;
+    if (typeof Chart === 'undefined') {
+      console.warn('کتابخانه Chart.js بارگذاری نشده است.');
+      return;
+    }
 
     const list = state.data.seven_days_breakdown || [];
     const labels = list.map(d => `${d.day_name} (${toPersianDigits(d.short_date)})`);
@@ -171,6 +181,10 @@ const FinanceApp = (() => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
         plugins: {
           legend: {
             position: 'top',
@@ -210,6 +224,7 @@ const FinanceApp = (() => {
           },
           y: {
             stacked: true,
+            beginAtZero: true,
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
             ticks: {
               color: '#94a3b8',
@@ -232,28 +247,37 @@ const FinanceApp = (() => {
     const list = state.data.seven_days_breakdown || [];
     container.innerHTML = '';
 
-    list.forEach((day, index) => {
-      const isToday = index === list.length - 1;
-      const isYesterday = index === list.length - 2;
+    list.forEach((day) => {
+      const isToday = day.is_today;
+      const isYesterday = day.is_yesterday;
+      const isAnchor = day.is_anchor;
       const card = document.createElement('div');
       card.className = `glass rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-cyan-400/40 ${
         isToday
-          ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/10'
-          : (isYesterday ? 'border-amber-500/40 bg-amber-500/[0.04]' : '')
+          ? 'border-emerald-500/50 bg-emerald-500/10 shadow-lg shadow-emerald-500/10'
+          : (isAnchor ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/10' : (isYesterday ? 'border-amber-500/40 bg-amber-500/[0.04]' : ''))
       }`;
+
+      let badgeHtml = '';
+      if (isToday) {
+        badgeHtml = '<span class="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/30 text-emerald-200 font-bold">امروز</span>';
+      } else if (isYesterday) {
+        badgeHtml = '<span class="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/30 text-amber-200 font-bold">دیروز</span>';
+      } else if (isAnchor) {
+        badgeHtml = '<span class="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/30 text-cyan-200 font-bold">پایان دوره</span>';
+      }
 
       card.innerHTML = `
         <div class="flex justify-between items-center mb-2 pb-2 border-b border-white/10">
           <div class="flex items-center gap-1.5">
-            <span class="font-bold text-xs ${isToday ? 'text-cyan-300' : (isYesterday ? 'text-amber-300' : 'text-white')}">${day.day_name}</span>
-            ${isToday ? '<span class="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/30 text-cyan-200 font-bold">امروز</span>' : ''}
-            ${isYesterday ? '<span class="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/30 text-amber-200 font-bold">دیروز</span>' : ''}
+            <span class="font-bold text-xs ${isToday ? 'text-emerald-300' : (isAnchor ? 'text-cyan-300' : (isYesterday ? 'text-amber-300' : 'text-white'))}">${day.day_name}</span>
+            ${badgeHtml}
           </div>
           <span class="text-[11px] text-muted">${toPersianDigits(day.date_str)}</span>
         </div>
         <div class="mb-3">
           <div class="text-[10px] text-muted">مجموع واریزی</div>
-          <div class="text-sm font-extrabold text-emerald-400">${toToman(day.total_tomans)}</div>
+          <div class="text-sm font-extrabold ${day.total_tomans > 0 ? 'text-emerald-400' : 'text-slate-400'}">${toToman(day.total_tomans)}</div>
         </div>
         <div class="space-y-1.5 text-[10px] bg-black/20 rounded-xl p-2 border border-white/5">
           <div class="flex justify-between text-cyan-300">
@@ -273,10 +297,10 @@ const FinanceApp = (() => {
             <span class="font-bold text-white">${toPersianDigits(day.count)}</span>
           </div>
         </div>
-        ${isYesterday ? `
-          <button type="button" onclick="FinanceApp.copyYesterdaySms(this)" class="mt-2.5 w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-amber-500/40 text-[10px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm" title="کپی پیامک خلاصه واریزی‌های دیروز برای ارسال به مدیریت">
+        ${day.count > 0 ? `
+          <button type="button" onclick="FinanceApp.copyDaySms('${day.date_str}', this)" class="mt-2.5 w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-200 border border-white/10 text-[10px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm" title="کپی پیامک خلاصه واریزی‌های ${day.day_name} (${toPersianDigits(day.date_str)}) برای ارسال به مدیریت">
             <span>📋</span>
-            <span>کپی پیامک دیروز</span>
+            <span>کپی پیامک این روز</span>
           </button>
         ` : ''}
       `;
@@ -284,9 +308,110 @@ const FinanceApp = (() => {
     });
   }
 
+  function updateWeekNavigationUI() {
+    const nav = state.data?.week_navigation;
+    if (!nav) return;
+
+    const badge = document.getElementById('week-badge-info');
+    if (badge) {
+      if (nav.is_anchored_to_latest) {
+        badge.textContent = `🎯 آخرین دوره فعال (${toPersianDigits(nav.range_display)})`;
+        badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+      } else if (nav.is_anchored_to_today) {
+        badge.textContent = `📅 ۷ روز منتهی به امروز (${toPersianDigits(nav.range_display)})`;
+        badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      } else {
+        badge.textContent = `دوره: ${toPersianDigits(nav.range_display)}`;
+        badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/10 text-slate-300 border border-white/10';
+      }
+    }
+
+    const desc = document.getElementById('week-desc-info');
+    if (desc) {
+      desc.textContent = `نمودار مقایسه‌ای روش‌های واریز از ${toPersianDigits(nav.range_start_date)} تا ${toPersianDigits(nav.range_end_date)}`;
+    }
+
+    const totalEl = document.getElementById('week-summary-total');
+    if (totalEl) {
+      totalEl.textContent = `مجموع این دوره: ${toToman(nav.week_total_tomans)} (${toPersianDigits(nav.week_tx_count)} تراکنش)`;
+    }
+
+    const btnNext = document.getElementById('btn-week-next');
+    if (btnNext) {
+      if (!nav.can_go_next) {
+        btnNext.disabled = true;
+        btnNext.classList.add('opacity-40', 'cursor-not-allowed');
+      } else {
+        btnNext.disabled = false;
+        btnNext.classList.remove('opacity-40', 'cursor-not-allowed');
+      }
+    }
+
+    const btnLatest = document.getElementById('btn-jump-latest');
+    if (btnLatest) {
+      if (nav.is_anchored_to_latest) {
+        btnLatest.classList.add('ring-2', 'ring-cyan-400');
+      } else {
+        btnLatest.classList.remove('ring-2', 'ring-cyan-400');
+      }
+    }
+
+    const btnToday = document.getElementById('btn-jump-today');
+    if (btnToday) {
+      if (nav.is_anchored_to_today) {
+        btnToday.classList.add('ring-2', 'ring-emerald-400');
+      } else {
+        btnToday.classList.remove('ring-2', 'ring-emerald-400');
+      }
+    }
+  }
+
+  async function changeWeek(target) {
+    const nav = state.data?.week_navigation;
+    let targetAnchor = 'latest';
+
+    if (target === 'prev') {
+      targetAnchor = nav?.prev_week_anchor || '';
+    } else if (target === 'next') {
+      if (nav && !nav.can_go_next) return;
+      targetAnchor = nav?.next_week_anchor || '';
+    } else if (target === 'latest') {
+      targetAnchor = 'latest';
+    } else if (target === 'today') {
+      targetAnchor = 'today';
+    } else if (typeof target === 'string') {
+      targetAnchor = target;
+    }
+
+    if (!targetAnchor) return;
+
+    try {
+      const res = await fetch(`/dashboard/api/finance-data/?anchor_date=${encodeURIComponent(targetAnchor)}`);
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+      state.data = data;
+      render7DayChart();
+      render7DayCards();
+      updateWeekNavigationUI();
+
+      if (typeof Toast !== 'undefined') {
+        Toast.show(`دوره ۷ روزه بارگذاری شد: ${data.week_navigation.range_display}`, 'info', 2500);
+      }
+    } catch (e) {
+      console.error('Failed to change week:', e);
+      if (typeof Toast !== 'undefined') {
+        Toast.show('خطا در بارگذاری اطلاعات دوره انتخابی', 'danger', 3000);
+      }
+    }
+  }
+
   function renderDistributionChart() {
     const ctx = document.getElementById('chart-distribution');
     if (!ctx) return;
+    if (typeof Chart === 'undefined') {
+      console.warn('کتابخانه Chart.js بارگذاری نشده است.');
+      return;
+    }
 
     const month = state.data.month_stats || {};
     const values = [
@@ -296,26 +421,38 @@ const FinanceApp = (() => {
       month.method_online_tomans || 0
     ];
 
+    const hasData = values.some(v => v > 0);
+
     if (state.donutChart) {
       state.donutChart.destroy();
     }
 
+    const chartData = hasData ? {
+      labels: ['کارتخوان 💳', 'کارت به کارت 🏦', 'نقدی 💵', 'درگاه آنلاین 🌐'],
+      datasets: [{
+        data: values,
+        backgroundColor: [
+          '#06b6d4',
+          '#8b5cf6',
+          '#10b981',
+          '#f59e0b'
+        ],
+        borderColor: 'rgba(15, 23, 42, 0.9)',
+        borderWidth: 3
+      }]
+    } : {
+      labels: ['فاقد واریزی در این ماه'],
+      datasets: [{
+        data: [1],
+        backgroundColor: ['rgba(148, 163, 184, 0.25)'],
+        borderColor: 'rgba(15, 23, 42, 0.9)',
+        borderWidth: 2
+      }]
+    };
+
     state.donutChart = new Chart(ctx, {
       type: 'doughnut',
-      data: {
-        labels: ['کارتخوان 💳', 'کارت به کارت 🏦', 'نقدی 💵', 'درگاه آنلاین 🌐'],
-        datasets: [{
-          data: values,
-          backgroundColor: [
-            '#06b6d4',
-            '#8b5cf6',
-            '#10b981',
-            '#f59e0b'
-          ],
-          borderColor: 'rgba(15, 23, 42, 0.9)',
-          borderWidth: 3
-        }]
-      },
+      data: chartData,
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -334,6 +471,7 @@ const FinanceApp = (() => {
             bodyFont: { family: 'Vazirmatn' },
             callbacks: {
               label: function(context) {
+                if (!hasData) return 'هیچ تراکنشی در این ماه ثبت نشده است';
                 const val = context.parsed || 0;
                 return `${context.label}: ${val.toLocaleString('fa-IR')} تومان`;
               }
@@ -574,6 +712,70 @@ const FinanceApp = (() => {
     }
   }
 
+  async function copyDaySms(dateStr, btnEl) {
+    const list = state.data?.seven_days_breakdown || [];
+    const day = list.find(d => d.date_str === dateStr);
+    if (!day) return;
+
+    let text = '';
+    const dayP = toPersianDigits(day.date_str);
+    const dayName = day.day_name || '';
+
+    if (day.count === 0 || day.total_tomans === 0) {
+      text = `گزارش واریزی (${dayName} ${dayP}):\nدریافتی: ۰ تومان (تراکنشی ثبت نشد)`;
+    } else {
+      const lines = [
+        `گزارش واریزی (${dayName} ${dayP}):`,
+        `جمع کل دریافتی: ${toPersianDigits((day.total_tomans || 0).toLocaleString())} تومان`,
+        `• کارتخوان: ${toPersianDigits((day.card_tomans || 0).toLocaleString())} تومان`,
+        `• کارت به کارت: ${toPersianDigits((day.transfer_tomans || 0).toLocaleString())} تومان`
+      ];
+      if (day.cash_tomans > 0) {
+        lines.push(`• نقدی: ${toPersianDigits((day.cash_tomans || 0).toLocaleString())} تومان`);
+      }
+      if (day.online_tomans > 0) {
+        lines.push(`• درگاه آنلاین: ${toPersianDigits((day.online_tomans || 0).toLocaleString())} تومان`);
+      }
+      lines.push(`تعداد: ${toPersianDigits(day.count)} تراکنش`);
+      text = lines.join('\n');
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      if (typeof Toast !== 'undefined') {
+        Toast.show(`خلاصه پیامکی ${dayName} ${dayP} در کلیپ‌بورد کپی شد`, 'success', 3500);
+      }
+
+      if (btnEl) {
+        const origHtml = btnEl.innerHTML;
+        btnEl.innerHTML = '<span>✅</span><span>کپی شد!</span>';
+        btnEl.classList.add('bg-emerald-500/25', 'text-emerald-300', 'border-emerald-500/40');
+        setTimeout(() => {
+          btnEl.innerHTML = origHtml;
+          btnEl.classList.remove('bg-emerald-500/25', 'text-emerald-300', 'border-emerald-500/40');
+        }, 2200);
+      }
+    } catch (err) {
+      console.error('Failed to copy day SMS:', err);
+      if (typeof Toast !== 'undefined') {
+        Toast.show('خطا در کپی متن در کلیپ‌بورد', 'danger', 3500);
+      }
+    }
+  }
+
   function bindEvents() {
     const searchInput = document.getElementById('search-tx');
     if (searchInput) searchInput.addEventListener('input', filterTransactions);
@@ -591,7 +793,7 @@ const FinanceApp = (() => {
     if (copyBtn) copyBtn.addEventListener('click', () => copyYesterdaySms(copyBtn));
   }
 
-  return { init, filterTransactions, refreshData, copyYesterdaySms, getYesterdaySmsText };
+  return { init, filterTransactions, refreshData, copyYesterdaySms, copyDaySms, getYesterdaySmsText, changeWeek };
 })();
 
 // Boot on DOM loaded

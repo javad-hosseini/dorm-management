@@ -120,9 +120,9 @@ class Resident(models.Model):
         default=1,
         validators=[
             MinValueValidator(1),
-            MaxValueValidator(30),
+            MaxValueValidator(31),
         ],
-        help_text="Day of month when recurring payment is due (1-30)",
+        help_text="Day of month when recurring payment is due (1-31)",
     )
 
     # Status
@@ -650,7 +650,8 @@ class Resident(models.Model):
                 if self.entry_date and self.entry_date > c_start:
                     c_start = self.entry_date
 
-                c_end = add_jalali_months(c_start, 1)
+                next_m = add_jalali_months(jdatetime.date(c_start.year, c_start.month, 1), 1)
+                c_end = jdatetime.date(next_m.year, next_m.month, min(p_day, get_days_in_jalali_month(next_m.year, next_m.month)))
 
                 if c_start <= settled < c_end:
                     cycle_start = c_start
@@ -671,14 +672,19 @@ class Resident(models.Model):
             if settled and settled >= today:
                 # Settled period
                 cycle_start = settled
-                cycle_end = add_jalali_months(settled, 1)
+                next_m = add_jalali_months(jdatetime.date(settled.year, settled.month, 1), 1)
+                cycle_end = jdatetime.date(next_m.year, next_m.month, min(p_day, get_days_in_jalali_month(next_m.year, next_m.month)))
                 period_name = format_period_name(cycle_start, cycle_end)
                 paid_tomans = monthly_rent
                 remaining_tomans = 0
             else:
                 # Unpaid cycle
                 cycle_start = settled or self.entry_date or today
-                cycle_end = add_jalali_months(cycle_start, 1) if cycle_start else None
+                if cycle_start:
+                    next_m = add_jalali_months(jdatetime.date(cycle_start.year, cycle_start.month, 1), 1)
+                    cycle_end = jdatetime.date(next_m.year, next_m.month, min(p_day, get_days_in_jalali_month(next_m.year, next_m.month)))
+                else:
+                    cycle_end = None
                 period_name = format_period_name(cycle_start, cycle_end) if cycle_start and cycle_end else ""
                 paid_tomans = 0
                 remaining_tomans = monthly_rent
@@ -901,11 +907,15 @@ class Resident(models.Model):
 
     def advance_settlement(self, months: int = 1, save: bool = True) -> jdatetime.date:
         """
-        Advance settled_until date by N months.
+        Advance settled_until date by N months, preserving resident's monthly_payment_day
+        across variable month lengths (31, 30, and 29 days).
         If settled_until is None, advances from entry_date.
         """
         base_date = self.settled_until or self.entry_date or jdatetime.date.today()
-        new_settled = add_jalali_months(base_date, months)
+        p_day = self.monthly_payment_day or base_date.day
+        target_m = add_jalali_months(jdatetime.date(base_date.year, base_date.month, 1), months)
+        max_d = get_days_in_jalali_month(target_m.year, target_m.month)
+        new_settled = jdatetime.date(target_m.year, target_m.month, min(p_day, max_d))
         self.settled_until = new_settled
         if save:
             self.save(update_fields=['settled_until'])

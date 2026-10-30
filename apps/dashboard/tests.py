@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client
+from django.test import TestCase, Client, TransactionTestCase
 from django.urls import reverse
+import os
+from pathlib import Path
+from unittest.mock import patch
 import jdatetime
 from apps.accounts.models import Supervisor
 from apps.dormitory.models import Dormitory, Room, Resident
@@ -107,12 +110,16 @@ class StudentDashboardSecurityAndPrivacyTests(TestCase):
         self.assertEqual(data.get('database'), 'connected')
 
 
-import os
-from pathlib import Path
+from django.test import TestCase, Client, TransactionTestCase
 from apps.dashboard.services.backup_service import BackupService
 
 
-class BackupServiceAndApiTests(TestCase):
+from unittest.mock import patch
+from django.conf import settings
+import shutil
+
+
+class BackupServiceAndApiTests(TransactionTestCase):
     def setUp(self):
         self.client = Client()
         self.admin_user = User.objects.create_superuser(
@@ -124,16 +131,16 @@ class BackupServiceAndApiTests(TestCase):
             username="normal_user",
             password="password123"
         )
-        self.backup_dir = BackupService.get_backup_dir()
+        self.test_backup_dir = Path(settings.BASE_DIR) / "test-db-backups"
+        self.test_backup_dir.mkdir(parents=True, exist_ok=True)
+        self.patcher = patch.object(BackupService, 'get_backup_dir', return_value=self.test_backup_dir)
+        self.patcher.start()
+        self.backup_dir = self.test_backup_dir
 
     def tearDown(self):
-        # Clean up any test backups
-        if self.backup_dir.exists():
-            for f in self.backup_dir.glob("backup_*.sql"):
-                try:
-                    f.unlink()
-                except OSError:
-                    pass
+        self.patcher.stop()
+        if self.test_backup_dir.exists():
+            shutil.rmtree(self.test_backup_dir, ignore_errors=True)
 
     def test_backup_unauthenticated_denied(self):
         url = reverse("dashboard:api_backup_create")
@@ -155,9 +162,29 @@ class BackupServiceAndApiTests(TestCase):
         self.assertEqual(data.get("status"), "success")
         backup = data.get("backup", {})
         self.assertTrue(backup.get("filename", "").startswith("backup_"))
-        self.assertTrue(backup.get("filename", "").endswith(".sql"))
+        self.assertTrue(backup.get("filename", "").endswith((".sqlite3", ".sql")))
+        self.assertIn("download_url", backup)
         self.assertTrue(Path(backup["path"]).exists())
         self.assertGreater(Path(backup["path"]).stat().st_size, 0)
+
+        # Test downloading the created backup
+        download_url = backup["download_url"]
+        down_res = self.client.get(download_url)
+        self.assertEqual(down_res.status_code, 200)
+        self.assertTrue(down_res.has_header("Content-Disposition"))
+        self.assertIn(backup["filename"], down_res.headers["Content-Disposition"])
+
+    def test_admin_download_backup_invalid_filename(self):
+        self.client.force_login(self.admin_user)
+        url = reverse("dashboard:api_backup_download", kwargs={"filename": "unauthorized_file.txt"})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 400)
+
+    def test_admin_download_backup_not_found(self):
+        self.client.force_login(self.admin_user)
+        url = reverse("dashboard:api_backup_download", kwargs={"filename": "backup_non_existent.sqlite3"})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 404)
 
     def test_backup_rotation_strictly_keeps_max_5(self):
         # Create 7 dummy backup files with staggered timestamps
@@ -282,7 +309,8 @@ class PartialRentPaymentTests(TestCase):
             password="password123"
         )
 
-    def test_partial_payment_calculation_and_status(self):
+    @patch("jdatetime.date.today", return_value=jdatetime.date(1405, 7, 15))
+    def test_partial_payment_calculation_and_status(self, mock_today=None):
         """
         When monthly rent is 3,000,000 Tomans and resident pays 2,000,000 Tomans:
         - is_partial_payment should be True

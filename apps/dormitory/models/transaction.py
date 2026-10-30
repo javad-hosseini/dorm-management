@@ -187,11 +187,13 @@ class Transaction(models.Model):
 
             if self.period_start and not self.period_end:
                 rent_resolver = self.resident.room.get_rent_for_date if self.resident and self.resident.room else None
+                anchor = self.resident.monthly_payment_day if self.resident else None
                 computed_end, days_adv, computed_name = calculate_settlement_advance(
                     start_date=self.period_start,
                     amount_rials=effective_paid,
                     monthly_rent_rials=rent_rate,
-                    rent_resolver=rent_resolver
+                    rent_resolver=rent_resolver,
+                    anchor_day=anchor,
                 )
                 self.period_end = computed_end
                 if not self.period_name and computed_name:

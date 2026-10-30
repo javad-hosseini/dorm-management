@@ -161,8 +161,22 @@ def calculate_resident_debt_details(resident, today_date=None) -> dict:
     from apps.dormitory.services.excel_export import get_period_debt_tomans
 
     today = today_date or jdatetime.date.today()
-    overdue_days = resident.overdue_days if hasattr(resident, "overdue_days") else 0
-    total_debt = resident.total_debt_amount_tomans if hasattr(resident, "total_debt_amount_tomans") else 0
+    if today_date:
+        settled = resident.settled_until or resident.entry_date
+        overdue_days = max(0, (today - settled).days) if settled and today > settled else 0
+        from apps.dormitory.jalali_utils import calculate_unpaid_periods
+        rent_rials = resident.room.monthly_rent if resident.room else 0
+        rent_resolver = resident.room.get_rent_for_date if resident.room else None
+        periods = calculate_unpaid_periods(
+            start_date=settled,
+            as_of_date=today,
+            monthly_rent_rials=rent_rials,
+            rent_resolver=rent_resolver,
+        ) if settled else []
+        total_debt = sum(p["amount_tomans"] for p in periods)
+    else:
+        overdue_days = resident.overdue_days if hasattr(resident, "overdue_days") else 0
+        total_debt = resident.total_debt_amount_tomans if hasattr(resident, "total_debt_amount_tomans") else 0
     
     try:
         period_debt = get_period_debt_tomans(resident)

@@ -6,6 +6,7 @@ from .views import (
     StudentDashboardDataApiView,
     AdminBackupCreateView,
     AdminBackupListView,
+    AdminBackupDownloadView,
     FinancialDashboardView,
     FinancialDashboardDataApiView,
 )
@@ -21,4 +22,5 @@ urlpatterns = [
     path("api/finance-data/", FinancialDashboardDataApiView.as_view(), name="api_finance_data"),
     path("api/backup/create/", AdminBackupCreateView.as_view(), name="api_backup_create"),
     path("api/backup/list/", AdminBackupListView.as_view(), name="api_backup_list"),
+    path("api/backup/download/<str:filename>/", AdminBackupDownloadView.as_view(), name="api_backup_download"),
 ]

@@ -2569,6 +2569,119 @@ class DebtorsExcelExportTests(TestCase):
         self.assertIn('/admin/dormitory/resident/export-debtors-excel/', content)
 
 
+class JalaliMonthVariableDaysAndNoDriftTests(TestCase):
+    """
+    Test suite verifying that rent settlement and date calculations strictly respect
+    the 12 Jalali month lengths:
+    - 6 months with 31 days (Farvardin - Shahrivar)
+    - 5 months with 30 days (Mehr - Bahman)
+    - 1 month with 29/30 days (Esfand)
+    and completely eliminate the ±1 or ±2 day drift when advancing rent periods.
+    """
+    def setUp(self):
+        self.supervisor = Supervisor.objects.create(
+            first_name="جواد",
+            last_name="حسینی",
+            national_code="0201014318"
+        )
+        self.dormitory = Dormitory.objects.create(name="خوابگاه نوید")
+        self.room = Room.objects.create(
+            dormitory=self.dormitory,
+            room_number=120,
+            capacity=4,
+            monthly_rent=38_000_000  # 3,800,000 Tomans
+        )
+
+    def test_no_drift_crossing_shahrivar_31_to_mehr_30(self):
+        """Crossing from 31-day Shahrivar to 30-day Mehr must land on exact anchor day (20th), not 19th."""
+        from apps.dormitory.jalali_utils import calculate_settlement_advance
+        start_d = jdatetime.date(1405, 6, 20)
+        end_d, days, name = calculate_settlement_advance(
+            start_date=start_d,
+            amount_rials=38_000_000,
+            monthly_rent_rials=38_000_000,
+            anchor_day=20
+        )
+        self.assertEqual(end_d, jdatetime.date(1405, 7, 20))
+        self.assertEqual(days, 31)  # 11 days in Shahrivar + 20 days in Mehr
+
+    def test_no_drift_crossing_bahman_30_to_esfand_29(self):
+        """Crossing from 30-day Bahman to 29-day Esfand must land on exact anchor day (20th), not 19th."""
+        from apps.dormitory.jalali_utils import calculate_settlement_advance
+        start_d = jdatetime.date(1405, 11, 20)
+        end_d, days, name = calculate_settlement_advance(
+            start_date=start_d,
+            amount_rials=38_000_000,
+            monthly_rent_rials=38_000_000,
+            anchor_day=20
+        )
+        self.assertEqual(end_d, jdatetime.date(1405, 12, 20))
+        self.assertEqual(days, 30)
+
+    def test_no_drift_crossing_esfand_29_to_farvardin_31(self):
+        """Crossing from 29-day Esfand to 31-day Farvardin must land on exact anchor day (20th), not 21st."""
+        from apps.dormitory.jalali_utils import calculate_settlement_advance
+        start_d = jdatetime.date(1405, 12, 20)
+        end_d, days, name = calculate_settlement_advance(
+            start_date=start_d,
+            amount_rials=38_000_000,
+            monthly_rent_rials=38_000_000,
+            anchor_day=20
+        )
+        self.assertEqual(end_d, jdatetime.date(1406, 1, 20))
+        self.assertEqual(days, 29)
+
+    def test_all_12_months_multi_month_exact_landing(self):
+        """Multi-month payments (1 to 6 months) starting on 15th must strictly land on the 15th of target month."""
+        from apps.dormitory.jalali_utils import calculate_settlement_advance
+        start_d = jdatetime.date(1405, 4, 15)  # 15 Tir
+        rent = 38_000_000
+
+        for months in range(1, 7):
+            end_d, days, name = calculate_settlement_advance(
+                start_date=start_d,
+                amount_rials=rent * months,
+                monthly_rent_rials=rent,
+                anchor_day=15
+            )
+            expected_month = 4 + months
+            self.assertEqual(end_d, jdatetime.date(1405, expected_month, 15))
+
+    def test_two_stage_partial_payments_land_on_exact_target(self):
+        """Paying 1.5M then 2.3M must add up to exact 1-month settlement without day leakage."""
+        from apps.dormitory.jalali_utils import calculate_settlement_advance
+        start_d = jdatetime.date(1405, 7, 1)  # 1 Mehr (30 days)
+        rent = 38_000_000
+
+        # Part 1: 1.5M Tomans (15,000,000 Rials)
+        mid_d, days1, _ = calculate_settlement_advance(start_d, 15_000_000, rent, anchor_day=1)
+        # Part 2: 2.3M Tomans (23,000,000 Rials)
+        end_d, days2, _ = calculate_settlement_advance(mid_d, 23_000_000, rent, anchor_day=1)
+
+        # Full 1-month payment directly
+        full_d, full_days, _ = calculate_settlement_advance(start_d, rent, rent, anchor_day=1)
+
+        self.assertEqual(full_d, jdatetime.date(1405, 8, 1))
+        self.assertEqual(end_d, jdatetime.date(1405, 8, 1))
+        self.assertEqual(days1 + days2, full_days)
+
+    def test_resident_monthly_payment_day_validator_allows_31(self):
+        """monthly_payment_day must allow day 31 for residents entering in 31-day months."""
+        res = Resident(
+            first_name="امیر",
+            last_name="سی‌و‌یکمی",
+            national_code="0999999999",
+            phone_number="09129999999",
+            monthly_payment_day=31,
+            dormitory=self.dormitory,
+            registered_by=self.supervisor
+        )
+        # full_clean should not raise ValidationError for 31
+        res.full_clean(exclude=['room', 'entry_date'])
+        self.assertEqual(res.monthly_payment_day, 31)
+
+
+
 
 
 

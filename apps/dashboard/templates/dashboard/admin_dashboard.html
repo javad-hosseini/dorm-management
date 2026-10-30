@@ -9,7 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  {% load static %}
+  <script src="{% static 'dashboard/js/chart.min.js' %}"></script>
 
   <!-- Modular stylesheet: tokens must load first, the rest depend on its variables -->
   {% load static %}
@@ -110,9 +111,9 @@
           <span class="text-sm">💰</span>
           <span>پنل مالی</span>
         </a>
-        <button type="button" id="btn-backup-db" onclick="Backup.createBackup()" class="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-300 hover:text-blue-100 transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" title="تهیه فایل پشتیبان از پایگاه داده در پوشه db-backups">
+        <button type="button" id="btn-backup-db" onclick="Backup.createBackup()" class="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-300 hover:text-blue-100 transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" title="تهیه و دانلود آنی فایل پشتیبان SQLite از پایگاه داده">
           <span id="btn-backup-icon" class="text-sm">💾</span>
-          <span id="btn-backup-text">پشتیبان‌گیری دیتابیس</span>
+          <span id="btn-backup-text">پشتیبان‌گیری SQLite</span>
         </button>
         <a href="/admin/" class="px-3.5 py-2 rounded-xl glass hover:bg-white/10 text-xs font-bold text-muted hover:text-white transition flex items-center gap-1.5" title="ورود به پنل ادمین جنگو">
           ⚙️ پنل ادمین

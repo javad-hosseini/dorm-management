@@ -9,9 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   {% load static %}
+  <script src="{% static 'dashboard/js/chart.min.js' %}"></script>
   <link rel="stylesheet" href="{% static 'dashboard/css/tokens.css' %}?v=3">
   <link rel="stylesheet" href="{% static 'dashboard/css/base.css' %}?v=3">
   <link rel="stylesheet" href="{% static 'dashboard/css/components.css' %}?v=3">
@@ -73,6 +72,12 @@
             <polyline points="1 20 1 14 7 14"></polyline>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
           </svg>
+        </button>
+
+        <!-- SQLite Backup Button -->
+        <button type="button" id="btn-backup-db" onclick="Backup.createBackup()" class="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-300 hover:text-blue-100 transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" title="تهیه و دانلود آنی فایل پشتیبان SQLite از پایگاه داده">
+          <span id="btn-backup-icon" class="text-sm">💾</span>
+          <span id="btn-backup-text">پشتیبان‌گیری SQLite</span>
         </button>
 
         <!-- Classic Luxury Theme Switcher -->
@@ -223,21 +228,47 @@
 
     <!-- 7-DAY INFLOW BREAKDOWN SECTION -->
     <section class="glass rounded-[2rem] p-5 md:p-7 space-y-5 animate-fadeInUp" style="animation-delay:.1s">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-white/10">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-3 border-b border-white/10">
         <div>
-          <h2 class="text-lg font-extrabold text-white flex items-center gap-2">
-            <span>📈</span>
-            <span>تفکیک واریزی‌های ۷ روز گذشته به تفکیک روش پرداخت</span>
-          </h2>
-          <p class="text-xs text-muted mt-0.5">
-            نمودار ستونی مقایسه‌ای کارتخوان، کارت به کارت، نقدی و درگاه آنلاین در طول یک هفته اخیر
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h2 class="text-lg font-extrabold text-white flex items-center gap-2">
+              <span>📈</span>
+              <span>تفکیک واریزی‌های ۷ روزه به تفکیک روش پرداخت</span>
+            </h2>
+            <span id="week-badge-info" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              دوره ۷ روزه
+            </span>
+          </div>
+          <p class="text-xs text-muted mt-0.5" id="week-desc-info">
+            نمودار ستونی مقایسه‌ای کارتخوان، کارت به کارت، نقدی و درگاه آنلاین
           </p>
         </div>
-        <div class="flex items-center gap-3 text-xs">
+
+        <!-- Week Navigation Toolbar -->
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <button type="button" onclick="FinanceApp.changeWeek('prev')" class="px-2.5 py-1.5 rounded-xl glass hover:bg-white/10 text-slate-200 transition flex items-center gap-1 active:scale-95 cursor-pointer shadow-sm" title="مشاهده ۷ روز قبل">
+            <span>◀</span> <span>هفته قبل</span>
+          </button>
+          <button type="button" id="btn-week-next" onclick="FinanceApp.changeWeek('next')" class="px-2.5 py-1.5 rounded-xl glass hover:bg-white/10 text-slate-200 transition flex items-center gap-1 active:scale-95 cursor-pointer shadow-sm" title="مشاهده ۷ روز بعد">
+            <span>هفته بعد</span> <span>▶</span>
+          </button>
+          <button type="button" id="btn-jump-latest" onclick="FinanceApp.changeWeek('latest')" class="px-3 py-1.5 rounded-xl bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 transition flex items-center gap-1 active:scale-95 font-medium cursor-pointer shadow-sm" title="پرش به هفته منتهی به آخرین واریزی ثبت‌شده">
+            <span>🎯</span> <span>آخرین واریزی‌ها</span>
+          </button>
+          <button type="button" id="btn-jump-today" onclick="FinanceApp.changeWeek('today')" class="px-3 py-1.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1 active:scale-95 font-medium cursor-pointer shadow-sm" title="پرش به ۷ روز منتهی به امروز">
+            <span>📅</span> <span>امروز</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs flex-wrap gap-2 text-muted">
+        <div class="flex items-center gap-3">
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-cyan-400"></span> کارتخوان</span>
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-indigo-500"></span> کارت به کارت</span>
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-400"></span> نقدی</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-400"></span> درگاه آنلاین</span>
         </div>
+        <div id="week-summary-total" class="font-bold text-white text-xs"></div>
       </div>
 
       <!-- Chart.js Canvas -->
@@ -265,7 +296,7 @@
             </h3>
             <span class="text-[11px] text-muted">حجم تراکنش‌ها</span>
           </div>
-          <div class="relative h-[240px] flex items-center justify-center">
+          <div class="relative w-full h-[240px]">
             <canvas id="chart-distribution"></canvas>
           </div>
         </div>
@@ -375,7 +406,8 @@
   <script src="{% static 'dashboard/js/toast.js' %}?v=2"></script>
   <script src="{% static 'dashboard/js/particles.js' %}?v=2"></script>
   <script src="{% static 'dashboard/js/scroll-chrome.js' %}?v=2"></script>
-  <script src="{% static 'dashboard/js/finance-dashboard.js' %}?v=1"></script>
+  <script src="{% static 'dashboard/js/backup.js' %}?v=2"></script>
+  <script src="{% static 'dashboard/js/finance-dashboard.js' %}?v=2"></script>
 </body>
 
 </html>

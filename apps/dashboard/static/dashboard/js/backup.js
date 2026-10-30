@@ -51,9 +51,20 @@ const Backup = (() => {
 
       if (response.ok && data.status === 'success') {
         const backup = data.backup || {};
-        const successMsg = `بک‌آپ با موفقیت در پوشه db-backups ذخیره شد (${backup.size || ''})`;
+
+        // Auto-download SQLite file directly to user device
+        if (backup.download_url) {
+          const downloadLink = document.createElement('a');
+          downloadLink.href = backup.download_url;
+          downloadLink.download = backup.filename || 'backup.sqlite3';
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+        }
+
+        const successMsg = `فایل بک‌آپ SQLite (${backup.filename}) با موفقیت دانلود و در پوشه db-backups ذخیره شد (${backup.size || ''})`;
         if (typeof Toast !== 'undefined') {
-          Toast.show(successMsg, 'success', 5000);
+          Toast.show(successMsg, 'success', 6000);
         } else {
           alert(successMsg);
         }
