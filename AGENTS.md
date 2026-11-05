@@ -61,6 +61,12 @@ To ensure data integrity, atomicity, and high performance, use the optimized Dja
   [--settled-until "<target_settlement_date>"]
 ```
 
+### 4. Rent Discrepancy & Underpayment Flagging (قانون مغایرت اجاره و فلگ کردن کسری)
+- **سناریو:** اگر کاربر یا همکار رسیدی فرستاد و قید کرد که «تا تاریخ فلان تسویه شد»، اما مبلغ سهم اجاره کمتر از نرخ مصوب ماهانه اتاق برای آن دوره باشد (مثال: اتاق ۱۰۱ با اجاره ۳,۸۰۰,۰۰۰ تومان که ۳,۵۰۰,۰۰۰ تومان پرداخت شده و گفته شده تا اول آذر تسویه است):
+  1. **ثبت علی‌الحساب:** تسویه را تا تاریخ اعلام‌شده اعمال کنید تا کار متوقف نشود (`--settled-until`).
+  2. **فلگ کردن الزامی و هوشمند:** هوش مصنوعی **حتماً و بدون استثنا** باید این اختلاف را در پاسخ خود به صورت برجسته گزارش (Flag) کرده و بپرسد:
+     > «⚠️ **هشدار مغایرت مبلغ اجاره:** اجاره مصوب اتاق این ساکن ماهیانه ۳,۸۰۰,۰۰۰ تومان است اما ۳,۵۰۰,۰۰۰ تومان پرداخت شده است (کسری ۳۰۰,۰۰۰ تومان). تسویه تا اول آذر به صورت **علی‌الحساب** ثبت گردید؛ لطفاً وضعیت این ۳۰۰ هزار تومان (تخفیف مصوب مدیریت، کسورات یا مانده بدهی) را بررسی فرمایید.»
+
 #### Key Capabilities of `record_receipt`:
 - Resolves resident with fuzzy token matching, room priority, and space/half-space normalization (e.g. handles typos like 'امیدرضا جعفری' for 'امیر رضا جعفری' in room 109).
 - Supports native split transactions in a single execution.
