@@ -5,6 +5,9 @@ This quick reference guide contains all the essential CLI commands to manage:
 2. **The Dormitory Telegram Bot** (running via **Docker Compose**)
 3. **The SOCKS5 Proxy Service** (for Telegram connectivity)
 4. **The Antigravity AI Agent** (for automated spreadsheet ingestion)
+5. **One-Liner Quick Health Check**
+6. **Executive Daily SMS Report** (`python manage.py sendreport`)
+7. **Single / Split Receipt Ingestion** (`python manage.py record_receipt`)
 
 ---
 
@@ -111,4 +114,66 @@ Run this single command on the VPS to verify all services at a glance:
 echo "=== Port 8080 ===" && ss -tulpn | grep :8080 || echo "Port 8080: DOWN" ; \
 echo "=== Docker Bot ===" && docker ps --filter "name=dormitory-telegram-bot" --format "table {{.Names}}\t{{.Status}}" ; \
 echo "=== SOCKS5 Proxy ===" && ss -tulpn | grep :1080 || echo "Proxy 1080: DOWN"
+```
+
+---
+
+## 📱 6. Executive Daily SMS Report (`python manage.py sendreport`)
+
+Generates and sends an executive SMS summary for **yesterday's** activity (or any custom date) including yesterday's income, transaction count, current month's cumulative income, remaining unpaid rent for the current month, and a line-by-line breakdown of empty beds by room.
+
+Directory: `~/projects/dormitory-management/`
+
+### Direct Execution (Sends Real SMS to `09210431554`)
+```bash
+.venv/bin/python manage.py sendreport
+```
+
+### Dry Run (Preview in Terminal without sending SMS)
+```bash
+.venv/bin/python manage.py sendreport --dry-run
+```
+
+### Options & Flags
+| Flag | Description | Example |
+| :--- | :--- | :--- |
+| `--dry-run` | Output message to terminal without sending SMS | `.venv/bin/python manage.py sendreport --dry-run` |
+| `--date <YYYY/MM/DD>` | Specify report target date (Default: Yesterday) | `.venv/bin/python manage.py sendreport --date "1405/08/10"` |
+| `--phone <MOBILE>` | Override recipient phone number | `.venv/bin/python manage.py sendreport --phone "09123456789"` |
+| `--dorm-id <ID>` | Target dormitory ID (Default: `1` خوابگاه نوید) | `.venv/bin/python manage.py sendreport --dorm-id 1` |
+| `--real` | Force send via MeliPayamak even in console/dev mode | `.venv/bin/python manage.py sendreport --real` |
+
+### Automated Daily Scheduling (Cron Job)
+To send the executive summary every day automatically at 08:00 AM, add this line to `crontab -e`:
+```bash
+0 8 * * * cd "/home/javad/projects/websites/Dormitory Management System/dormitory-management" && .venv/bin/python manage.py sendreport >> daily_report.log 2>&1
+```
+
+---
+
+## 🧾 7. Manual & POS Receipt Processing (`python manage.py record_receipt`)
+
+Atomic CLI tool to register single or split receipts with Jalali settlement advancement.
+
+### Single Rent Payment
+```bash
+.venv/bin/python manage.py record_receipt \
+  --resident "امید رضایی" \
+  --room "105" \
+  --amount-tomans 3800000 \
+  --type RENT \
+  --method CARD \
+  --date "1405/08/10 11:30:00" \
+  --ref "123456"
+```
+
+### Split Payment (Rent + Deposit in One Transaction)
+```bash
+.venv/bin/python manage.py record_receipt \
+  --resident "امید رضایی" \
+  --room "105" \
+  --deposit-tomans 1000000 \
+  --rent-tomans 3800000 \
+  --date "1405/08/10 11:30:00" \
+  --ref "123456"
 ```
