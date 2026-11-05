@@ -176,3 +176,15 @@ class Command(BaseCommand):
                     f"روش: {t['method']} | دوره: {t['period_name'] or '—'}"
                 )
             self.stdout.write(f"• ثبت‌کننده: {res['supervisor']}\n")
+
+            if res.get("discrepancy") and res["discrepancy"]["is_underpaid"]:
+                disc = res["discrepancy"]
+                diff_abs = abs(disc["diff_tomans"])
+                self.stdout.write(self.style.WARNING(
+                    f"⚠️  هشدار مغایرت مبلغ اجاره (FLAGGED DISCREPANCY):\n"
+                    f"   • اجاره مصوب اتاق {disc['room_number']} برای دوره ({disc['period_name']}): {disc['expected_rent_tomans']:,} تومان\n"
+                    f"   • مبلغ دریافتی ثبت‌شده بابت اجاره: {disc['paid_rent_tomans']:,} تومان\n"
+                    f"   • کسری پرداختی: {diff_abs:,} تومان\n"
+                    f"   • تسویه تا تاریخ {res['new_settled_until']} به صورت «علی‌الحساب» اعمال شد.\n"
+                    f"   • سوال جهت بررسی: علت کسری {diff_abs:,} تومانی (تخفیف، سم‌پاشی، توافق مدیریت یا مانده بدهی) چیست؟\n"
+                ))

@@ -13,6 +13,7 @@ from apps.dormitory.jalali_utils import (
     parse_jalali_date,
     format_period_name,
     calculate_settlement_advance,
+    calculate_unpaid_periods,
 )
 
 
@@ -250,6 +251,7 @@ def process_receipt(
     total_tomans = dep_amount + r_amount
     results = []
     old_settled = res_obj.settled_until
+    discrepancy_info = None
 
     with transaction.atomic():
         # A. Process DEPOSIT if any
@@ -318,6 +320,33 @@ def process_receipt(
                 p_end_d = computed_end
                 p_name = computed_name
 
+            # Check for rent underpayment / discrepancy against official room tariff
+            discrepancy_info = None
+            if res_obj.room and p_start_d and p_end_d and p_end_d > p_start_d:
+                as_of = p_end_d - datetime.timedelta(days=1)
+                periods = calculate_unpaid_periods(
+                    start_date=p_start_d,
+                    as_of_date=as_of,
+                    rent_resolver=res_obj.room.get_rent_for_date
+                )
+                expected_rent_tomans = sum(p["amount_tomans"] for p in periods)
+                diff_tomans = r_amount - expected_rent_tomans
+                if diff_tomans != 0:
+                    discrepancy_info = {
+                        "expected_rent_tomans": expected_rent_tomans,
+                        "paid_rent_tomans": r_amount,
+                        "diff_tomans": diff_tomans,
+                        "is_underpaid": diff_tomans < 0,
+                        "is_overpaid": diff_tomans > 0,
+                        "period_name": p_name,
+                        "room_number": res_obj.room.room_number,
+                    }
+                    if diff_tomans < 0:
+                        deficit_abs = abs(diff_tomans)
+                        tag = f" [علی‌الحساب - کسری {deficit_abs:,} تومان نسبت به اجاره مصوب {expected_rent_tomans:,} تومان]"
+                        if tag not in rent_desc:
+                            rent_desc += tag
+
             rent_tx = Transaction.objects.create(
                 resident=res_obj,
                 dormitory=res_obj.dormitory,
@@ -373,6 +402,7 @@ def process_receipt(
         "has_deposit": res_obj.has_deposit,
         "supervisor": supervisor.full_name if supervisor else "جواد حسینی",
         "transactions": results,
+        "discrepancy": discrepancy_info,
         "dry_run": dry_run,
     }
 

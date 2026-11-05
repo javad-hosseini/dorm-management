@@ -2680,6 +2680,43 @@ class JalaliMonthVariableDaysAndNoDriftTests(TestCase):
         res.full_clean(exclude=['room', 'entry_date'])
         self.assertEqual(res.monthly_payment_day, 31)
 
+    def test_rent_underpayment_discrepancy_flagged(self):
+        """
+        Verify that when a resident pays 3.5M for a 3.8M room to settle until 1st of next month,
+        ReceiptProcessor records the transaction conditionally and flags the 300K discrepancy.
+        """
+        from apps.dormitory.services.receipt_processor import process_receipt
+        res = Resident.objects.create(
+            first_name="محمد صالح",
+            last_name="پورعبداللهی آزمایشی",
+            national_code="1112223334",
+            phone_number="09120000000",
+            dormitory=self.dormitory,
+            room=self.room,  # 3.8M rent
+            entry_date=jdatetime.date(1405, 7, 1),
+            settled_until=jdatetime.date(1405, 8, 1),
+            monthly_payment_day=1,
+            registered_by=self.supervisor
+        )
+
+        output = process_receipt(
+            resident=res,
+            deposit_tomans=1_000_000,
+            rent_tomans=3_500_000,
+            date="1405/08/11 17:26:00",
+            settled_until="1405-09-01",
+            dry_run=True
+        )
+
+        self.assertTrue(output["success"])
+        self.assertEqual(output["new_settled_until"], "1405-09-01")
+        disc = output.get("discrepancy")
+        self.assertIsNotNone(disc)
+        self.assertTrue(disc["is_underpaid"])
+        self.assertEqual(disc["expected_rent_tomans"], 3_800_000)
+        self.assertEqual(disc["paid_rent_tomans"], 3_500_000)
+        self.assertEqual(disc["diff_tomans"], -300_000)
+
 
 
 
