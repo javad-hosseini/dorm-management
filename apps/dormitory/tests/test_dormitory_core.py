@@ -2717,6 +2717,37 @@ class JalaliMonthVariableDaysAndNoDriftTests(TestCase):
         self.assertEqual(disc["paid_rent_tomans"], 3_500_000)
         self.assertEqual(disc["diff_tomans"], -300_000)
 
+    def test_partial_installment_payment_not_flagged(self):
+        """
+        Verify that a normal partial/installment payment (paying part of the rent without forcing settled_until)
+        advances settlement proportionally and is NOT flagged as a discrepancy.
+        """
+        from apps.dormitory.services.receipt_processor import process_receipt
+        res = Resident.objects.create(
+            first_name="سید حسین",
+            last_name="آقایی آزمایشی",
+            national_code="2223334445",
+            phone_number="09121111111",
+            dormitory=self.dormitory,
+            room=self.room,  # 3.8M rent
+            entry_date=jdatetime.date(1405, 8, 1),
+            settled_until=jdatetime.date(1405, 8, 1),
+            monthly_payment_day=1,
+            registered_by=self.supervisor
+        )
+
+        output = process_receipt(
+            resident=res,
+            amount_tomans=2_000_000,
+            type="RENT",
+            date="1405/08/10 23:19:00",
+            dry_run=True
+        )
+
+        self.assertTrue(output["success"])
+        # Normal prorated payment must NOT be flagged as discrepancy
+        self.assertIsNone(output.get("discrepancy"))
+
 
 
 

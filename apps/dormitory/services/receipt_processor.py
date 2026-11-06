@@ -320,9 +320,10 @@ def process_receipt(
                 p_end_d = computed_end
                 p_name = computed_name
 
-            # Check for rent underpayment / discrepancy against official room tariff
+            # Check for rent underpayment / discrepancy against official room tariff ONLY when explicit settled_until was requested
+            # Normal partial/prorated payments (خورد خورد) advance settled_until proportionally and are NOT doubts/discrepancies.
             discrepancy_info = None
-            if res_obj.room and p_start_d and p_end_d and p_end_d > p_start_d:
+            if settled_until_d and res_obj.room and p_start_d and p_end_d and p_end_d > p_start_d:
                 as_of = p_end_d - datetime.timedelta(days=1)
                 periods = calculate_unpaid_periods(
                     start_date=p_start_d,
@@ -331,21 +332,20 @@ def process_receipt(
                 )
                 expected_rent_tomans = sum(p["amount_tomans"] for p in periods)
                 diff_tomans = r_amount - expected_rent_tomans
-                if diff_tomans != 0:
+                if diff_tomans < 0:
                     discrepancy_info = {
                         "expected_rent_tomans": expected_rent_tomans,
                         "paid_rent_tomans": r_amount,
                         "diff_tomans": diff_tomans,
-                        "is_underpaid": diff_tomans < 0,
-                        "is_overpaid": diff_tomans > 0,
+                        "is_underpaid": True,
+                        "is_overpaid": False,
                         "period_name": p_name,
                         "room_number": res_obj.room.room_number,
                     }
-                    if diff_tomans < 0:
-                        deficit_abs = abs(diff_tomans)
-                        tag = f" [علی‌الحساب - کسری {deficit_abs:,} تومان نسبت به اجاره مصوب {expected_rent_tomans:,} تومان]"
-                        if tag not in rent_desc:
-                            rent_desc += tag
+                    deficit_abs = abs(diff_tomans)
+                    tag = f" [علی‌الحساب - کسری {deficit_abs:,} تومان نسبت به اجاره مصوب {expected_rent_tomans:,} تومان]"
+                    if tag not in rent_desc:
+                        rent_desc += tag
 
             rent_tx = Transaction.objects.create(
                 resident=res_obj,
