@@ -14,7 +14,44 @@ from apps.dormitory.jalali_utils import (
     format_period_name,
     calculate_settlement_advance,
     calculate_unpaid_periods,
+    get_days_in_jalali_month,
+    add_jalali_months,
 )
+
+
+def calculate_expected_rent_tomans(
+    start_date: jdatetime.date,
+    end_date: jdatetime.date,
+    monthly_rent_rials: int,
+    rent_resolver: Optional[Any] = None,
+    anchor_day: int = 1,
+) -> int:
+    """Calculate exact expected rent in Tomans between start_date and end_date respecting cycle anchors."""
+    cursor = start_date
+    total_cost_rials = 0
+    while cursor < end_date:
+        eff_rent = rent_resolver(cursor) if rent_resolver else monthly_rent_rials
+        days_in_m = get_days_in_jalali_month(cursor.year, cursor.month)
+        cur_target = min(anchor_day, days_in_m)
+
+        if cursor.day < cur_target:
+            next_b = jdatetime.date(cursor.year, cursor.month, cur_target)
+        else:
+            next_m = add_jalali_months(jdatetime.date(cursor.year, cursor.month, 1), 1)
+            next_b = jdatetime.date(next_m.year, next_m.month, min(anchor_day, get_days_in_jalali_month(next_m.year, next_m.month)))
+
+        step_end = min(next_b, end_date)
+        prev_b = add_jalali_months(next_b, -1)
+        cycle_len = (next_b - prev_b).days
+        step_days = (step_end - cursor).days
+
+        if step_days == cycle_len:
+            total_cost_rials += eff_rent
+        else:
+            total_cost_rials += int(round(step_days * (eff_rent / cycle_len)))
+        cursor = step_end
+
+    return total_cost_rials // 10
 
 
 def normalize_persian(text: str) -> str:
@@ -324,15 +361,23 @@ def process_receipt(
             # Normal partial/prorated payments (خورد خورد) advance settled_until proportionally and are NOT doubts/discrepancies.
             discrepancy_info = None
             if settled_until_d and res_obj.room and p_start_d and p_end_d and p_end_d > p_start_d:
-                as_of = p_end_d - datetime.timedelta(days=1)
-                periods = calculate_unpaid_periods(
-                    start_date=p_start_d,
-                    as_of_date=as_of,
-                    rent_resolver=res_obj.room.get_rent_for_date
+                # If target end day is close to start day (within 2 days for monthly cycle), align anchor with end day
+                anchor = (
+                    p_end_d.day
+                    if abs(p_end_d.day - p_start_d.day) <= 2
+                    else (res_obj.monthly_payment_day or p_start_d.day or 1)
                 )
-                expected_rent_tomans = sum(p["amount_tomans"] for p in periods)
+                expected_rent_tomans = calculate_expected_rent_tomans(
+                    start_date=p_start_d,
+                    end_date=p_end_d,
+                    monthly_rent_rials=rent_rate,
+                    rent_resolver=res_obj.room.get_rent_for_date,
+                    anchor_day=anchor,
+                )
                 diff_tomans = r_amount - expected_rent_tomans
-                if diff_tomans < 0:
+                # Allow a 1-day tolerance for Jalali 31/30 day calendar drift (e.g. 19 to 20)
+                daily_tolerance = (rent_rate // 10) // 30
+                if diff_tomans < -daily_tolerance:
                     discrepancy_info = {
                         "expected_rent_tomans": expected_rent_tomans,
                         "paid_rent_tomans": r_amount,
