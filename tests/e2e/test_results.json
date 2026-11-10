@@ -1,0 +1,155 @@
+{
+  "timestamp": "2026-11-10T17:43:01.496445+00:00",
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_seconds": 27.83
+  },
+  "tiers": {
+    "tier1": {
+      "total": 14,
+      "passed": 14,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "tier2": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "tier3": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "tier4": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "results": [
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f01_nested_git_elimination",
+      "tier": "tier1",
+      "feature": "F1",
+      "status": "PASS",
+      "duration": 0.0165,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f02_monorepo_bot_tracking",
+      "tier": "tier1",
+      "feature": "F2",
+      "status": "PASS",
+      "duration": 0.0116,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f03_git_ignore_alignment",
+      "tier": "tier1",
+      "feature": "F3",
+      "status": "PASS",
+      "duration": 0.0142,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f04_sibling_directory_cleanup",
+      "tier": "tier1",
+      "feature": "F4",
+      "status": "PASS",
+      "duration": 0.0003,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f05_gitea_ssh_key_authorization",
+      "tier": "tier1",
+      "feature": "F5",
+      "status": "PASS",
+      "duration": 2.7898,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f06_gitea_history_synchronization",
+      "tier": "tier1",
+      "feature": "F6",
+      "status": "PASS",
+      "duration": 3.125,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f07_dual_push_remote_configuration",
+      "tier": "tier1",
+      "feature": "F7",
+      "status": "PASS",
+      "duration": 0.0131,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f08_git_dual_push_verification",
+      "tier": "tier1",
+      "feature": "F8",
+      "status": "PASS",
+      "duration": 15.912,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f09_shared_directory_hierarchy",
+      "tier": "tier1",
+      "feature": "F9",
+      "status": "PASS",
+      "duration": 0.0002,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f10_monorepo_relative_volume_mount",
+      "tier": "tier1",
+      "feature": "F10",
+      "status": "PASS",
+      "duration": 0.002,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f11_container_user_and_permissions",
+      "tier": "tier1",
+      "feature": "F11",
+      "status": "PASS",
+      "duration": 0.0009,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f12_root_dropzone_symlink",
+      "tier": "tier1",
+      "feature": "F12",
+      "status": "PASS",
+      "duration": 0.0006,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f13_bot_startup_script_update",
+      "tier": "tier1",
+      "feature": "F13",
+      "status": "PASS",
+      "duration": 0.1154,
+      "message": null
+    },
+    {
+      "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f14_end_to_end_acceptance_validation",
+      "tier": "tier1",
+      "feature": "F14",
+      "status": "PASS",
+      "duration": 5.8262,
+      "message": null
+    }
+  ]
+}

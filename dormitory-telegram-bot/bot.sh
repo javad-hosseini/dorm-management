@@ -42,7 +42,10 @@ case "${COMMAND}" in
     start)
         echo "🚀 Starting Dormitory Telegram Bot..."
         # Ensure directories exist
-        mkdir -p data/sessions data/uploads data/reports incoming_spreadsheets /home/javad/projects/dormitory-management
+        mkdir -p data/sessions data/uploads data/reports ../media/spreadsheets/incoming ../media/spreadsheets/processed ../media/spreadsheets/failed
+        if [ ! -L ../incoming_spreadsheets ]; then
+            ln -sfn media/spreadsheets/incoming ../incoming_spreadsheets
+        fi
         ${DOCKER_COMPOSE} up -d
         echo "✅ Bot container started. Checking status:"
         ${DOCKER_COMPOSE} ps

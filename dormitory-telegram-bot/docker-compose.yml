@@ -10,11 +10,12 @@ services:
     container_name: dormitory-telegram-bot
     restart: "no"
     network_mode: "host"
+    user: "${BOT_UID:-1000}:${BOT_GID:-1000}"
     env_file:
       - .env
     volumes:
       - ./data:/app/data:z
-      - /home/javad/projects/dormitory-management:/app/incoming_spreadsheets:z
+      - ../media/spreadsheets/incoming:/app/incoming_spreadsheets:z
     environment:
       - PYTHONUNBUFFERED=1
     logging:
