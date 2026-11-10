@@ -49,9 +49,11 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--dormitory",
-            type=int,
-            default=1,
-            help="Dormitory ID to report for (default: 1 for خوابگاه نوید)",
+            "--dorm-id",
+            dest="dormitory",
+            type=str,
+            default=None,
+            help="Dormitory ID to report for (default: None for all dormitories / کل مجموعه خوابگاه‌ها). Pass e.g. 1 for خوابگاه نوید.",
         )
         parser.add_argument(
             "--dry-run",
@@ -74,7 +76,13 @@ class Command(BaseCommand):
 
         raw_phone = options.get("phone") or self.DEFAULT_RECIPIENT
         date_str = options.get("date")
-        dormitory_id = options.get("dormitory") or 1
+        dorm_raw = options.get("dormitory")
+        dormitory_id = None
+        if dorm_raw is not None and str(dorm_raw).strip() not in ("", "all", "ALL", "0"):
+            try:
+                dormitory_id = int(dorm_raw)
+            except ValueError:
+                raise CommandError(f"شناسه خوابگاه نامعتبر است ({dorm_raw}). لطفاً یک عدد وارد کنید یا خالی بگذارید.")
         is_dry_run = options.get("dry_run", False)
         force_real = options.get("real", False)
 

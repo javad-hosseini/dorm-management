@@ -22,11 +22,13 @@ class DailyReportService:
     def get_daily_report_data(
         cls,
         target_date: Optional[jdatetime.date] = None,
-        dormitory_id: int = 1,
+        dormitory_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Calculates all performance metrics for the target date (default: yesterday),
         the current month-to-date, outstanding debt, and room vacancy.
+        If dormitory_id is None, aggregates metrics across all dormitories in the system,
+        ensuring 100% synchronization with the main database and Financial Dashboard.
         """
         tz = cls.TEHRAN_TZ
         today = jdatetime.date.today()
@@ -50,31 +52,50 @@ class DailyReportService:
         transfer_tomans = sum(t.amount for t in tx_qs.filter(payment_method="BANK_TRANSFER")) // 10
         cash_tomans = sum(t.amount for t in tx_qs.filter(payment_method="CASH")) // 10
         online_tomans = sum(t.amount for t in tx_qs.filter(payment_method="ONLINE_GATEWAY")) // 10
-        yesterday_total_tomans = card_tomans + transfer_tomans + cash_tomans + online_tomans
+        yesterday_total_tomans = sum(t.amount for t in tx_qs) // 10
         yesterday_count = tx_qs.count()
 
-        # 2. Month-to-Date Collections (for the month of today)
-        first_of_this_month = jdatetime.date(today.year, today.month, 1)
+        # 2. Month-to-Date Collections (Synchronized with target month)
+        first_of_this_month = jdatetime.date(target_date.year, target_date.month, 1)
         month_start_dt = jdatetime.datetime(first_of_this_month.year, first_of_this_month.month, 1, 0, 0, 0, tzinfo=tz)
-        today_end_dt = jdatetime.datetime(today.year, today.month, today.day, 23, 59, 59, tzinfo=tz)
+        if target_date.year == today.year and target_date.month == today.month:
+            # Current month: include up to end of today to perfectly match Financial Dashboard
+            month_end_dt = jdatetime.datetime(today.year, today.month, today.day, 23, 59, 59, tzinfo=tz)
+        else:
+            # Historical month: include up to target date
+            month_end_dt = jdatetime.datetime(target_date.year, target_date.month, target_date.day, 23, 59, 59, tzinfo=tz)
 
-        month_qs = Transaction.objects.filter(payment_date__gte=month_start_dt, payment_date__lte=today_end_dt)
+        month_qs = Transaction.objects.filter(payment_date__gte=month_start_dt, payment_date__lte=month_end_dt)
         if dormitory_id:
             month_qs = month_qs.filter(dormitory_id=dormitory_id)
 
         month_total_tomans = sum(t.amount for t in month_qs) // 10
         month_count = month_qs.count()
-        month_name = f"{get_jalali_month_name(today.month)} {today.year}"
+        month_name = f"{get_jalali_month_name(target_date.month)} {target_date.year}"
 
-        # 3. Projected Debt Remaining until end of current month (first of next month)
-        next_month = today.month + 1 if today.month < 12 else 1
-        next_month_year = today.year if today.month < 12 else today.year + 1
+        # 3. Debt Calculation (Overdue debt as of today & Projected rent until 1st of next month)
+        if target_date.month < 12:
+            next_month = target_date.month + 1
+            next_month_year = target_date.year
+        else:
+            next_month = 1
+            next_month_year = target_date.year + 1
         first_of_next_month = jdatetime.date(next_month_year, next_month, 1)
 
-        active_residents = Resident.objects.filter(status="ACTIVE").select_related("room")
+        active_residents = Resident.objects.filter(status="ACTIVE").select_related("room", "dormitory")
         if dormitory_id:
             active_residents = active_residents.filter(dormitory_id=dormitory_id)
 
+        # A. Overdue debt as of today (matches Financial Dashboard Card 3)
+        overdue_debt_tomans = 0
+        overdue_debtors_count = 0
+        for r in active_residents:
+            debt_now = r.total_debt_amount_tomans
+            if debt_now > 0:
+                overdue_debt_tomans += debt_now
+                overdue_debtors_count += 1
+
+        # B. Projected debt until first of next month (matches Financial Dashboard Card 3)
         projected_debt_tomans = 0
         indebted_count = 0
         for r in active_residents:
@@ -110,8 +131,18 @@ class DailyReportService:
                     "capacity": room.capacity,
                 })
 
-        dorm = Dormitory.objects.filter(id=dormitory_id).first()
-        dorm_name = dorm.name if dorm else "خوابگاه نوید"
+        # Resolve Dormitory Name
+        if dormitory_id:
+            dorm = Dormitory.objects.filter(id=dormitory_id).first()
+            dorm_name = dorm.name if dorm else f"خوابگاه {dormitory_id}"
+        else:
+            dorms = list(Dormitory.objects.values_list("name", flat=True))
+            if len(dorms) == 1:
+                dorm_name = dorms[0]
+            elif len(dorms) > 1:
+                dorm_name = "مجموعه خوابگاه‌ها"
+            else:
+                dorm_name = "خوابگاه نوید"
 
         return {
             "dorm_name": dorm_name,
@@ -127,6 +158,8 @@ class DailyReportService:
             "month_name": month_name,
             "month_total_tomans": month_total_tomans,
             "month_count": month_count,
+            "overdue_debt_tomans": overdue_debt_tomans,
+            "overdue_debtors_count": overdue_debtors_count,
             "projected_debt_tomans": projected_debt_tomans,
             "indebted_count": indebted_count,
             "total_empty_beds": total_empty_beds,
@@ -137,7 +170,7 @@ class DailyReportService:
     def generate_sms_text(
         cls,
         target_date: Optional[jdatetime.date] = None,
-        dormitory_id: int = 1,
+        dormitory_id: Optional[int] = None,
     ) -> str:
         """
         Builds the exact SMS text requested by user where every item
@@ -168,11 +201,15 @@ class DailyReportService:
             on_str = to_persian_digits(f"{data['online_tomans']:,}")
             lines.append(f"• درگاه آنلاین: {on_str} تومان")
 
-        # Month progress & Debt
+        # Month progress & Debt (Both overdue and projected until end of month)
         m_total_str = to_persian_digits(f"{data['month_total_tomans']:,}")
+        o_debt_str = to_persian_digits(f"{data['overdue_debt_tomans']:,}")
+        o_count_str = to_persian_digits(data["overdue_debtors_count"])
         p_debt_str = to_persian_digits(f"{data['projected_debt_tomans']:,}")
+
         lines.append(f"• درآمد ماه جاری تا امروز: {m_total_str} تومان")
-        lines.append(f"• مانده بدهی تا پایان ماه: {p_debt_str} تومان")
+        lines.append(f"• بدهی معوق قطعی تا امروز: {o_debt_str} تومان ({o_count_str} نفر)")
+        lines.append(f"• کل مطالبات تا پایان ماه: {p_debt_str} تومان")
 
         # Empty rooms and beds: each on its own line
         empty_beds_str = to_persian_digits(data["total_empty_beds"])

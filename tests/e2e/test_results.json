@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-11-10T17:43:01.496445+00:00",
+  "timestamp": "2026-11-10T18:57:07.698033+00:00",
   "summary": {
-    "total": 14,
-    "passed": 14,
+    "total": 51,
+    "passed": 51,
     "failed": 0,
     "errors": 0,
     "skipped": 0,
-    "duration_seconds": 27.83
+    "duration_seconds": 74.775
   },
   "tiers": {
     "tier1": {
@@ -17,22 +17,22 @@
       "skipped": 0
     },
     "tier2": {
-      "total": 0,
-      "passed": 0,
+      "total": 14,
+      "passed": 14,
       "failed": 0,
       "errors": 0,
       "skipped": 0
     },
     "tier3": {
-      "total": 0,
-      "passed": 0,
+      "total": 16,
+      "passed": 16,
       "failed": 0,
       "errors": 0,
       "skipped": 0
     },
     "tier4": {
-      "total": 0,
-      "passed": 0,
+      "total": 7,
+      "passed": 7,
       "failed": 0,
       "errors": 0,
       "skipped": 0
@@ -44,7 +44,7 @@
       "tier": "tier1",
       "feature": "F1",
       "status": "PASS",
-      "duration": 0.0165,
+      "duration": 0.0142,
       "message": null
     },
     {
@@ -52,7 +52,7 @@
       "tier": "tier1",
       "feature": "F2",
       "status": "PASS",
-      "duration": 0.0116,
+      "duration": 0.0108,
       "message": null
     },
     {
@@ -60,7 +60,7 @@
       "tier": "tier1",
       "feature": "F3",
       "status": "PASS",
-      "duration": 0.0142,
+      "duration": 0.0169,
       "message": null
     },
     {
@@ -76,7 +76,7 @@
       "tier": "tier1",
       "feature": "F5",
       "status": "PASS",
-      "duration": 2.7898,
+      "duration": 2.7821,
       "message": null
     },
     {
@@ -84,7 +84,7 @@
       "tier": "tier1",
       "feature": "F6",
       "status": "PASS",
-      "duration": 3.125,
+      "duration": 2.8559,
       "message": null
     },
     {
@@ -92,7 +92,7 @@
       "tier": "tier1",
       "feature": "F7",
       "status": "PASS",
-      "duration": 0.0131,
+      "duration": 0.0115,
       "message": null
     },
     {
@@ -100,7 +100,7 @@
       "tier": "tier1",
       "feature": "F8",
       "status": "PASS",
-      "duration": 15.912,
+      "duration": 16.3837,
       "message": null
     },
     {
@@ -116,7 +116,7 @@
       "tier": "tier1",
       "feature": "F10",
       "status": "PASS",
-      "duration": 0.002,
+      "duration": 0.0019,
       "message": null
     },
     {
@@ -124,7 +124,7 @@
       "tier": "tier1",
       "feature": "F11",
       "status": "PASS",
-      "duration": 0.0009,
+      "duration": 0.0008,
       "message": null
     },
     {
@@ -132,7 +132,7 @@
       "tier": "tier1",
       "feature": "F12",
       "status": "PASS",
-      "duration": 0.0006,
+      "duration": 0.0005,
       "message": null
     },
     {
@@ -140,7 +140,7 @@
       "tier": "tier1",
       "feature": "F13",
       "status": "PASS",
-      "duration": 0.1154,
+      "duration": 0.1713,
       "message": null
     },
     {
@@ -148,7 +148,303 @@
       "tier": "tier1",
       "feature": "F14",
       "status": "PASS",
-      "duration": 5.8262,
+      "duration": 5.4814,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f01_boundary_gitlink_and_backup",
+      "tier": "tier2",
+      "feature": "F1",
+      "status": "PASS",
+      "duration": 0.104,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f02_boundary_untracked_sensitive_files",
+      "tier": "tier2",
+      "feature": "F2",
+      "status": "PASS",
+      "duration": 0.0669,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f03_boundary_gitignore_syntax_and_preexisting",
+      "tier": "tier2",
+      "feature": "F3",
+      "status": "PASS",
+      "duration": 0.0247,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f04_boundary_sibling_symlink_and_worktree",
+      "tier": "tier2",
+      "feature": "F4",
+      "status": "PASS",
+      "duration": 0.0094,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f05_boundary_ssh_timeout_and_idempotency",
+      "tier": "tier2",
+      "feature": "F5",
+      "status": "PASS",
+      "duration": 0.0505,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f06_boundary_non_fast_forward_rejection_and_branch_protection",
+      "tier": "tier2",
+      "feature": "F6",
+      "status": "PASS",
+      "duration": 5.9891,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f07_boundary_git_remote_duplicate_and_config_format",
+      "tier": "tier2",
+      "feature": "F7",
+      "status": "PASS",
+      "duration": 0.0127,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f08_boundary_non_interactive_push_and_tag_safety",
+      "tier": "tier2",
+      "feature": "F8",
+      "status": "PASS",
+      "duration": 5.7373,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f09_boundary_permission_denial_and_atomic_move",
+      "tier": "tier2",
+      "feature": "F9",
+      "status": "PASS",
+      "duration": 0.0049,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f10_boundary_missing_compose_and_invalid_volume",
+      "tier": "tier2",
+      "feature": "F10",
+      "status": "PASS",
+      "duration": 0.0009,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f11_boundary_unprivileged_deletion_and_env_override",
+      "tier": "tier2",
+      "feature": "F11",
+      "status": "PASS",
+      "duration": 0.0011,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f12_boundary_dangling_symlink_and_idempotent_creation",
+      "tier": "tier2",
+      "feature": "F12",
+      "status": "PASS",
+      "duration": 0.0055,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f13_boundary_bot_sh_invalid_command_and_relative_execution",
+      "tier": "tier2",
+      "feature": "F13",
+      "status": "PASS",
+      "duration": 0.2699,
+      "message": null
+    },
+    {
+      "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f14_boundary_persian_unicode_and_quarantine_lifecycle",
+      "tier": "tier2",
+      "feature": "F14",
+      "status": "PASS",
+      "duration": 0.0045,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_01_nested_git_elimination_and_tracking",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0062,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_02_gitignore_layering_and_preservation",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0353,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_03_sibling_deprecation_and_path_independence",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0072,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_04_gitea_ssh_and_history_sync",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 5.8182,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_05_history_alignment_dual_push_urls",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 5.5725,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_06_dual_push_synchronous_verification",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 5.9701,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_07_monorepo_bot_code_pushed_to_both_remotes",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 5.8491,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_08_shared_directory_and_compose_volume_mount",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0005,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_09_container_user_1000_file_creation",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0008,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_10_root_symlink_dropzone",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0006,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_11_bot_sh_precreation_guard",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0001,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_12_shared_hierarchy_volume_mount_and_permissions",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0004,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_13_container_write_host_read_unlink",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0017,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_14_media_storage_persistence_git_immunity",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0055,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_15_management_command_via_symlink",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0006,
+      "message": null
+    },
+    {
+      "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_16_topology_integrity_drill",
+      "tier": "tier3",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0007,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_01_full_cycle_receipt_recording_workflow",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0206,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_02_bank_statement_reconciliation_workflow",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0019,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_03_malformed_and_corrupted_spreadsheet_quarantine",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0008,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_04_non_root_container_write_and_host_read_unlink_lifecycle",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0017,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_05_monorepo_unified_commit_and_dual_push_lifecycle",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 11.4606,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_06_dropzone_symlink_resilience_and_self_healing",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0008,
+      "message": null
+    },
+    {
+      "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_07_batch_ingestion_and_deduplication",
+      "tier": "tier4",
+      "feature": "N/A",
+      "status": "PASS",
+      "duration": 0.0028,
       "message": null
     }
   ]

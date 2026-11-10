@@ -155,7 +155,8 @@ def get_admin_dashboard_data():
     y_online = sum(t['amount'] for t in yesterday_txs if t['payment_method'] == 'ONLINE_GATEWAY') // 10
     y_total = y_card + y_transfer + y_cash + y_online
     y_count = len(yesterday_txs)
-    y_day_name = yesterday.strftime("%A")
+    persian_weekdays = ['شنبه', 'یک‌شنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+    y_day_name = persian_weekdays[yesterday.weekday()]
     y_date_p = to_persian_digits(yesterday.strftime("%Y/%m/%d"))
 
     if y_count == 0 or y_total == 0:
