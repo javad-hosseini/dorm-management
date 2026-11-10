@@ -1,0 +1,24 @@
+services:
+  dormitory-bot:
+    image: dormitory-telegram-bot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+      args:
+        ALL_PROXY: "socks5://10.200.1.2:1080"
+    container_name: dormitory-telegram-bot
+    restart: "no"
+    network_mode: "host"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data:z
+      - /home/javad/projects/dormitory-management:/app/incoming_spreadsheets:z
+    environment:
+      - PYTHONUNBUFFERED=1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
