@@ -95,9 +95,14 @@ dormitory-telegram-bot/
 - **Zero External API Dependency:** Functions directly as an authenticated SFTP-like file channel from mobile to server.
 - **Configurable Drop-Zone Path:** Uploaded `.xlsx` spreadsheets are saved directly into `SPREADSHEET_UPLOAD_DIR` (e.g. `./incoming_spreadsheets` or project root).
 - **Companion Instructions File:** If custom instructions are provided in the caption, the bot saves `{filename}_instructions.md` alongside the `.xlsx` file.
-- **Manual Antigravity CLI Integration:** After uploading, the bot returns a confirmation message with the exact command to run:
+- **Automated Processing with `manage.py process_excel`:**
+  Both raw session workbooks and cleaned spreadsheets deposited in the drop-zone can be immediately processed:
   ```bash
-  agy "Check cleaned_transactions.xlsx in incoming_spreadsheets/ and insert clean data into SQLite"
+  # Preview (Dry-Run):
+  .venv/bin/python manage.py process_excel --file incoming_spreadsheets/<filename>.xlsx --dry-run
+
+  # Apply and commit:
+  .venv/bin/python manage.py process_excel --file incoming_spreadsheets/<filename>.xlsx --apply --archive
   ```
 - **Data Parsing & Duplicate Checking:** Checks row counts, normalizes dates, and hashes rows with deterministic SHA-256 to alert if a file was previously uploaded.
 - **Alternative Optional Modes:** Also supports `agent_webhook`, `openai_compatible_agent`, and `mock_dry_run` if external API sync is ever desired.

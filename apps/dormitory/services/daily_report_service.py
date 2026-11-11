@@ -181,24 +181,33 @@ class DailyReportService:
         y_date_p = to_persian_digits(data["target_date_str"])
         y_total_str = to_persian_digits(f"{data['yesterday_total_tomans']:,}")
         y_count_str = to_persian_digits(data["yesterday_count"])
+
+        # Header: dormitory name on first line, date in parentheses on second line
         lines = [
-            f"گزارش روزانه {data['dorm_name']} (دیروز: {data['weekday_name']} {y_date_p})",
+            f"گزارش روزانه {data['dorm_name']}",
+            f" (دیروز: {data['weekday_name']} {y_date_p})",
+            "",
             f"• درآمد دیروز: {y_total_str} تومان",
-            f"• تعداد تراکنش دیروز: {y_count_str} تراکنش",
+            "",
+            f"• تعداد تراکنش‌های دیروز: {y_count_str} تراکنش",
         ]
 
         # Method breakdown if income occurred yesterday
         if data["card_tomans"] > 0:
             c_str = to_persian_digits(f"{data['card_tomans']:,}")
+            lines.append("")
             lines.append(f"• کارتخوان: {c_str} تومان")
         if data["transfer_tomans"] > 0:
             t_str = to_persian_digits(f"{data['transfer_tomans']:,}")
+            lines.append("")
             lines.append(f"• کارت به کارت: {t_str} تومان")
         if data["cash_tomans"] > 0:
             cash_str = to_persian_digits(f"{data['cash_tomans']:,}")
+            lines.append("")
             lines.append(f"• نقدی: {cash_str} تومان")
         if data["online_tomans"] > 0:
             on_str = to_persian_digits(f"{data['online_tomans']:,}")
+            lines.append("")
             lines.append(f"• درگاه آنلاین: {on_str} تومان")
 
         # Month progress & Debt (Both overdue and projected until end of month)
@@ -207,12 +216,18 @@ class DailyReportService:
         o_count_str = to_persian_digits(data["overdue_debtors_count"])
         p_debt_str = to_persian_digits(f"{data['projected_debt_tomans']:,}")
 
+        lines.append("")
         lines.append(f"• درآمد ماه جاری تا امروز: {m_total_str} تومان")
-        lines.append(f"• بدهی معوق قطعی تا امروز: {o_debt_str} تومان ({o_count_str} نفر)")
+        lines.append("")
+        lines.append(f"• بدهی معوق قطعی تا امروز: {o_debt_str} تومان")
+        lines.append("")
+        lines.append(f"• تعداد بدهکاران تا امروز: {o_count_str} نفر")
+        lines.append("")
         lines.append(f"• کل مطالبات تا پایان ماه: {p_debt_str} تومان")
 
         # Empty rooms and beds: each on its own line
         empty_beds_str = to_persian_digits(data["total_empty_beds"])
+        lines.append("")
         lines.append(f"• مجموع تخت‌های خالی: {empty_beds_str} تخت")
         if data["vacant_rooms"]:
             for vr in data["vacant_rooms"]:

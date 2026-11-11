@@ -1,39 +1,39 @@
 {
-  "timestamp": "2026-11-11T05:47:18.276723+00:00",
+  "timestamp": "2026-11-11T17:33:59.378422+00:00",
   "summary": {
     "total": 51,
-    "passed": 51,
-    "failed": 0,
-    "errors": 0,
+    "passed": 34,
+    "failed": 16,
+    "errors": 1,
     "skipped": 0,
-    "duration_seconds": 70.466
+    "duration_seconds": 59.107
   },
   "tiers": {
     "tier1": {
       "total": 14,
-      "passed": 14,
-      "failed": 0,
+      "passed": 9,
+      "failed": 5,
       "errors": 0,
       "skipped": 0
     },
     "tier2": {
       "total": 14,
-      "passed": 14,
-      "failed": 0,
-      "errors": 0,
+      "passed": 10,
+      "failed": 3,
+      "errors": 1,
       "skipped": 0
     },
     "tier3": {
       "total": 16,
-      "passed": 16,
-      "failed": 0,
+      "passed": 12,
+      "failed": 4,
       "errors": 0,
       "skipped": 0
     },
     "tier4": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
+      "passed": 3,
+      "failed": 4,
       "errors": 0,
       "skipped": 0
     }
@@ -44,7 +44,7 @@
       "tier": "tier1",
       "feature": "F1",
       "status": "PASS",
-      "duration": 0.0194,
+      "duration": 0.0226,
       "message": null
     },
     {
@@ -52,7 +52,7 @@
       "tier": "tier1",
       "feature": "F2",
       "status": "PASS",
-      "duration": 0.0139,
+      "duration": 0.0085,
       "message": null
     },
     {
@@ -60,7 +60,7 @@
       "tier": "tier1",
       "feature": "F3",
       "status": "PASS",
-      "duration": 0.012,
+      "duration": 0.009,
       "message": null
     },
     {
@@ -68,7 +68,7 @@
       "tier": "tier1",
       "feature": "F4",
       "status": "PASS",
-      "duration": 0.0003,
+      "duration": 0.0002,
       "message": null
     },
     {
@@ -76,7 +76,7 @@
       "tier": "tier1",
       "feature": "F5",
       "status": "PASS",
-      "duration": 2.7822,
+      "duration": 2.9883,
       "message": null
     },
     {
@@ -84,31 +84,31 @@
       "tier": "tier1",
       "feature": "F6",
       "status": "PASS",
-      "duration": 2.8763,
+      "duration": 2.9063,
       "message": null
     },
     {
       "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f07_dual_push_remote_configuration",
       "tier": "tier1",
       "feature": "F7",
-      "status": "PASS",
-      "duration": 0.0235,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0036,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier1_feature_coverage.py\", line 287, in test_f07_dual_push_remote_configuration\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        fetch_url.strip(),\n        ^^^^^^^^^^^^^^^^^^\n        \"git@github.com:javad-hosseini/dorm-management.git\",\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        f\"F7.1: Origin fetch URL must be GitHub SSH, got: {fetch_url.strip()}\"\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: 'https://github.com/javad-hosseini/dorm-management' != 'git@github.com:javad-hosseini/dorm-management.git'\n- https://github.com/javad-hosseini/dorm-management\n? ^ ^^^^^^          ^\n+ git@github.com:javad-hosseini/dorm-management.git\n? ^^ ^          ^                              ++++\n : F7.1: Origin fetch URL must be GitHub SSH, got: https://github.com/javad-hosseini/dorm-management\n"
     },
     {
       "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f08_git_dual_push_verification",
       "tier": "tier1",
       "feature": "F8",
-      "status": "PASS",
-      "duration": 15.569,
-      "message": null
+      "status": "FAIL",
+      "duration": 7.0085,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier1_feature_coverage.py\", line 332, in test_f08_git_dual_push_verification\n    self.assertTrue(\n    ~~~~~~~~~~~~~~~^\n        \"javad-hosseini\" in combined_gh or \"successfully authenticated\" in combined_gh or code in (0, 1),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        f\"F8.1: GitHub SSH handshake failed: {combined_gh}\"\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: False is not true : F8.1: GitHub SSH handshake failed: Command timed out after 7s: Command '['ssh', '-T', '-p', '22', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', '-o', 'StrictHostKeyChecking=accept-new', 'git@github.com']' timed out after 7 seconds\n"
     },
     {
       "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f09_shared_directory_hierarchy",
       "tier": "tier1",
       "feature": "F9",
       "status": "PASS",
-      "duration": 0.0003,
+      "duration": 0.0002,
       "message": null
     },
     {
@@ -116,7 +116,7 @@
       "tier": "tier1",
       "feature": "F10",
       "status": "PASS",
-      "duration": 0.002,
+      "duration": 0.0012,
       "message": null
     },
     {
@@ -124,39 +124,39 @@
       "tier": "tier1",
       "feature": "F11",
       "status": "PASS",
-      "duration": 0.0009,
+      "duration": 0.0007,
       "message": null
     },
     {
       "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f12_root_dropzone_symlink",
       "tier": "tier1",
       "feature": "F12",
-      "status": "PASS",
-      "duration": 0.0005,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0004,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier1_feature_coverage.py\", line 506, in test_f12_root_dropzone_symlink\n    self.assertTrue(\n    ~~~~~~~~~~~~~~~^\n        symlink.is_symlink(),\n        ^^^^^^^^^^^^^^^^^^^^^\n        f\"F12.2: {symlink} must be a symbolic link\"\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: False is not true : F12.2: /home/javad/projects/websites/Dormitory Management System/dormitory-management/incoming_spreadsheets must be a symbolic link\n"
     },
     {
       "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f13_bot_startup_script_update",
       "tier": "tier1",
       "feature": "F13",
-      "status": "PASS",
-      "duration": 0.0878,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0033,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier1_feature_coverage.py\", line 543, in test_f13_bot_startup_script_update\n    self.assertEqual(code, 0, f\"F13.2: bot.sh syntax check failed: {err}\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 2 != 0 : F13.2: bot.sh syntax check failed: /home/javad/projects/websites/Dormitory Management System/dormitory-management/dormitory-telegram-bot/bot.sh: line 17: syntax error near unexpected token `$'{\\r''\n/home/javad/projects/websites/Dormitory Management System/dormitory-management/dormitory-telegram-bot/bot.sh: line 17: `usage() {\n'\n\n"
     },
     {
       "name": "test_tier1_feature_coverage.Tier1FeatureCoverageTests.test_f14_end_to_end_acceptance_validation",
       "tier": "tier1",
       "feature": "F14",
-      "status": "PASS",
-      "duration": 5.3096,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0055,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier1_feature_coverage.py\", line 581, in test_f14_end_to_end_acceptance_validation\n    self.assertEqual(len(push_urls), 2, f\"F14.2: Expected 2 push URLs, got: {push_urls}\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 1 != 2 : F14.2: Expected 2 push URLs, got: ['https://github.com/javad-hosseini/dorm-management']\n"
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f01_boundary_gitlink_and_backup",
       "tier": "tier2",
       "feature": "F1",
       "status": "PASS",
-      "duration": 0.1541,
+      "duration": 0.0808,
       "message": null
     },
     {
@@ -164,23 +164,23 @@
       "tier": "tier2",
       "feature": "F2",
       "status": "PASS",
-      "duration": 0.0335,
+      "duration": 0.0131,
       "message": null
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f03_boundary_gitignore_syntax_and_preexisting",
       "tier": "tier2",
       "feature": "F3",
-      "status": "PASS",
-      "duration": 0.022,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.009,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier2_boundaries_corners.py\", line 140, in test_f03_boundary_gitignore_syntax_and_preexisting\n    self.assertIn(code, (0, 1), f\"F3.B5: git add --dry-run must exit 0 or 1: {err}\")\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 128 not found in (0, 1) : F3.B5: git add --dry-run must exit 0 or 1: fatal: pathspec '.agents/' did not match any files\n\n"
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f04_boundary_sibling_symlink_and_worktree",
       "tier": "tier2",
       "feature": "F4",
       "status": "PASS",
-      "duration": 0.0055,
+      "duration": 0.0032,
       "message": null
     },
     {
@@ -188,7 +188,7 @@
       "tier": "tier2",
       "feature": "F5",
       "status": "PASS",
-      "duration": 0.0279,
+      "duration": 0.0218,
       "message": null
     },
     {
@@ -196,23 +196,23 @@
       "tier": "tier2",
       "feature": "F6",
       "status": "PASS",
-      "duration": 5.4642,
+      "duration": 5.5423,
       "message": null
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f07_boundary_git_remote_duplicate_and_config_format",
       "tier": "tier2",
       "feature": "F7",
-      "status": "PASS",
-      "duration": 0.0104,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0059,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier2_boundaries_corners.py\", line 251, in test_f07_boundary_git_remote_duplicate_and_config_format\n    self.assertNotIn(\"https://\", u, f\"F7.B2: HTTPS remote push URL forbidden: {u}\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'https://' unexpectedly found in 'https://github.com/javad-hosseini/dorm-management' : F7.B2: HTTPS remote push URL forbidden: https://github.com/javad-hosseini/dorm-management\n"
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f08_boundary_non_interactive_push_and_tag_safety",
       "tier": "tier2",
       "feature": "F8",
       "status": "PASS",
-      "duration": 5.3919,
+      "duration": 1.5379,
       "message": null
     },
     {
@@ -220,7 +220,7 @@
       "tier": "tier2",
       "feature": "F9",
       "status": "PASS",
-      "duration": 0.0077,
+      "duration": 0.0032,
       "message": null
     },
     {
@@ -228,7 +228,7 @@
       "tier": "tier2",
       "feature": "F10",
       "status": "PASS",
-      "duration": 0.0009,
+      "duration": 0.0006,
       "message": null
     },
     {
@@ -236,31 +236,31 @@
       "tier": "tier2",
       "feature": "F11",
       "status": "PASS",
-      "duration": 0.0011,
+      "duration": 0.0008,
       "message": null
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f12_boundary_dangling_symlink_and_idempotent_creation",
       "tier": "tier2",
       "feature": "F12",
-      "status": "PASS",
-      "duration": 0.007,
-      "message": null
+      "status": "ERROR",
+      "duration": 0.0036,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier2_boundaries_corners.py\", line 412, in test_f12_boundary_dangling_symlink_and_idempotent_creation\n    test_file.write_text(\"symlink_boundary\", encoding=\"utf-8\")\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib64/python3.14/pathlib/__init__.py\", line 809, in write_text\n    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:\n         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib64/python3.14/pathlib/__init__.py\", line 771, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nNotADirectoryError: [Errno 20] Not a directory: '/home/javad/projects/websites/Dormitory Management System/dormitory-management/incoming_spreadsheets/.boundary_probe.tmp'\n"
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f13_boundary_bot_sh_invalid_command_and_relative_execution",
       "tier": "tier2",
       "feature": "F13",
-      "status": "PASS",
-      "duration": 0.1969,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.003,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier2_boundaries_corners.py\", line 455, in test_f13_boundary_bot_sh_invalid_command_and_relative_execution\n    self.assertIn(\"Unknown command\", out + err, \"F13.B1: Output must mention unknown command\")\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'Unknown command' not found in '/home/javad/projects/websites/Dormitory Management System/dormitory-management/dormitory-telegram-bot/bot.sh: line 5: set: pipefail\\n: invalid option name\\n' : F13.B1: Output must mention unknown command\n"
     },
     {
       "name": "test_tier2_boundaries_corners.Tier2BoundariesAndCornersTests.test_f14_boundary_persian_unicode_and_quarantine_lifecycle",
       "tier": "tier2",
       "feature": "F14",
       "status": "PASS",
-      "duration": 0.0028,
+      "duration": 0.0019,
       "message": null
     },
     {
@@ -268,7 +268,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0038,
+      "duration": 0.0029,
       "message": null
     },
     {
@@ -276,7 +276,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0219,
+      "duration": 0.0152,
       "message": null
     },
     {
@@ -284,7 +284,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0097,
+      "duration": 0.0045,
       "message": null
     },
     {
@@ -292,23 +292,23 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 5.2746,
+      "duration": 7.1059,
       "message": null
     },
     {
       "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_05_history_alignment_dual_push_urls",
       "tier": "tier3",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 5.289,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0027,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier3_cross_feature.py\", line 139, in test_t3_05_history_alignment_dual_push_urls\n    self.assertIn(\"git@github.com:javad-hosseini/dorm-management.git\", push_urls)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'git@github.com:javad-hosseini/dorm-management.git' not found in ['https://github.com/javad-hosseini/dorm-management']\n"
     },
     {
       "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_06_dual_push_synchronous_verification",
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 5.3811,
+      "duration": 11.4582,
       "message": null
     },
     {
@@ -316,7 +316,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 5.4748,
+      "duration": 20.3088,
       "message": null
     },
     {
@@ -324,7 +324,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0006,
+      "duration": 0.0005,
       "message": null
     },
     {
@@ -332,16 +332,16 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0008,
+      "duration": 0.0007,
       "message": null
     },
     {
       "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_10_root_symlink_dropzone",
       "tier": "tier3",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 0.0006,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0003,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier3_cross_feature.py\", line 223, in test_t3_10_root_symlink_dropzone\n    self.assertTrue(self.ROOT_SYMLINK.is_symlink(), \"T3_10: Root dropzone must be a symlink\")\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true : T3_10: Root dropzone must be a symlink\n"
     },
     {
       "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_11_bot_sh_precreation_guard",
@@ -356,7 +356,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0004,
+      "duration": 0.0002,
       "message": null
     },
     {
@@ -364,7 +364,7 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0019,
+      "duration": 0.001,
       "message": null
     },
     {
@@ -372,47 +372,47 @@
       "tier": "tier3",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0056,
+      "duration": 0.0051,
       "message": null
     },
     {
       "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_15_management_command_via_symlink",
       "tier": "tier3",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 0.0006,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0005,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier3_cross_feature.py\", line 322, in test_t3_15_management_command_via_symlink\n    self.assertTrue(symlink_file.exists(), \"T3_15: File must be reachable via symlink\")\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true : T3_15: File must be reachable via symlink\n"
     },
     {
       "name": "test_tier3_cross_feature.Tier3CrossFeatureTests.test_t3_16_topology_integrity_drill",
       "tier": "tier3",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 0.0009,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0007,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier3_cross_feature.py\", line 345, in test_t3_16_topology_integrity_drill\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        resolved_mount,\n        ^^^^^^^^^^^^^^^\n        resolved_symlink,\n        ^^^^^^^^^^^^^^^^^\n        f\"T3_16: Container host mount ({resolved_mount}) != symlink destination ({resolved_symlink})\"\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: Posix[51 chars]ement System/dormitory-management/media/spreadsheets/incoming') != Posix[51 chars]ement System/dormitory-management/incoming_spreadsheets') : T3_16: Container host mount (/home/javad/projects/websites/Dormitory Management System/dormitory-management/media/spreadsheets/incoming) != symlink destination (/home/javad/projects/websites/Dormitory Management System/dormitory-management/incoming_spreadsheets)\n"
     },
     {
       "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_01_full_cycle_receipt_recording_workflow",
       "tier": "tier4",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 0.0206,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0011,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier4_real_world.py\", line 49, in test_t4_01_full_cycle_receipt_recording_workflow\n    self.assertTrue(symlink_file.exists(), \"T4_01: Ingested file must appear through root symlink\")\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true : T4_01: Ingested file must appear through root symlink\n"
     },
     {
       "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_02_bank_statement_reconciliation_workflow",
       "tier": "tier4",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 0.0018,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0007,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier4_real_world.py\", line 107, in test_t4_02_bank_statement_reconciliation_workflow\n    self.assertTrue((self.ROOT_SYMLINK / file_name).exists())\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true\n"
     },
     {
       "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_03_malformed_and_corrupted_spreadsheet_quarantine",
       "tier": "tier4",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0008,
+      "duration": 0.0006,
       "message": null
     },
     {
@@ -420,31 +420,31 @@
       "tier": "tier4",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0017,
+      "duration": 0.0008,
       "message": null
     },
     {
       "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_05_monorepo_unified_commit_and_dual_push_lifecycle",
       "tier": "tier4",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 10.9441,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0029,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier4_real_world.py\", line 221, in test_t4_05_monorepo_unified_commit_and_dual_push_lifecycle\n    self.assertIn(\"git@github.com:javad-hosseini/dorm-management.git\", push_urls)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'git@github.com:javad-hosseini/dorm-management.git' not found in ['https://github.com/javad-hosseini/dorm-management']\n"
     },
     {
       "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_06_dropzone_symlink_resilience_and_self_healing",
       "tier": "tier4",
       "feature": "N/A",
-      "status": "PASS",
-      "duration": 0.0008,
-      "message": null
+      "status": "FAIL",
+      "duration": 0.0002,
+      "message": "Traceback (most recent call last):\n  File \"/home/javad/projects/websites/Dormitory Management System/dormitory-management/tests/e2e/test_tier4_real_world.py\", line 253, in test_t4_06_dropzone_symlink_resilience_and_self_healing\n    self.assertTrue(self.ROOT_SYMLINK.is_symlink(), \"T4_06: Root symlink must be active\")\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true : T4_06: Root symlink must be active\n"
     },
     {
       "name": "test_tier4_real_world.Tier4RealWorldScenariosTests.test_t4_07_batch_ingestion_and_deduplication",
       "tier": "tier4",
       "feature": "N/A",
       "status": "PASS",
-      "duration": 0.0029,
+      "duration": 0.0015,
       "message": null
     }
   ]
