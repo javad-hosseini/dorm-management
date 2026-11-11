@@ -9,3 +9,5 @@ media/
 staticfiles/
 db-backups/
 .agents/
+*.log
+*.pid
