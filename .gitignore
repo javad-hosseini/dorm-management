@@ -8,3 +8,6 @@ __pycache__/
 media/
 staticfiles/
 db-backups/
+.agents/
+*.log
+*.pid

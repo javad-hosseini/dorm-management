@@ -77,6 +77,13 @@ class FinancialService:
             sms_lines.append(f"تعداد: {to_persian_digits(yesterday_count)} تراکنش")
             sms_text = "\n".join(sms_lines)
 
+        # Also provide full executive daily report SMS text
+        try:
+            from apps.dormitory.services.daily_report_service import DailyReportService
+            executive_sms_text = DailyReportService.generate_sms_text(target_date=yesterday, dormitory_id=None)
+        except Exception:
+            executive_sms_text = sms_text
+
         yesterday_stats = {
             "date_str": yesterday.strftime("%Y/%m/%d"),
             "date_display": f"{y_day_name} {yesterday.day} {get_jalali_month_name(yesterday.month)} {yesterday.year}",
@@ -88,6 +95,7 @@ class FinancialService:
             "cash_tomans": yesterday_cash,
             "online_tomans": yesterday_online,
             "sms_text": sms_text,
+            "executive_sms_text": executive_sms_text,
         }
 
         # Latest Active Day Stats (if today has 0 transactions)
