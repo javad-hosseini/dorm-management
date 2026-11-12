@@ -46,6 +46,28 @@ def add_jalali_months(orig_date: jdatetime.date, months: int = 1) -> jdatetime.d
     return jdatetime.date(new_year, new_month, new_day)
 
 
+def normalize_settlement_boundary(
+    target_date: Optional[jdatetime.date],
+    anchor_day: Optional[int] = 1,
+) -> Optional[jdatetime.date]:
+    """
+    Normalizes a settlement date if it represents an end-of-month eve.
+    If anchor_day is 1 (or None / default) and target_date is the last day
+    of its Jalali month (day 31 in months 1-6, day 30 in months 7-11, or day 29/30 in month 12),
+    advances to the 1st of the next month to prevent the ±1 day tolerance trap.
+    """
+    if not target_date:
+        return target_date
+
+    eff_anchor = anchor_day if anchor_day is not None else 1
+    days_in_m = get_days_in_jalali_month(target_date.year, target_date.month)
+
+    if eff_anchor == 1 and target_date.day == days_in_m:
+        next_m = add_jalali_months(jdatetime.date(target_date.year, target_date.month, 1), 1)
+        return jdatetime.date(next_m.year, next_m.month, 1)
+    return target_date
+
+
 def to_persian_digits(value: Any) -> str:
     """Convert digits in a string or number to Persian digits"""
     persian_digits = "۰۱۲۳۴۵۶۷۸۹"
@@ -66,6 +88,14 @@ def format_period_name(start_date: jdatetime.date, end_date: jdatetime.date) -> 
     if not start_date or not end_date:
         return "دوره نامشخص"
 
+    # If start_date is on month-end eve and end_date is in a future month aligned with anchor,
+    # normalize start to the 1st of the next month for clean naming (e.g. 1405/07/30 -> 1405/09/01 is Aban rent)
+    days_in_sm = get_days_in_jalali_month(start_date.year, start_date.month)
+    if start_date.day == days_in_sm and (end_date.day == 1 or end_date.day in [29, 30, 31]):
+        norm_start = add_jalali_months(jdatetime.date(start_date.year, start_date.month, 1), 1)
+        if norm_start < end_date:
+            return format_period_name(norm_start, end_date)
+
     start_m_name = get_jalali_month_name(start_date.month)
     end_m_name = get_jalali_month_name(end_date.month)
     s_year = to_persian_digits(start_date.year)
@@ -75,7 +105,11 @@ def format_period_name(start_date: jdatetime.date, end_date: jdatetime.date) -> 
 
     # Check if this is a standard 1st-of-month full cycle
     if start_date.day == 1 and (end_date.day == 1 or end_date.day in [29, 30, 31]):
-        month_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+        if end_date.day in [29, 30, 31] and end_date.day == get_days_in_jalali_month(end_date.year, end_date.month):
+            month_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month) + 1
+        else:
+            month_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+
         if month_diff <= 1:
             return f"اجاره {start_m_name} ماه {s_year}"
         elif month_diff == 2:
@@ -144,9 +178,19 @@ def calculate_settlement_advance(
         return start_date, 0, ""
 
     if anchor_day is None:
-        anchor_day = start_date.day
+        days_in_start = get_days_in_jalali_month(start_date.year, start_date.month)
+        if start_date.day == days_in_start:
+            anchor_day = 1
+        else:
+            anchor_day = start_date.day
 
     cursor = start_date
+    # If anchor_day is 1 and cursor is on the last day of the month (the eve of anchor day),
+    # advance to the 1st of the next month at 0 cost to avoid stealing 1 day from the payment.
+    days_in_cur_m = get_days_in_jalali_month(cursor.year, cursor.month)
+    if anchor_day == 1 and cursor.day == days_in_cur_m:
+        cursor = normalize_settlement_boundary(cursor, anchor_day=1)
+
     remaining_amount = amount_rials
     total_days_advanced = 0
 
@@ -191,7 +235,10 @@ def calculate_settlement_advance(
                     days_covered = max(1, min(needed_days, days_covered))
                 else:
                     days_covered = min(needed_days, days_covered)
-                cursor = cursor + datetime.timedelta(days=days_covered)
+                if days_covered >= needed_days:
+                    cursor = next_boundary
+                elif days_covered > 0:
+                    cursor = cursor + datetime.timedelta(days=days_covered)
                 total_days_advanced += days_covered
                 remaining_amount = 0
                 break
@@ -221,8 +268,10 @@ def calculate_settlement_advance(
                 remaining_amount = 0
                 break
 
+    days_in_s = get_days_in_jalali_month(start_date.year, start_date.month)
+    is_eve_start = (anchor_day == 1 and start_date.day == days_in_s)
     period_name = format_period_name(start_date, cursor)
-    if total_days_advanced > 0 and (start_date.day != 1 or cursor.day != 1):
+    if total_days_advanced > 0 and not ((start_date.day == 1 or is_eve_start) and cursor.day == 1):
         p_days = to_persian_digits(total_days_advanced)
         if "روز" not in period_name:
             period_name = f"{period_name} ({p_days} روز)"

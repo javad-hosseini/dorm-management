@@ -13,6 +13,7 @@ from apps.dormitory.jalali_utils import (
     calculate_unpaid_periods,
     to_persian_digits,
     get_days_in_jalali_month,
+    normalize_settlement_boundary,
 )
 from .dormitory import get_default_dormitory
 
@@ -941,6 +942,9 @@ class Resident(models.Model):
             if tx.period_end:
                 if max_period_end is None or tx.period_end > max_period_end:
                     max_period_end = tx.period_end
+
+        if max_period_end:
+            max_period_end = normalize_settlement_boundary(max_period_end, self.monthly_payment_day)
 
         self.settled_until = max_period_end
         if save:

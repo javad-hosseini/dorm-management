@@ -84,6 +84,10 @@ To ensure data integrity, atomicity, and high performance, use the optimized Dja
 
 - **Name ambiguity:** If multiple residents share a name, the command returns a list with room numbers. Use `--room` or `--resident <id>` to disambiguate.
 - **Prorated amounts:** System uses exact Jalali calendar day counts (months vary 29–31 days). Use `--settled-until` for explicit rounding.
+- **Jalali Variable Month Lengths & Eve Normalization (رفع تلورانس ±۱ روزه):**
+  Months 1–6 have 31 days, months 7–11 have 30 days, and month 12 has 29 days (30 in leap years). When a receipt, note, or user input states "تسویه تا ۳۰ مهر", "۳۱ شهریور", "۲۹ اسفند", or "تا آخر ماه", the system automatically normalizes the settlement boundary to the **1st of the following month** (`1405-08-01`, `1405-07-01`, `1406-01-01`). This eliminates the ±1 day tolerance trap where residents are flagged in debt on the last day of the month.
+  To inspect or realign shifted residents in the database, run:
+  `.venv/bin/python manage.py audit_settlement_dates [--apply]`
 - **Room rate snapshot:** At transaction creation, the room's current rate is frozen in `applicable_rent`. Future rate changes do not affect past receipts.
 
 ---
@@ -149,6 +153,97 @@ The system recognizes both Persian and English column names:
 
 | Row | #ID | Resident | Room | Amount (T) | Type | Period / Settled | Status |
 ...
+```
+
+---
+
+## 🚪 Resident Departure, Status Transition & Shift/Archive Protocol (Soft Delete)
+
+When a resident leaves the dormitory, or when the user informs that a resident has departed (e.g., "فلانی خوابگاه را ترک کرد", "فلانی رفت / تسویه کرد و تخلیه کرد"), follow this mandatory protocol:
+
+### 1. Resident Status Lifecycle
+
+The `Resident` model defines three operational statuses (`Resident.Status`):
+- **`ACTIVE` (ساکن فعال):** Currently living in the dormitory, occupying a bed, active monthly rent cycle.
+- **`INACTIVE` (غیرفعال موقت):** Temporarily inactive (e.g., suspended, on extended leave, or pending room assignment).
+- **`LEFT` (خارج‌شده / تسویه‌شده):** The resident has departed the dormitory.
+
+### 2. Shift/Archive Table Protocol (Soft Delete: "Shift Only Resident")
+
+We **never** perform a destructive hard delete (`DELETE FROM dormitory_resident` without archiving). Instead, departure is treated as a **Soft Delete** by transitioning the status to `LEFT` and shifting the resident record into the dedicated shift table (`ArchivedResident` in `apps.archive.models`):
+
+1. **Update Resident Record:**
+   - Set `status = Resident.Status.LEFT`
+   - Set `exit_date = jdatetime.date.today()` (or the explicit departure date provided by the user)
+   - Set `room = None` (releases bed capacity in that room for future occupants)
+2. **Shift to Shift/Archive Table (`ArchivedResident`):**
+   - Create a corresponding record in `apps.archive.models.ArchivedResident` copying all resident profile fields (`first_name`, `last_name`, `father_name`, `is_foreign`, `national_code`, `phone_number`, `parent_phone_number`, `has_deposit`, `has_lease`, `occupation`, `entry_date`, `exit_date`, `monthly_payment_day`, `status`, `original_id=resident.id`, `dormitory_name`, `room_number`, and ID card images `id_card_image`, `id_card_image_2`, `id_card_image_3`).
+   - This preserves full legal and financial audit history while de-cluttering the active resident roster.
+
+### 3. Execution Methods
+
+#### Method A: Python / Shell Execution
+```python
+import jdatetime
+from apps.dormitory.models import Resident
+from apps.archive.models import ArchivedResident
+
+# 1. Fetch resident
+res = Resident.objects.get(id=<resident_id>)
+prev_room_number = res.room.room_number if res.room else None
+
+# 2. Update status and release room
+res.status = Resident.Status.LEFT
+res.exit_date = jdatetime.date.today()
+res.room = None
+res.save(update_fields=["status", "exit_date", "room"])
+
+# 3. Soft-delete shift into ArchivedResident table
+ArchivedResident.objects.create(
+    first_name=res.first_name,
+    last_name=res.last_name,
+    father_name=res.father_name,
+    is_foreign=res.is_foreign,
+    national_code=res.national_code,
+    phone_number=res.phone_number,
+    parent_phone_number=res.parent_phone_number,
+    has_deposit=res.has_deposit,
+    has_lease=res.has_lease,
+    occupation=res.occupation,
+    entry_date=res.entry_date,
+    exit_date=res.exit_date,
+    monthly_payment_day=res.monthly_payment_day,
+    status=res.status,
+    original_id=res.id,
+    dormitory_name=res.dormitory.name,
+    room_number=prev_room_number,
+    id_card_image=res.id_card_image,
+    id_card_image_2=res.id_card_image_2,
+    id_card_image_3=res.id_card_image_3,
+)
+```
+
+#### Method B: Batch / Automated via `manage.py process_excel`
+The Excel Processor automatically detects departure phrases (`خوابگاه را ترک کرد`, `تخلیه کرد`, `تسویه کرد و رفت`), updates the status to `LEFT`, sets `exit_date`, and frees the room allocation.
+
+#### Method C: Django Admin Bulk Action
+Admins can select departing residents with status `LEFT` in the Django Admin list view (`/admin/dormitory/resident/`) and run the action **"📦 Archive selected LEFT residents and their transactions"**.
+
+### 4. Departure Confirmation Response Standard
+
+When confirming a resident's departure to the user, provide the following summary table:
+
+```markdown
+### 🚪 ثبت خروج و انتقال به جدول آرشیو (Shift/Archive)
+
+| مشخصه | مقدار |
+| :--- | :--- |
+| **نام ساکن** | [نام و نام خانوادگی] |
+| **اتاق پیشین** | اتاق [شماره اتاق] (ظرفیت آزاد شد ✅) |
+| **وضعیت جدید** | `LEFT` (خارج‌شده) |
+| **تاریخ خروج** | [تاریخ شمسی خروج] |
+| **انتقال به آرشیو (Shift Table)** | `ArchivedResident` (#Original ID: [ID]) ✅ |
+| **عملیات** | حذف نرم (Soft Delete) انجام شد |
 ```
 
 ---

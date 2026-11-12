@@ -37,6 +37,7 @@ from apps.dormitory.jalali_utils import (
     calculate_settlement_advance,
     get_days_in_jalali_month,
     add_jalali_months,
+    normalize_settlement_boundary,
 )
 from apps.dormitory.services.receipt_processor import (
     process_receipt,
@@ -251,6 +252,19 @@ def parse_persian_date_text(
         except Exception:
             pass
 
+    # Match: "تا آخر سال" or "تا پایان سال"
+    if re.search(r"تا\s+(?:آخر|پایان|ته)\s+سال", s):
+        return jdatetime.date(default_year + 1, 1, 1)
+
+    # Match: "تا آخر/پایان <month>"
+    m_end_month = re.search(r"تا\s+(?:آخر|پایان|ته)\s+([\u0600-\u06FF]+)", s)
+    if m_end_month:
+        month_word = m_end_month.group(1).replace("ماه", "").strip()
+        for m_name, m_num in JALALI_MONTHS.items():
+            if m_name in month_word:
+                next_m = add_jalali_months(jdatetime.date(default_year, m_num, 1), 1)
+                return jdatetime.date(next_m.year, next_m.month, 1)
+
     # Match: "تا <day> <month>"
     m_settle = re.search(r"تا\s+(\d{1,2})\s+([\u0600-\u06FF]+)", s)
     if m_settle:
@@ -258,6 +272,11 @@ def parse_persian_date_text(
         month_word = m_settle.group(2).replace("ماه", "").strip()
         for m_name, m_num in JALALI_MONTHS.items():
             if m_name in month_word:
+                days_in_m = get_days_in_jalali_month(default_year, m_num)
+                # If target day is the last day of month, normalize to 1st of next month
+                if day == days_in_m:
+                    next_m = add_jalali_months(jdatetime.date(default_year, m_num, 1), 1)
+                    return jdatetime.date(next_m.year, next_m.month, 1)
                 return jdatetime.date(default_year, m_num, day)
 
     # Match: "در تاریخ <day> <month>" or "تاریخ ورود <day> <month>"

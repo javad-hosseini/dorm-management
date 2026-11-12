@@ -16,6 +16,7 @@ from apps.dormitory.jalali_utils import (
     calculate_unpaid_periods,
     get_days_in_jalali_month,
     add_jalali_months,
+    normalize_settlement_boundary,
 )
 
 
@@ -32,6 +33,12 @@ def calculate_expected_rent_tomans(
     while cursor < end_date:
         eff_rent = rent_resolver(cursor) if rent_resolver else monthly_rent_rials
         days_in_m = get_days_in_jalali_month(cursor.year, cursor.month)
+        if anchor_day == 1 and cursor.day == days_in_m:
+            cursor = normalize_settlement_boundary(cursor, anchor_day=1)
+            if cursor >= end_date:
+                break
+            days_in_m = get_days_in_jalali_month(cursor.year, cursor.month)
+
         cur_target = min(anchor_day, days_in_m)
 
         if cursor.day < cur_target:
@@ -341,9 +348,11 @@ def process_receipt(
                 p_start_d = res_obj.settled_until or res_obj.entry_date or payment_datetime.date()
 
             if settled_until_d:
-                p_end_d = settled_until_d
+                p_end_d = normalize_settlement_boundary(settled_until_d, res_obj.monthly_payment_day)
+                settled_until_d = p_end_d
                 p_name = format_period_name(p_start_d, p_end_d)
             elif p_end_d:
+                p_end_d = normalize_settlement_boundary(p_end_d, res_obj.monthly_payment_day)
                 p_name = format_period_name(p_start_d, p_end_d)
             else:
                 rent_resolver = res_obj.room.get_rent_for_date if res_obj.room else None
@@ -376,7 +385,8 @@ def process_receipt(
                 )
                 diff_tomans = r_amount - expected_rent_tomans
                 # Allow a 1-day tolerance for Jalali 31/30 day calendar drift (e.g. 19 to 20)
-                daily_tolerance = (rent_rate // 10) // 30
+                cur_days_in_m = get_days_in_jalali_month(p_start_d.year, p_start_d.month)
+                daily_tolerance = (rent_rate // 10) // cur_days_in_m
                 if diff_tomans < -daily_tolerance:
                     discrepancy_info = {
                         "expected_rent_tomans": expected_rent_tomans,
