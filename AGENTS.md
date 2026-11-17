@@ -21,9 +21,13 @@ This document is the **single authoritative protocol** for all AI agents working
 
 When the user provides transaction receipts (photos of POS slips, card-to-card screenshots, or text descriptions) and asks to add them to the system, **follow this protocol strictly**:
 
-### 1. Understanding Inputs
+### 1. Understanding Inputs & Payment Methods (`--method`)
 
 - **User Text:** Usually includes the resident's name, room number, amount in Tomans, and settlement conditions (e.g., "تا اول آبان تسویه شد").
+- **Payment Method Rules (`--method`):**
+  - **`CARD` (کارتخوان):** Whenever the user uploads or attaches an **image of a POS receipt slip (رسید پوز)**, it is logically a POS card swipe (`--method CARD`). Extract terminal, reference, and card info directly from the slip.
+  - **`BANK_TRANSFER` (کارت به کارت / واریز بانکی):** Whenever there is **no image attached** and instead the user provides the date and exact time in text (e.g., "ساعت ۱۰:۱۴ واریز کرد"), this is a card-to-card transfer (`--method BANK_TRANSFER`). These transfers will later be audited and cross-checked at the end of each month against bank statements using the reports system (`reports/` and `manage.py reconcile_bank_statement`).
+  - **`CASH` (نقدی / کَش):** Whenever the user explicitly states the payment was made in cash (e.g., "نقدی پرداخت شد", "۷۰۰ تومن نقدی داد").
 - **Receipt Image (POS / کارتخوان):** Contains:
   - `مبلغ:` Amount in **Rials** → convert to Tomans (÷10).
   - `زمان-تاریخ:` Jalali date and time (e.g. `۱۴۰۵/۰۷/۲۱ - ۱۷:۵۵:۴۰`).
@@ -277,6 +281,39 @@ Inspect every POS receipt image for any reprint indicators:
 - `چاپ مجدد` / `رسید مجدد` / `کپی برابر اصل` / `کپی` / `المثنی`
 - **Condition:** Any reprint marking appears anywhere on the receipt.
 - **Action:** Flag `[FLAG: REPRINTED_RECEIPT_DETECTED]` and cross-check the database for any prior transaction sharing the same Trace Number, Reference Number, or timestamp before allowing approval.
+
+---
+
+## 📑 Executive PDF Reports Protocol ("گزارش پی دی اف")
+
+Whenever the user asks for a **PDF report** (e.g., "گزارش پی دی اف", "پی دی اف بدهکاران", "فایل PDF گزارش", "گزارش بدهکاران رو برام پی دی اف کن", "pdf بده"):
+
+### 1. Dedicated Generator Script: `reports/generate_debtors_pdf.py`
+
+Execute the automated generator script using the project's virtual environment:
+
+```bash
+# Generate PDF report for today (saves to debtors_report_YYYY_MM_DD.pdf and updates debtors_report.pdf):
+.venv/bin/python reports/generate_debtors_pdf.py
+
+# Generate PDF report for a specific Jalali date:
+.venv/bin/python reports/generate_debtors_pdf.py --date 1405/08/26
+
+# Custom output destination:
+.venv/bin/python reports/generate_debtors_pdf.py --output /path/to/custom_report.pdf
+```
+
+### 2. Standards & Output Requirements
+
+- **Engine:** Google Chrome Headless (`/opt/google/chrome/google-chrome --headless=new --no-pdf-header-footer --print-to-pdf`).
+- **Typography & Layout:** Right-to-Left (RTL), standard Persian font (`Vazirmatn`), balanced A4 multi-page document layout without awkward page spills.
+- **Content Structure:**
+  - **Page 1 (Executive Dashboard & Summary Table):** Dormitory header, supervisor ID, capacity stats, key metric cards (Total Debt, Debtor Count, Max Delay Days, Max Single Debt), and full compact table of all active overdue debtors sorted by delay days descending.
+  - **Pages 2 & 3 (Debtor Profile Cards & Legal Notes):** Two-column card grid detailing each debtor's room rate, due date, delay days, current overdue debt amount, last payment details (amount, date, method), and official dormitory management notes.
+- **Standard Placement:** Always place the generated PDF on the root of the project:
+  - `[project_root]/debtors_report_YYYY_MM_DD.pdf`
+  - `[project_root]/debtors_report.pdf`
+- **Agent Response:** Always provide clickable `file://` links to the generated PDF files at the project root.
 
 ---
 

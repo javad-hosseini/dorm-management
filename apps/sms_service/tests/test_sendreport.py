@@ -92,11 +92,13 @@ class SendReportCommandTests(TestCase):
         )
         self.assertIn("گزارش روزانه خوابگاه نوید", sms_text)
         self.assertIn("• درآمد دیروز:", sms_text)
-        self.assertIn("• تعداد تراکنش دیروز:", sms_text)
+        self.assertIn("• تعداد تراکنش‌های دیروز:", sms_text)
         self.assertIn("• مجموع تخت‌های خالی:", sms_text)
         # Verify each vacant room is on its own line
         self.assertIn("- اتاق ۱۰۱: ۱ تخت", sms_text)
         self.assertIn("- اتاق ۱۰۲: ۳ تخت", sms_text)
+        self.assertIn("بیشترین دیرکرد زمانی:", sms_text)
+        self.assertIn("بیشترین مبلغ بدهی:", sms_text)
 
     def test_sendreport_command_dry_run(self):
         out = StringIO()
@@ -147,3 +149,64 @@ class SendReportCommandTests(TestCase):
     def test_sendreport_invalid_date(self):
         with self.assertRaises(CommandError):
             call_command("sendreport", "--date", "invalid-date")
+
+    def test_daily_report_service_debtor_deduplication_and_ranking(self):
+        """
+        Verify that:
+        1. Top 3 debtors by overdue days are listed first.
+        2. Top 3 debtors by amount are listed second.
+        3. If a resident is in the first list, they are not repeated in the second list.
+        4. Proper fallback message appears when there are no debtors.
+        """
+        from apps.dormitory.models import Resident, Room
+        import datetime
+
+        # Clear existing residents to isolate
+        Resident.objects.all().delete()
+
+        room1 = Room.objects.create(dormitory=self.dormitory, room_number=301, capacity=4, monthly_rent=60_000_000)
+        room2 = Room.objects.create(dormitory=self.dormitory, room_number=302, capacity=4, monthly_rent=40_000_000)
+        room3 = Room.objects.create(dormitory=self.dormitory, room_number=303, capacity=4, monthly_rent=30_000_000)
+        room4 = Room.objects.create(dormitory=self.dormitory, room_number=304, capacity=4, monthly_rent=50_000_000)
+
+        today = jdatetime.date.today()
+        # Resident A: 40 days overdue, high rent (6M) -> Should be in List 1 (Days), and EXCLUDED from List 2 (Amount)
+        r_a = Resident.objects.create(
+            first_name="علی", last_name="الف", national_code="1111111111", phone_number="09121111111",
+            dormitory=self.dormitory, room=room1, entry_date=today - datetime.timedelta(days=40),
+            settled_until=today - datetime.timedelta(days=40), registered_by=self.supervisor
+        )
+        # Resident B: 30 days overdue, 4M rent -> List 1
+        r_b = Resident.objects.create(
+            first_name="بهرام", last_name="ب", national_code="2222222222", phone_number="09122222222",
+            dormitory=self.dormitory, room=room2, entry_date=today - datetime.timedelta(days=30),
+            settled_until=today - datetime.timedelta(days=30), registered_by=self.supervisor
+        )
+        # Resident C: 20 days overdue, 3M rent -> List 1
+        r_c = Resident.objects.create(
+            first_name="جواد", last_name="ج", national_code="3333333333", phone_number="09123333333",
+            dormitory=self.dormitory, room=room3, entry_date=today - datetime.timedelta(days=20),
+            settled_until=today - datetime.timedelta(days=20), registered_by=self.supervisor
+        )
+        # Resident D: 10 days overdue, 5M rent -> High amount! Should be in List 2
+        r_d = Resident.objects.create(
+            first_name="داوود", last_name="د", national_code="4444444444", phone_number="09124444444",
+            dormitory=self.dormitory, room=room4, entry_date=today - datetime.timedelta(days=10),
+            settled_until=today - datetime.timedelta(days=10), registered_by=self.supervisor
+        )
+
+        sms = DailyReportService.generate_sms_text(target_date=today, dormitory_id=self.dormitory.id)
+
+        # List 1 must contain A, B, C
+        self.assertIn("بیشترین دیرکرد زمانی:", sms)
+        self.assertIn("علی الف (اتاق ۳۰۱)", sms)
+        self.assertIn("بهرام ب (اتاق ۳۰۲)", sms)
+        self.assertIn("جواد ج (اتاق ۳۰۳)", sms)
+
+        # List 2 must contain D, but NOT A (since A was already in List 1)
+        self.assertIn("بیشترین مبلغ بدهی:", sms)
+        self.assertIn("داوود د (اتاق ۳۰۴)", sms)
+
+        # Check that after 'بیشترین مبلغ بدهی:', 'علی الف' does not appear again
+        part2 = sms.split("بیشترین مبلغ بدهی:")[1]
+        self.assertNotIn("علی الف", part2)

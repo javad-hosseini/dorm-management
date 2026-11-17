@@ -272,6 +272,54 @@ class FinancialDashboardTests(TestCase):
         self.assertIn("overdue_debt_tomans", debt_stats)
         self.assertIn("projected_debt_until_next_month_tomans", debt_stats)
 
+    def test_projected_debt_does_not_overcount_next_month(self):
+        """
+        Verify that projected debt until first of next month only calculates dues
+        through the end of the current month and does NOT overcount the next month's rent.
+        """
+        import jdatetime
+        from apps.dormitory.models import Resident, Room, Dormitory
+        from apps.accounts.models import Supervisor
+        from apps.dashboard.services.financial_service import FinancialService
+
+        # Clean existing residents for an isolated assertion
+        Resident.objects.all().delete()
+
+        sup = Supervisor.objects.first() or Supervisor.objects.create(
+            first_name="مدیر", last_name="مالی", national_code="1111111111"
+        )
+        dorm = Dormitory.objects.first() or Dormitory.objects.create(
+            name="خوابگاه مرکزی", address="تهران"
+        )
+        room = Room.objects.create(
+            dormitory=dorm,
+            room_number=501,
+            capacity=2,
+            monthly_rent=40_000_000  # 4,000,000 Tomans
+        )
+
+        today = jdatetime.date.today()
+        # Resident settled until 1st of current month (owes 1 month of rent)
+        start_of_cur_month = jdatetime.date(today.year, today.month, 1)
+        Resident.objects.create(
+            first_name="رضا",
+            last_name="حسابی",
+            national_code="1234567890",
+            phone_number="09120000000",
+            dormitory=dorm,
+            room=room,
+            entry_date=start_of_cur_month,
+            settled_until=start_of_cur_month,
+            registered_by=sup
+        )
+
+        data = FinancialService.get_financial_dashboard_data()
+        debt_stats = data["debt_stats"]
+
+        # Expected: exactly 4,000,000 Tomans for the current month, NOT 8,000,000 Tomans
+        self.assertEqual(debt_stats["overdue_debt_tomans"], 4_000_000)
+        self.assertEqual(debt_stats["projected_debt_until_next_month_tomans"], 4_000_000)
+
 
 class PartialRentPaymentTests(TestCase):
     def setUp(self):

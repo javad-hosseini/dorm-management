@@ -228,6 +228,7 @@ class FinancialService:
             next_month_year = today.year + 1
             next_month = 1
         first_of_next_month = jdatetime.date(next_month_year, next_month, 1)
+        end_of_current_month = first_of_next_month - datetime.timedelta(days=1)
 
         overdue_debt_tomans = 0
         projected_debt_tomans = 0
@@ -251,12 +252,12 @@ class FinancialService:
                     "unpaid_months": r.unpaid_months_display
                 })
 
-            # Calculate rent/due up to 1st of next month
+            # Calculate rent/due up to 1st of next month (periods up to end of current month)
             s = r.settled_until or r.entry_date
             if s and r.room and s < first_of_next_month:
                 periods = calculate_unpaid_periods(
                     start_date=s,
-                    as_of_date=first_of_next_month,
+                    as_of_date=end_of_current_month,
                     monthly_rent_rials=r.room.monthly_rent,
                     rent_resolver=r.room.get_rent_for_date
                 )

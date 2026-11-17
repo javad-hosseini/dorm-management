@@ -89,15 +89,42 @@ class DailyReportService:
         # A. Overdue debt as of today (matches Financial Dashboard Card 3)
         overdue_debt_tomans = 0
         overdue_debtors_count = 0
+        debtors_list = []
         for r in active_residents:
             debt_now = r.total_debt_amount_tomans
             if debt_now > 0:
                 overdue_debt_tomans += debt_now
                 overdue_debtors_count += 1
+                debtors_list.append({
+                    "id": r.id,
+                    "name": r.full_name,
+                    "room_number": r.room.room_number if r.room else "-",
+                    "debt_tomans": debt_now,
+                    "overdue_days": r.overdue_days,
+                })
+
+        # 1. Top 3 by overdue days (longest delay, tie-break by debt amount)
+        sorted_by_days = sorted(
+            debtors_list,
+            key=lambda x: (x["overdue_days"], x["debt_tomans"]),
+            reverse=True
+        )
+        top_overdue_days_debtors = sorted_by_days[:3]
+        selected_ids = {x["id"] for x in top_overdue_days_debtors}
+
+        # 2. Top 3 by debt amount (excluding residents already selected in the first list)
+        remaining_debtors = [d for d in debtors_list if d["id"] not in selected_ids]
+        sorted_by_amount = sorted(
+            remaining_debtors,
+            key=lambda x: (x["debt_tomans"], x["overdue_days"]),
+            reverse=True
+        )
+        top_amount_debtors = sorted_by_amount[:3]
 
         # B. Projected debt until first of next month (matches Financial Dashboard Card 3)
         projected_debt_tomans = 0
         indebted_count = 0
+        end_of_current_month = first_of_next_month - datetime.timedelta(days=1)
         for r in active_residents:
             if not r.room or not r.room.monthly_rent:
                 continue
@@ -105,7 +132,7 @@ class DailyReportService:
             if base_date and base_date < first_of_next_month:
                 periods = calculate_unpaid_periods(
                     start_date=base_date,
-                    as_of_date=first_of_next_month,
+                    as_of_date=end_of_current_month,
                     monthly_rent_rials=r.room.monthly_rent,
                     rent_resolver=r.room.get_rent_for_date,
                 )
@@ -164,6 +191,8 @@ class DailyReportService:
             "indebted_count": indebted_count,
             "total_empty_beds": total_empty_beds,
             "vacant_rooms": vacant_rooms,
+            "top_overdue_days_debtors": top_overdue_days_debtors,
+            "top_amount_debtors": top_amount_debtors,
         }
 
     @classmethod
@@ -236,5 +265,30 @@ class DailyReportService:
                 lines.append(f"- اتاق {r_num}: {b_count} تخت")
         else:
             lines.append("- تمام اتاق‌ها تکمیل ظرفیت است")
+
+        # Top Debtors breakdown (Oldest Overdue Days & Highest Amount)
+        lines.append("")
+        lines.append("بیشترین دیرکرد زمانی:")
+        if data.get("top_overdue_days_debtors"):
+            for i, d in enumerate(data["top_overdue_days_debtors"], 1):
+                idx_p = to_persian_digits(i)
+                r_p = to_persian_digits(d["room_number"])
+                amt_p = to_persian_digits(f"{d['debt_tomans']:,}")
+                days_p = to_persian_digits(d["overdue_days"])
+                lines.append(f"{idx_p}. {d['name']} (اتاق {r_p}): {amt_p} تومان ({days_p} روز تأخیر)")
+        else:
+            lines.append("- بدهی معوقی وجود ندارد")
+
+        lines.append("")
+        lines.append("بیشترین مبلغ بدهی:")
+        if data.get("top_amount_debtors"):
+            for i, d in enumerate(data["top_amount_debtors"], 1):
+                idx_p = to_persian_digits(i)
+                r_p = to_persian_digits(d["room_number"])
+                amt_p = to_persian_digits(f"{d['debt_tomans']:,}")
+                days_p = to_persian_digits(d["overdue_days"])
+                lines.append(f"{idx_p}. {d['name']} (اتاق {r_p}): {amt_p} تومان ({days_p} روز تأخیر)")
+        else:
+            lines.append("- بدهی معوقی وجود ندارد")
 
         return "\n".join(lines)
