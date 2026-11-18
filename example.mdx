@@ -1,0 +1,41 @@
+# Framed Figures with mdxcn
+
+Here is an example MDX document rendering figures framed with mdxcn. In MDX, you wrap plain Markdown children directly inside the parent tag without needing extra child imports.
+
+## Incident & Rollout Timeline
+
+The migration pipeline has rolled out to production with automatic health-checks and automated failover.
+
+<GraphTimeline title="ROLLOUT">
+
+- 10:00: Started database schema migration
+- 10:15: Applied non-blocking index additions
+- **10:30: Switched traffic to v2 service pool**
+- *11:00: Verification and telemetry audit complete*
+
+</GraphTimeline>
+
+System resource consumption remained well within approved thresholds during the cutover window.
+
+<GraphMeter title="CAPACITY" value={0.78} caption="78% allocated">
+
+- allocated: 78%
+- headroom: 22%
+
+</GraphMeter>
+
+## Top Response Latencies
+
+Ranked API latencies observed across primary external gateways:
+
+<GraphRank title="LATENCY">
+
+- 1. auth: 42ms
+- 2. billing: 88ms
+- 3. webhooks: 135ms
+- 4. reports: 240ms
+
+</GraphRank>
+
+> [!TIP]
+> Plain markdown alerts like this blockquote are automatically upgraded to `<Callout>` frames via `withMdxcn` in `mdx-components.tsx`.

@@ -1,13 +1,64 @@
+# Python & Environments
 venv/
 .venv/
+env/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Django & Local Storage
 .env
-.idea/
-.vscode/
 media/
 staticfiles/
 db-backups/
-.agents/
+
+# Node.js & Package Managers
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build Outputs & Caches
+dist/
+build/
+out/
+.next/
+.turbo/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs & Runtime
 *.log
 *.pid
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# Agents
+.agents/
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# Agents
+.agents/

@@ -1,0 +1,153 @@
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #171717;
+    --graph-surface: var(--background);
+    --graph-accent: #006e92;
+    --graph-accent-2: #0856c0;
+    --graph-accent-3: #0066ac;
+    --graph-frame: #a6abb1;
+    --graph-muted: #717171;
+    --graph-faint: #c4c4c4;
+  }
+
+  .dark {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --graph-surface: var(--background);
+    --graph-accent: #02c5ff;
+    --graph-accent-2: #5196ff;
+    --graph-accent-3: #4cabfd;
+    --graph-frame: #54585f;
+    --graph-muted: #888888;
+    --graph-faint: #292929;
+  }
+}
+
+@custom-variant dark (&:is(.dark *));
+
+/* Base typography for figures */
+figure[data-frame] {
+  font-family: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+}
+
+/* Framed figures & borders */
+.graph-frame {
+  background-image:
+    repeating-linear-gradient(to right, var(--graph-frame) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(to bottom, var(--graph-frame) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(to right, var(--graph-frame) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(to bottom, var(--graph-frame) 0 2px, transparent 2px 7px);
+  background-position: 0 0, 100% 0, 0 100%, 0 0;
+  background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
+  background-size: 100% 1px, 1px 100%, 100% 1px, 1px 100%;
+}
+
+.graph-rule {
+  background-image: repeating-linear-gradient(to right, var(--graph-frame) 0 2px, transparent 2px 7px);
+  height: 1px;
+}
+
+.graph-rule-y {
+  background-image: repeating-linear-gradient(to bottom, var(--graph-frame) 0 2px, transparent 2px 7px);
+  width: 1px;
+}
+
+/* Accent & frame colors */
+.text-graph-accent { color: var(--graph-accent); }
+.text-graph-accent-2 { color: var(--graph-accent-2); }
+.text-graph-accent-3 { color: var(--graph-accent-3); }
+.text-graph-frame { color: var(--graph-frame); }
+.text-graph-muted { color: var(--graph-muted); }
+
+.border-graph-accent { border-color: var(--graph-accent); }
+.border-graph-frame { border-color: var(--graph-frame); }
+.bg-graph-accent { background-color: var(--graph-accent); }
+.bg-graph-frame { background-color: var(--graph-frame); }
+
+.decoration-graph-frame {
+  -webkit-text-decoration-color: var(--graph-frame);
+  text-decoration-color: var(--graph-frame);
+}
+
+.graph-title-ink {
+  background-image: linear-gradient(90deg, var(--graph-accent), var(--graph-accent-2), var(--graph-accent-3));
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Utilities */
+.graph-scroll-x {
+  scrollbar-width: none;
+  overflow-x: auto;
+}
+
+.scrollbar-graph {
+  scrollbar-width: thin;
+  scrollbar-color: var(--graph-frame) transparent;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .graph-motion {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@theme inline {
+  --color-graph-accent: var(--graph-accent);
+  --color-graph-accent-2: var(--graph-accent-2);
+  --color-graph-accent-3: var(--graph-accent-3);
+  --color-graph-frame: var(--graph-frame);
+  --color-graph-muted: var(--graph-muted);
+  --color-graph-faint: var(--graph-faint);
+  --color-contrast-14: var(--contrast-14);
+  --color-contrast-23: var(--contrast-23);
+  --color-contrast-45: var(--contrast-45);
+  --color-contrast-70: var(--contrast-70);
+}
+
+:root {
+  --graph-accent: oklch(0.5 0.18 255);
+  --graph-accent-2: oklch(0.58 0.14 70);
+  --graph-accent-3: oklch(0.5 0.12 165);
+  --graph-frame: oklch(0.205 0 0 / 0.28);
+  --graph-muted: oklch(0.52 0 0);
+  --graph-faint: oklch(0.82 0 0);
+  --contrast-14: oklch(0.88 0 0);
+  --contrast-23: oklch(0.76 0 0);
+  --contrast-45: oklch(0.48 0 0);
+  --contrast-70: oklch(0.28 0 0);
+}
+
+.dark {
+  --graph-accent: oklch(0.7 0.12 255);
+  --graph-accent-2: oklch(0.78 0.12 70);
+  --graph-accent-3: oklch(0.78 0.1 165);
+  --graph-frame: oklch(0.48 0 0);
+  --graph-muted: oklch(0.6 0 0);
+  --graph-faint: oklch(0.28 0 0);
+  --contrast-14: oklch(0.22 0 0);
+  --contrast-23: oklch(0.34 0 0);
+  --contrast-45: oklch(0.62 0 0);
+  --contrast-70: oklch(0.84 0 0);
+}
+
+@utility graph-frame {
+    background-image: repeating-linear-gradient(to right, var(--graph-frame) 0 2px, transparent 2px 7px), repeating-linear-gradient(to bottom, var(--graph-frame) 0 2px, transparent 2px 7px), repeating-linear-gradient(to right, var(--graph-frame) 0 2px, transparent 2px 7px), repeating-linear-gradient(to bottom, var(--graph-frame) 0 2px, transparent 2px 7px);
+    background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
+    background-position: 0 0, 100% 0, 0 100%, 0 0;
+    background-size: 100% 1px, 1px 100%, 100% 1px, 1px 100%;
+}
+
+@utility graph-rule {
+    height: 1px;
+    background-image: repeating-linear-gradient(to right, var(--graph-frame) 0 2px, transparent 2px 7px);
+}
+
+@utility graph-rule-y {
+    width: 1px;
+    background-image: repeating-linear-gradient(to bottom, var(--graph-frame) 0 2px, transparent 2px 7px);
+}
