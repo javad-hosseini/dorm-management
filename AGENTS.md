@@ -252,6 +252,20 @@ When confirming a resident's departure to the user, provide the following summar
 
 ---
 
+## 🛏️ Room Capacity & Over-Occupancy Integrity Audit Directive (قانون بررسی و هشدار تکمیل ظرفیت اتاق‌ها)
+
+Whenever an AI agent reads `AGENTS.md`, initiates an intake session, or processes resident lifecycle events (Check-in, Check-out, Room swap), it **MUST ALWAYS proactively audit room occupancy across all rooms**:
+
+1. **Integrity Constraint:** For every room, the active occupants count must not exceed its capacity:
+   $$\text{Active Residents (Status=ACTIVE)} \le \text{Room Capacity}$$
+2. **Mandatory Proactive Alert:** If ANY room has $\text{Active Residents} > \text{Room Capacity}$, the AI agent **MUST NOT REMAIN SILENT**. The agent is strictly required to proactively alert the manager in its response with a clear warning table detailing:
+   - Room number
+   - Defined capacity vs. actual active occupants count
+   - Full list of active residents currently assigned to that room (Names & IDs)
+   - Prompt the manager to clarify unrecorded departures or adjust capacity.
+
+---
+
 ## 🚨 AI Fraud Detection & Receipt Validation Directives
 
 These rules apply whenever the AI processes raw notebook entries, receipt images, or spreadsheets to register or verify transactions. They are **mandatory** and must never be skipped.
