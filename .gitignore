@@ -37,18 +37,9 @@ htmlcov/
 *.log
 *.pid
 
-# IDEs & Editors
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS Metadata
-.DS_Store
-Thumbs.db
-
-# Agents
-.agents/
+# Reports & PDF Outputs
+reports/PDFs/
+*.pdf
 
 # IDEs & Editors
 .idea/

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,9 +26,9 @@ class Settings(BaseSettings):
         default="123456789:ABCDefGhIJklMNopQRstUVwxyz_SAMPLE_TOKEN",
         description="Telegram Bot API Token from @BotFather",
     )
-    ALLOWED_TELEGRAM_USER_IDS: list[int] = Field(
+    ALLOWED_TELEGRAM_USER_IDS: Any = Field(
         default_factory=list,
-        description="Comma-separated list of allowed Telegram user IDs",
+        description="Optional list of allowed Telegram user IDs",
     )
     TELEGRAM_PROXY_URL: Optional[str] = Field(
         default=None,
@@ -111,6 +111,8 @@ class Settings(BaseSettings):
     @classmethod
     def parse_allowed_user_ids(cls, v: object) -> list[int]:
         """Parse comma-separated string or list into a list of integers."""
+        if not v:
+            return []
         if isinstance(v, (int, float)):
             return [int(v)]
         if isinstance(v, str):

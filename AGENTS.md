@@ -10,6 +10,7 @@ This document is the **single authoritative protocol** for all AI agents working
 - **Database:** SQLite (`db.sqlite3` with atomic backups in `db-backups/`)
 - **Active Virtual Environment:** `.venv/bin/python`
   > **Crucial:** Always execute management commands using `.venv/bin/python manage.py ...` (the system-level python lacks installed dependencies like `decouple`).
+- **Active Git Branch:** `daily-use` (All daily transactions, receipts intake, PDF reports, and operational updates must be committed and pushed to `daily-use`).
 - **Calendar & Timezone:** Jalali Solar Hijri (`jdatetime`, `django_jalali`), Timezone: `Asia/Tehran`.
 - **Default Supervisor:** جواد حسینی (ID: `1`, National Code: `0201014318`).
 - **Default Dormitory:** خوابگاه نوید (ID: `1`).
@@ -307,7 +308,7 @@ Whenever the user asks for a **PDF report** (e.g., "گزارش پی دی اف", 
 Execute the automated generator script using the project's virtual environment:
 
 ```bash
-# Generate PDF report for today (saves to debtors_report_YYYY_MM_DD.pdf and updates debtors_report.pdf):
+# Generate PDF report for today (saves to reports/PDFs/debtors_report_YYYY_MM_DD.pdf and updates debtors_report.pdf):
 .venv/bin/python reports/generate_debtors_pdf.py
 
 # Generate PDF report for a specific Jalali date:
@@ -324,10 +325,10 @@ Execute the automated generator script using the project's virtual environment:
 - **Content Structure:**
   - **Page 1 (Executive Dashboard & Summary Table):** Dormitory header, supervisor ID, capacity stats, key metric cards (Total Debt, Debtor Count, Max Delay Days, Max Single Debt), and full compact table of all active overdue debtors sorted by delay days descending.
   - **Pages 2 & 3 (Debtor Profile Cards & Legal Notes):** Two-column card grid detailing each debtor's room rate, due date, delay days, current overdue debt amount, last payment details (amount, date, method), and official dormitory management notes.
-- **Standard Placement:** Always place the generated PDF on the root of the project:
-  - `[project_root]/debtors_report_YYYY_MM_DD.pdf`
-  - `[project_root]/debtors_report.pdf`
-- **Agent Response:** Always provide clickable `file://` links to the generated PDF files at the project root.
+- **Standard Placement:** Always place the generated PDFs inside `reports/PDFs/` (ignored in `.gitignore`):
+  - `reports/PDFs/debtors_report_YYYY_MM_DD.pdf`
+  - `reports/PDFs/debtors_report.pdf`
+- **Agent Response:** Always provide clickable `file://` links to the generated PDF files inside `reports/PDFs/`.
 
 ---
 

@@ -395,8 +395,8 @@ def render_html_report(data: Dict[str, Any]) -> str:
 
   .debtor-card {{
     border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 8px 10px;
+    border-radius: 6px;
+    padding: 6px 9px;
     background: #ffffff;
     page-break-inside: avoid;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
@@ -407,12 +407,12 @@ def render_html_report(data: Dict[str, Any]) -> str:
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #f1f5f9;
-    padding-bottom: 4px;
-    margin-bottom: 6px;
+    padding-bottom: 3px;
+    margin-bottom: 4px;
   }}
 
   .card-title {{
-    font-size: 10pt;
+    font-size: 9.5pt;
     font-weight: 700;
     color: #0f172a;
   }}
@@ -420,7 +420,7 @@ def render_html_report(data: Dict[str, Any]) -> str:
   .card-row {{
     display: flex;
     justify-content: space-between;
-    margin-bottom: 2.5px;
+    margin-bottom: 2px;
     font-size: 8pt;
   }}
 
@@ -434,11 +434,12 @@ def render_html_report(data: Dict[str, Any]) -> str:
   }}
 
   .footer-note {{
-    margin-top: 15px;
-    padding: 10px;
+    margin-top: 10px;
+    padding: 6px 10px;
     background: #f8fafc;
     border-right: 3px solid #64748b;
-    font-size: 8pt;
+    font-size: 7.5pt;
+    line-height: 1.4;
     color: #475569;
     border-radius: 0 4px 4px 0;
   }}
@@ -558,9 +559,12 @@ def generate_debtors_pdf(
     data = fetch_debtors_data(target_date=target_date, dormitory_id=dormitory_id)
     html_content = render_html_report(data)
 
+    reports_pdf_dir = os.path.join(BASE_DIR, "reports", "PDFs")
+    os.makedirs(reports_pdf_dir, exist_ok=True)
+
     if output_path is None:
         filename = f"debtors_report_{data['target_date'].strftime('%Y_%m_%d')}.pdf"
-        output_path = os.path.join(BASE_DIR, filename)
+        output_path = os.path.join(reports_pdf_dir, filename)
 
     output_path = os.path.abspath(output_path)
     chrome_bin = find_chrome_binary()
@@ -584,12 +588,12 @@ def generate_debtors_pdf(
         if os.path.exists(temp_html_path):
             os.remove(temp_html_path)
 
-    # Also update generic debtors_report.pdf at root if output is inside project
-    default_root_copy = os.path.join(BASE_DIR, "debtors_report.pdf")
-    if os.path.exists(output_path) and output_path != default_root_copy:
+    # Also update generic debtors_report.pdf inside reports/PDFs
+    default_shortcut = os.path.join(reports_pdf_dir, "debtors_report.pdf")
+    if os.path.exists(output_path) and output_path != default_shortcut:
         try:
             import shutil
-            shutil.copyfile(output_path, default_root_copy)
+            shutil.copyfile(output_path, default_shortcut)
         except Exception:
             pass
 
@@ -598,7 +602,7 @@ def generate_debtors_pdf(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Executive Debtors PDF Report")
-    parser.add_argument("--output", "-o", default=None, help="Output PDF file path (default: root/debtors_report_YYYY_MM_DD.pdf)")
+    parser.add_argument("--output", "-o", default=None, help="Output PDF file path (default: reports/PDFs/debtors_report_YYYY_MM_DD.pdf)")
     parser.add_argument("--date", "-d", default=None, help="Target date in Jalali YYYY/MM/DD format (default: today)")
     parser.add_argument("--dormitory", type=int, default=None, help="Dormitory ID (default: all dormitories)")
 

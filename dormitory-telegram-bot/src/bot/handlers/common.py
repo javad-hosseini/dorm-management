@@ -83,3 +83,13 @@ async def handle_cancel(message: Message, state: FSMContext) -> None:
             reply_markup=get_main_menu_keyboard(),
         )
 
+
+@router.message()
+async def handle_fallback(message: Message) -> None:
+    """Fallback handler for any unexpected text or commands."""
+    await message.answer(
+        "👋 Welcome! Send /start or tap an option below to use the bot:",
+        reply_markup=get_main_menu_keyboard(),
+    )
+
+

@@ -61,10 +61,10 @@ async def main() -> None:
     # AlbumMiddleware as inner middleware on message updates to aggregate media groups
     dp.message.middleware(AlbumMiddleware(latency=0.6))
 
-    # Register Routers
-    dp.include_router(common_router)
+    # Register Routers (common_router last so its fallback doesn't shadow other routers)
     dp.include_router(raw_data_router)
     dp.include_router(ingest_cleaned_router)
+    dp.include_router(common_router)
 
     # Start Polling
     try:

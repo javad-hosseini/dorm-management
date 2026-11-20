@@ -29,34 +29,13 @@ class AuthMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        user: User | None = data.get("event_from_user")
-        if user is None and hasattr(event, "from_user"):
-            user = getattr(event, "from_user", None)
-
-        if user is None:
-            # System event or internal update without user context
-            return await handler(event, data)
-
-        allowed_ids = self.settings.ALLOWED_TELEGRAM_USER_IDS
-
-        # If whitelist is empty, we permit access or enforce strictness?
-        # Specification requires: "checks event.from_user.id against settings.ALLOWED_TELEGRAM_USER_IDS
-        # If an unauthorized user interacts with the bot, reply with '⛔ Unauthorized access...'"
-        if allowed_ids and user.id not in allowed_ids:
-            logger.warning(
-                "Access denied for unauthorized user ID: %s (@%s)",
-                user.id,
-                user.username,
-            )
-            rejection_text = (
-                f"⛔ Unauthorized access. Your User ID ({user.id}) is not whitelisted."
-            )
-
-            if isinstance(event, Message):
-                await event.answer(rejection_text)
-            elif isinstance(event, CallbackQuery):
-                await event.answer(rejection_text, show_alert=True)
-            return None
-
+        if isinstance(event, Message):
+            sender = getattr(event, "from_user", None)
+            sender_info = f"{sender.id} (@{sender.username})" if sender else "Unknown"
+            logger.info("📩 Message from %s: text=%r, content_type=%s", sender_info, event.text or event.caption, event.content_type)
+        elif isinstance(event, CallbackQuery):
+            sender = getattr(event, "from_user", None)
+            sender_info = f"{sender.id} (@{sender.username})" if sender else "Unknown"
+            logger.info("🔘 Callback from %s: data=%r", sender_info, event.data)
         return await handler(event, data)
 

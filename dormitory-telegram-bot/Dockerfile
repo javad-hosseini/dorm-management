@@ -17,6 +17,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 
 # Copy project source and configuration
 COPY README.md .python-version ./
+COPY .env* ./
 COPY config/ ./config/
 COPY src/ ./src/
 
@@ -33,3 +34,11 @@ VOLUME ["/app/data"]
 
 CMD ["python", "-m", "src.main"]
 
+
+
+# docker run -d \
+#   --name dorm-telegram-bot \
+#   --network host \
+#   --restart unless-stopped \
+#   -v "$(pwd)/data:/app/data" \
+#   dorm-telegram-bot:latest
